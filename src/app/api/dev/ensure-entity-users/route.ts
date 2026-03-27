@@ -52,9 +52,9 @@ export async function POST() {
     await ensureProgram('SALES_PRODUCTION_SCHEDULE', 'Agenda Produção', sales.id);
     await ensureProgram('SALES_REPRESENTATIVE', 'Representante', sales.id);
 
-    // 3) Ensure default entity (Cartonificio Valinhos SA)
+    // 3) Ensure default entity (Prolinepet)
     const defaultCnpj = '45.992.476/0001-94';
-    const defaultName = 'Cartonificio Valinhos SA';
+    const defaultName = 'Prolinepet';
     const entity = await prisma.entity.upsert({
       where: { cnpj: defaultCnpj },
       update: { name: defaultName, isActive: true },
@@ -86,8 +86,8 @@ export async function POST() {
       const hashed = await bcrypt.hash(plainPassword, 10);
       return prisma.user.create({ data: { email, name, password: hashed } });
     };
-    const ti = await ensureUser('ti@cartonificiovalinhos.com.br', 'TI', 'Carto123');
-    const tec = await ensureUser('tecnico@cartonificiovalinhos.com.br', 'Técnico', 'Carto123');
+    const ti = await ensureUser('ti@prolinepet.com.br', 'TI', 'Proli123');
+    const tec = await ensureUser('tecnico@prolinepet.com.br', 'Técnico', 'Proli123');
 
     // 6) Link users to entity
     const linkUserEntity = async (userId: number, entityId: number) => {

@@ -67,10 +67,10 @@ export default function WorkOrderDetail() {
         <body>
           <div class="wrap">
             <div class="header">
-              <img class="logo" src="/icons/logo cartonificio.png" alt="Cartonificio" />
+              <img class="logo" src="/icons/icon-512.png" alt="Prolinepet" />
               <div>
                 <div class="title">Ordem de Serviço #${wo.code || wo.id}</div>
-                <div class="meta">Emitida por: Cartonificio Valinhos • ${new Date().toLocaleString()}</div>
+                <div class="meta">Emitida por: Prolinepet • ${new Date().toLocaleString()}</div>
               </div>
             </div>
 
@@ -128,7 +128,7 @@ export default function WorkOrderDetail() {
               <div class="attachments">${attachmentsHtml || '<div>-</div>'}</div>
             </div>
 
-            <div class="footer">Documento gerado pelo CMMS - Cartonificio • ${new Date().toLocaleDateString()}</div>
+            <div class="footer">Documento gerado pelo CMMS - Prolinepet • ${new Date().toLocaleDateString()}</div>
           </div>
         </body>
       </html>

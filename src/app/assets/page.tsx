@@ -368,7 +368,7 @@ function AssetDetailsPanel({ asset }: { asset?: any }) {
     // Se o ativo ainda não existe (ex.: acabou de ser criado e a lista não foi recarregada),
     // evita acessar propriedades indefinidas e usa um fallback de miniatura.
     if (!asset?.id) {
-      setThumb('/icons/logo cartonificio.png');
+      setThumb('/icons/icon-512.png');
       return;
     }
     let active = true;
@@ -382,10 +382,10 @@ function AssetDetailsPanel({ asset }: { asset?: any }) {
           return (mt && mt.startsWith('image')) || /\.(png|jpg|jpeg|webp|gif|svg)$/i.test(url);
         });
         if (!active) return;
-        setThumb(img?.url || '/icons/logo cartonificio.png');
+        setThumb(img?.url || '/icons/icon-512.png');
       } catch {
         if (!active) return;
-        setThumb('/icons/logo cartonificio.png');
+        setThumb('/icons/icon-512.png');
       }
     };
     load();
@@ -403,7 +403,7 @@ function AssetDetailsPanel({ asset }: { asset?: any }) {
   return (
     <div className="border rounded p-3">
       <div className="flex items-start gap-3">
-        <img src={thumb || '/icons/logo cartonificio.png'} alt={asset.name} className="w-20 h-20 object-cover rounded border" />
+        <img src={thumb || '/icons/icon-512.png'} alt={asset.name} className="w-20 h-20 object-cover rounded border" />
         <div className="flex-1">
           <div className="text-lg font-semibold">{asset.name}</div>
           <div className="text-xs text-gray-600">{asset.code || '-'} • {asset.location || '-'}</div>
