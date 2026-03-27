@@ -25,7 +25,7 @@ export default function AssetQuickView() {
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-4">
       <div className="flex items-start gap-4">
-        <img src={asset.thumbnail || '/icons/logo cartonificio.png'} alt={asset.name} className="w-24 h-24 object-cover rounded border" />
+        <img src={asset.thumbnail || '/icons/logo prolinepet.png'} alt={asset.name} className="w-24 h-24 object-cover rounded border" />
         <div className="flex-1">
           <div className="text-2xl font-semibold">{asset.name}</div>
           <div className="text-sm text-gray-600">Código: {asset.code || '-'}</div>

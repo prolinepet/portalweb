@@ -3,7 +3,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = 'ti@cartonificiovalinhos.com.br';
+  const email = 'ti@prolinepet.com.br';
   const moduleCode = 'GESTAO_FINTI';
 
   console.log(`Checking permissions for ${email} on module ${moduleCode}...`);

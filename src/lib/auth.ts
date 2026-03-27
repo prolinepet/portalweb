@@ -32,7 +32,7 @@ export const authOptions: NextAuthOptions = {
              }
         }
 
-        const isBootstrapTi = identifier === 'ti@cartonificiovalinhos.com.br' && credentials.password === '123456';
+        const isBootstrapTi = identifier === 'ti@prolinepet.com.br' && credentials.password === '123456';
         if (isBootstrapTi) {
           const hash = await bcrypt.hash(credentials.password, 10);
           if (!user) {

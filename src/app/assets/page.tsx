@@ -477,14 +477,14 @@ function RootMachinesGrid({ items, loading, onSelect, rootPhotos, setRootPhotos 
       return (mt && mt.startsWith('image')) || /\.(png|jpg|jpeg|webp|gif|svg)$/i.test(url);
     });
     const first = img?.url as string | undefined;
-    setRootPhotos((prev: Record<number, string>) => ({ ...prev, [assetId]: first || '/icons/logo cartonificio.png' }));
+    setRootPhotos((prev: Record<number, string>) => ({ ...prev, [assetId]: first || '/icons/logo prolinepet.png' }));
   };
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {roots.map((r) => (
         <div key={r.id} className="border rounded overflow-hidden cursor-pointer hover:shadow relative" onMouseEnter={() => ensurePhoto(r.id)} onClick={() => onSelect(r.id)}>
           <div className="h-36 bg-gray-100">
-            <img src={rootPhotos[r.id] || '/icons/logo cartonificio.png'} alt={r.name} className="w-full h-36 object-cover" />
+            <img src={rootPhotos[r.id] || '/icons/logo prolinepet.png'} alt={r.name} className="w-full h-36 object-cover" />
             {r.criticality && (
               <span className={`absolute top-2 right-2 text-[11px] px-2 py-0.5 rounded bg-white/80 border ${r.criticality === 'HIGH' ? 'border-red-600 text-red-700' : r.criticality === 'MEDIUM' ? 'border-yellow-600 text-yellow-700' : 'border-green-600 text-green-700'}`}>
                 {r.criticality === 'HIGH' ? 'Criticidade: Alta' : r.criticality === 'MEDIUM' ? 'Criticidade: Média' : 'Criticidade: Baixa'}

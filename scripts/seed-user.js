@@ -5,9 +5,9 @@ const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = 'ti@cartonificiovalinhos';
-  const plain = '123456';
-  const name = 'TI Cartonificio';
+  const email = 'ti@prolinepet.com.br';
+  const plain = 'Proli123';
+  const name = 'TI Prolinepet';
 
   const passwordHash = await bcrypt.hash(plain, 10);
 

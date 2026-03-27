@@ -18,6 +18,9 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
+# Git worktrees (interno)
+.worktrees/
+
 # Tests/coverage
 coverage/
 

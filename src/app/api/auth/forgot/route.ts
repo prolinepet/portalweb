@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     try {
       await sendEmail({
         to: email,
-        subject: 'Recuperação de Senha - CMMS Cartonifício',
+        subject: 'Recuperação de Senha - Prolinepet',
         html: `
           <div style="font-family: sans-serif; padding: 20px;">
             <h2>Recuperação de Senha</h2>

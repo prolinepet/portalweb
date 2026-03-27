@@ -8,8 +8,8 @@ import bcrypt from 'bcryptjs';
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const cnpj = String(body.cnpj ?? '45.992.476/0001-94').trim();
-    const name = String(body.name ?? 'Cartonificio Valinhos SA').trim();
+    const cnpj = String(body.cnpj ?? '12.345.678/0001-90').trim();
+    const name = String(body.name ?? 'Prolinepet SA').trim();
     if (!cnpj || !name) return NextResponse.json({ error: 'CNPJ e Nome obrigatórios' }, { status: 400 });
 
     // Criar entidade se não existir
@@ -24,11 +24,11 @@ export async function POST(request: Request) {
     if (!entityId) return NextResponse.json({ error: 'Falha ao obter id da entidade' }, { status: 500 });
 
     // Garantir usuário TI
-    const tiEmail = 'ti@cartonificiovalinhos.com.br';
+    const tiEmail = 'ti@prolinepet.com.br';
     const tiUserRow: any[] = await prisma.$queryRawUnsafe(`SELECT id FROM "User" WHERE email='${tiEmail}' LIMIT 1`);
     let tiUserId = tiUserRow[0]?.id as number | undefined;
     if (!tiUserId) {
-      const hash = await bcrypt.hash('Carto123', 10);
+      const hash = await bcrypt.hash('Proli123', 10);
       // updatedAt é NOT NULL; definir manualmente para CURRENT_TIMESTAMP
       await prisma.$executeRawUnsafe(`INSERT INTO "User" (email, name, password, updatedAt) VALUES ('${tiEmail}', 'TI', '${hash.replace(/'/g, "''")}', CURRENT_TIMESTAMP)`);
       const tiRow2: any[] = await prisma.$queryRawUnsafe(`SELECT id FROM "User" WHERE email='${tiEmail}' LIMIT 1`);

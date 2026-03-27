@@ -165,10 +165,10 @@ export default function Sidebar({ perms, mobileOpen, setMobileOpen, pathname }: 
         `}
       >
         <div className={`px-3 py-4 border-b border-gray-800 flex items-center ${collapsed ? "justify-center md:justify-center" : "gap-2"}`}>
-          <img src="/icons/logo cartonificio.png" alt="Cartonifício Valinhos" className="w-8 h-8 object-contain" />
+          <img src="/icons/logo prolinepet.png" alt="Prolinepet" className="w-8 h-8 object-contain" />
           {(!collapsed || mobileOpen) && (
             <div className={`md:${collapsed ? "hidden" : "block"}`}>
-              <div className="text-sm font-semibold">Cartonifício Valinhos</div>
+              <div className="text-sm font-semibold">Prolinepet</div>
               <div className="text-xs text-gray-300">Manutenção</div>
             </div>
           )}
