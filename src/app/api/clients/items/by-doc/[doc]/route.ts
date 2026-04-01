@@ -1,40 +1,30 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../../../lib/prisma';
 
-async function ensureCommercialFamilyColumns() {
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS "CommercialFamily" (
-      "id" SERIAL PRIMARY KEY,
-      "description" TEXT NOT NULL,
-      "erpCode" TEXT,
-      "priceBy" TEXT DEFAULT 'UNIT',
-      "createdAt" TIMESTAMP DEFAULT NOW(),
-      "updatedAt" TIMESTAMP
-    );
-  `);
-  await prisma.$executeRawUnsafe('ALTER TABLE "CommercialFamily" ADD COLUMN IF NOT EXISTS "erpCode" TEXT');
-  await prisma.$executeRawUnsafe('ALTER TABLE "CommercialFamily" ADD COLUMN IF NOT EXISTS "priceBy" TEXT DEFAULT \'UNIT\'');
-  await prisma.$executeRawUnsafe('UPDATE "CommercialFamily" SET "priceBy"=\'UNIT\' WHERE "priceBy" IS NULL');
-}
-
-async function ensureClientPaymentTermColumn() {
-  await prisma.$executeRawUnsafe('ALTER TABLE "Client" ADD COLUMN IF NOT EXISTS "paymentTermId" INTEGER');
+function normalizeDoc(doc: string): string {
+  return (doc || '').replace(/\D+/g, '');
 }
 
 export async function GET(request: Request, { params }: { params: { doc: string } }) {
   try {
-    await ensureCommercialFamilyColumns();
-    await ensureClientPaymentTermColumn();
     const url = new URL(request.url);
     const q = (url.searchParams.get('q') || '').trim().toLowerCase();
-    const doc = String(params.doc || '').trim();
+    const docRaw = String(params.doc || '').trim();
+    const doc = normalizeDoc(docRaw);
+    if (!doc) return NextResponse.json([]);
 
     // Removed unnecessary activeEntityId check that was blocking results but not used in query
     // const session = await getServerSession(authOptions);
     // const activeEntityId: number | null = (session as any)?.activeEntityId ?? null;
     // if (!activeEntityId) return NextResponse.json([]);
 
-    const client = await prisma.client.findFirst({ where: { doc } }).catch(() => null);
+    const client = await prisma.client
+      .findFirst({
+        where: {
+          OR: [{ doc }, { doc: docRaw }],
+        },
+      })
+      .catch(() => null);
     if (!client) return NextResponse.json([]);
 
     // Lista vinculada via cadastro/ERP (ClientItem)
