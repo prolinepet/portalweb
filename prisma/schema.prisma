@@ -45,6 +45,8 @@ model User {
   gestaoFintiAtivosAtualizados       GestaoFintiAtivo[]       @relation("GestaoFintiAtivoAtualizadoPor")
   gestaoFintiConfiguracoesCriadas    GestaoFintiConfiguracao[] @relation("GestaoFintiConfiguracaoCriadoPor")
   gestaoFintiConfiguracoesAtualizadas GestaoFintiConfiguracao[] @relation("GestaoFintiConfiguracaoAtualizadoPor")
+
+  @@map("user")
 }
 
 model Asset {
@@ -64,6 +66,8 @@ model Asset {
   children     Asset[]           @relation("AssetChildren")
   photos       AssetAttachment[]
   workOrders   WorkOrder[]
+
+  @@map("asset")
 }
 
 model InventoryItem {
@@ -89,6 +93,8 @@ model InventoryItem {
   // Vínculos por cliente e carrinho
   clientItems     ClientItem[]
   clientCartItems ClientCartItem[]
+
+  @@map("inventoryitem")
 }
 
 model Attachment {
@@ -99,6 +105,8 @@ model Attachment {
   uploadedAt  DateTime  @default(now())
   workOrderId Int
   workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@map("attachment")
 }
 
 model AssetAttachment {
@@ -109,6 +117,8 @@ model AssetAttachment {
   uploadedAt DateTime @default(now())
   assetId    Int
   asset      Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@map("assetattachment")
 }
 
 model WorkOrder {
@@ -142,6 +152,8 @@ model WorkOrder {
   attachments              Attachment[]
   asset                    Asset?       @relation(fields: [assetId], references: [id])
   assignedTo               User?        @relation(fields: [assignedUserId], references: [id])
+
+  @@map("workorder")
 }
 
 model Entity {
@@ -159,6 +171,8 @@ model Entity {
   usersLastEntity User[]         @relation("UserLastEntity")
   userEntities    UserEntity[]
   salesOrders     SalesOrder[]
+
+  @@map("entity")
 }
 
 model Module {
@@ -171,6 +185,8 @@ model Module {
   entityModules     EntityModule[]
   programs          Program[]
   userEntityModules UserEntityModule[]
+
+  @@map("module")
 }
 
 model Program {
@@ -184,6 +200,8 @@ model Program {
   entityModulePrograms     EntityModuleProgram[]
   module                   Module                    @relation(fields: [moduleId], references: [id])
   userEntityModulePrograms UserEntityModuleProgram[]
+
+  @@map("program")
 }
 
 model EntityModule {
@@ -197,6 +215,7 @@ model EntityModule {
   itemLinks EntityModuleItem[]
 
   @@unique([entityId, moduleId])
+  @@map("entitymodule")
 }
 
 model EntityModuleProgram {
@@ -208,6 +227,7 @@ model EntityModuleProgram {
   program        Program      @relation(fields: [programId], references: [id])
 
   @@unique([entityModuleId, programId])
+  @@map("entitymoduleprogram")
 }
 
 model UserEntity {
@@ -219,6 +239,7 @@ model UserEntity {
   modules  UserEntityModule[]
 
   @@unique([userId, entityId])
+  @@map("userentity")
 }
 
 model UserEntityModule {
@@ -231,6 +252,7 @@ model UserEntityModule {
   programs     UserEntityModuleProgram[]
 
   @@unique([userEntityId, moduleId])
+  @@map("userentitymodule")
 }
 
 model UserEntityModuleProgram {
@@ -242,6 +264,7 @@ model UserEntityModuleProgram {
   userEntityModule   UserEntityModule @relation(fields: [userEntityModuleId], references: [id])
 
   @@unique([userEntityModuleId, programId])
+  @@map("userentitymoduleprogram")
 }
 
 model SalesOrder {
@@ -275,6 +298,8 @@ model SalesOrder {
   triangularCustomerName String?
   triangularCustomerDoc  String?
   invoices               SalesOrderInvoice[]
+
+  @@map("salesorder")
 }
 
 model SalesOrderInvoice {
@@ -291,6 +316,7 @@ model SalesOrderInvoice {
   order SalesOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
+  @@map("salesorderinvoice")
 }
 
 model SalesOrderStatusHistory {
@@ -303,6 +329,7 @@ model SalesOrderStatusHistory {
 
   @@index([orderId])
   @@index([changedAt])
+  @@map("salesorderstatushistory")
 }
 
 model SalesOrderItem {
@@ -331,6 +358,8 @@ model SalesOrderItem {
   externalResin         Boolean?       @default(false)
   inventoryItem         InventoryItem? @relation(fields: [inventoryItemId], references: [id])
   order                 SalesOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("salesorderitem")
 }
 
 // Ligação de disponibilidade de Item por EntityModule
@@ -343,6 +372,7 @@ model EntityModuleItem {
   inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
 
   @@unique([entityModuleId, inventoryItemId])
+  @@map("entitymoduleitem")
 }
 
 model Client {
@@ -374,6 +404,7 @@ model Client {
   @@index([name])
   @@index([cidade, estado])
   @@index([paymentTermId])
+  @@map("client")
 }
 
 // Itens vinculados ao cliente (cadastro alimentado via ERP/API)
@@ -390,6 +421,7 @@ model ClientItem {
   inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
 
   @@unique([clientId, inventoryItemId])
+  @@map("clientitem")
 }
 
 model ClientPaymentTerm {
@@ -405,6 +437,7 @@ model ClientPaymentTerm {
   @@unique([clientId, paymentTermId])
   @@index([clientId])
   @@index([paymentTermId])
+  @@map("clientpaymentterm")
 }
 
 // Carrinho de compras do cliente
@@ -420,6 +453,7 @@ model ClientCartItem {
   inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
 
   @@unique([clientId, inventoryItemId])
+  @@map("clientcartitem")
 }
 
 model UserClientRep {
@@ -431,6 +465,7 @@ model UserClientRep {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, clientId])
+  @@map("userclientrep")
 }
 
 model Complaint {
@@ -469,6 +504,8 @@ model Complaint {
   createdBy           User?           @relation(fields: [createdById], references: [id])
   entity              Entity          @relation(fields: [entityId], references: [id])
   items               ComplaintItem[]
+
+  @@map("complaint")
 }
 
 model ComplaintItem {
@@ -488,6 +525,8 @@ model ComplaintItem {
   divergencePercent Float     @default(0)
   totalPercent      Float     @default(0)
   complaint         Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@map("complaintitem")
 }
 
 model StandardOccurrence {
@@ -498,6 +537,7 @@ model StandardOccurrence {
   families    StandardOccurrenceFamily[]
 
   @@index([description])
+  @@map("standardoccurrence")
 }
 
 model StandardOccurrenceFamily {
@@ -508,6 +548,7 @@ model StandardOccurrenceFamily {
 
   @@id([occurrenceId, familyId])
   @@index([familyId])
+  @@map("standardoccurrencefamily")
 }
 
 model CommercialFamily {
@@ -523,6 +564,7 @@ model CommercialFamily {
 
   @@index([description])
   @@index([erpCode])
+  @@map("commercialfamily")
 }
 
 model PaymentTerm {
@@ -536,6 +578,7 @@ model PaymentTerm {
   clientLinks  ClientPaymentTerm[]
 
   @@index([description])
+  @@map("paymentterm")
 }
 
 model sessions {
@@ -550,6 +593,8 @@ model SystemSetting {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+
+  @@map("systemsetting")
 }
 
 model users {

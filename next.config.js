@@ -1,5 +1,4 @@
 const path = require('path');
-
 const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,

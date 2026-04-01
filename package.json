@@ -5,19 +5,16 @@
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
-    "start": "next start -p 3000",
-    "start:prod": "node server.js",
+    "start": "node server.js",
     "build:standalone": "next build",
     "lint": "next lint",
     "prisma:generate": "node -e \"process.env.PRISMA_CLIENT_ENGINE_TYPE='binary'; require('child_process').execSync('prisma generate', { stdio: 'inherit', shell: true })\"",
-    "prisma:migrate": "node -e \"process.env.PRISMA_CLIENT_ENGINE_TYPE='binary'; require('child_process').execSync('prisma db push', { stdio: 'inherit', shell: true })\"",
-    "version:commit": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/commit-version.ps1",
-    "version:commit:push": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/commit-version.ps1 -Push"
+    "prisma:migrate": "node -e \"process.env.PRISMA_CLIENT_ENGINE_TYPE='binary'; require('child_process').execSync('prisma db push', { stdio: 'inherit', shell: true })\""
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
-    "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.3",
+    "autoprefixer": "^10.4.16",
     "chart.js": "^4.5.1",
     "date-fns": "^2.30.0",
     "dotenv": "^17.2.3",
@@ -26,11 +23,13 @@
     "next-auth": "^4.24.7",
     "nodemailer": "^7.0.13",
     "otplib": "^13.2.1",
+    "postcss": "^8.4.31",
     "qrcode": "^1.5.4",
     "react": "18.2.0",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "18.2.0",
     "recharts": "^3.7.0",
+    "tailwindcss": "^3.4.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -38,12 +37,9 @@
     "@types/node": "^20.11.19",
     "@types/nodemailer": "^7.0.9",
     "@types/react": "^18.2.0",
-    "autoprefixer": "^10.4.16",
     "eslint": "^8.57.1",
     "eslint-config-next": "^14.2.10",
-    "postcss": "^8.4.31",
     "prisma": "^5.22.0",
-    "tailwindcss": "^3.4.1",
     "typescript": "^5.4.0"
   }
 }
