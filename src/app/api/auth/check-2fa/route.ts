@@ -44,7 +44,7 @@ export async function POST(req: Request) {
 
     // Need setup
     const secret = authenticator.generateSecret();
-    const otpauth = authenticator.keyuri(user.email, 'Cartonificio Valinhos', secret);
+    const otpauth = authenticator.keyuri(user.email, 'Prolinepet', secret);
 
     return NextResponse.json({ required: true, setup: true, secret, otpauth });
 
