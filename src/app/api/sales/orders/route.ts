@@ -7,6 +7,17 @@ function normalizeDoc(doc: string): string {
   return (doc || '').replace(/\D+/g, '');
 }
 
+async function resolveEntityIdFromDoc(raw: unknown): Promise<number | undefined> {
+  const doc = typeof raw === 'string' ? normalizeDoc(raw) : '';
+  if (!doc) return undefined;
+  const direct = await prisma.entity.findFirst({ where: { cnpj: doc }, select: { id: true } }).catch(() => null);
+  if (direct?.id) return Number(direct.id);
+  const candidates = await prisma.entity.findMany({ select: { id: true, cnpj: true } }).catch(() => []);
+  const match = (candidates || []).find((e: any) => normalizeDoc(String(e?.cnpj || '')) === doc);
+  const id = match?.id;
+  return id ? Number(id) : undefined;
+}
+
 function computeWeightKgFromFields(it: { width?: number | null; length?: number | null; grammage?: number | null; quantity?: number | null }): number {
   const w = Number(it.width ?? 0);
   const l = Number(it.length ?? 0);
@@ -169,14 +180,8 @@ export async function POST(request: Request) {
       ? entityDoc
       : undefined;
     if (rawCnpj) {
-      const doc = rawCnpj.replace(/\D+/g, '');
-      if (doc) {
-        const rows: any[] = await prisma.$queryRawUnsafe(
-          `SELECT "id" FROM "Entity" WHERE regexp_replace("cnpj", '\\D', '', 'g')='${doc}' LIMIT 1`
-        );
-        const eid = rows[0]?.id as number | undefined;
-        if (eid) entityId = eid;
-      }
+      const eid = await resolveEntityIdFromDoc(rawCnpj);
+      if (eid) entityId = eid;
     }
     if (!entityId && createdById) {
       const u = await prisma.user.findUnique({ where: { id: createdById }, select: { lastEntityId: true } });
@@ -189,16 +194,14 @@ export async function POST(request: Request) {
     const invMap = new Map<number, { priceBy?: string | null }>();
     if (invIds.length > 0) {
       const unique = Array.from(new Set(invIds));
-      const inList = unique.join(',');
-      const rows: any[] = await prisma.$queryRawUnsafe(`
-        SELECT inv."id" AS "inventoryItemId", cf."priceBy" AS "priceBy"
-        FROM "InventoryItem" inv
-        LEFT JOIN "CommercialFamily" cf ON cf."id" = inv."commercialFamilyId"
-        WHERE inv."id" IN (${inList})
-      `);
-      for (const r of rows) {
-        const id = Number(r.inventoryItemId);
-        if (Number.isFinite(id) && id > 0) invMap.set(id, { priceBy: r.priceBy != null ? String(r.priceBy) : null });
+      const invItems = await prisma.inventoryItem.findMany({
+        where: { id: { in: unique } },
+        select: { id: true, commercialFamily: { select: { priceBy: true } } },
+      });
+      for (const it of invItems) {
+        const id = Number(it.id);
+        if (!Number.isFinite(id) || id <= 0) continue;
+        invMap.set(id, { priceBy: it.commercialFamily?.priceBy != null ? String(it.commercialFamily.priceBy) : null });
       }
     }
 
@@ -252,6 +255,9 @@ export async function POST(request: Request) {
     const total = subtotal - discountTotal;
 
     if (clientId) {
+      await prisma
+        .$executeRawUnsafe('DELETE FROM clientpaymentterm WHERE clientId = ? AND id IS NULL', Math.trunc(clientId))
+        .catch(() => {});
       const client = await prisma.client.findUnique({
         where: { id: clientId },
         select: { id: true, paymentTermId: true }
@@ -278,11 +284,14 @@ export async function POST(request: Request) {
           if (!resolved) {
             return NextResponse.json({ error: 'Condição de pagamento inválida para este cliente' }, { status: 400 });
           }
-          const allowed = await prisma.clientPaymentTerm.findFirst({
-            where: { clientId, paymentTermId: resolved.id },
-            select: { id: true }
-          });
-          if (!allowed) {
+          const allowedRows = await prisma
+            .$queryRawUnsafe<any[]>(
+              'SELECT id FROM clientpaymentterm WHERE clientId = ? AND paymentTermId = ? AND id IS NOT NULL LIMIT 1',
+              Math.trunc(clientId),
+              Math.trunc(resolved.id),
+            )
+            .catch(() => []);
+          if (!allowedRows || allowedRows.length === 0) {
             return NextResponse.json({ error: 'Condição de pagamento não permitida para este cliente' }, { status: 400 });
           }
         } else if (client?.paymentTermId && resolved?.id && client.paymentTermId !== resolved.id) {
@@ -292,28 +301,109 @@ export async function POST(request: Request) {
     }
 
     const code = `ORD-${Date.now()}`;
-    const created = await prisma.salesOrder.create({
-      data: {
-        code,
-        entityId,
-        customerName,
-        customerDoc: customerDocNorm || undefined,
-        clientId: clientId,
-        triangularCustomerName: triangularCustomerName || undefined,
-        triangularCustomerDoc: triangularCustomerDocNorm || undefined,
-        paymentTerms: paymentTerms !== undefined && paymentTerms !== null ? String(paymentTerms) : undefined,
-        carrier: carrier || undefined,
-        deliveryDate: parseDate(deliveryDate),
-        notes: notes || undefined,
-        createdById: createdById,
-        subtotal,
-        discountTotal,
-        total,
-        items: { create: normalizedItems },
-      },
-      include: { items: true },
-    });
-    return NextResponse.json(created, { status: 201 });
+    const orderCreateData = {
+      code,
+      entityId,
+      customerName,
+      customerDoc: customerDocNorm || undefined,
+      clientId: clientId,
+      triangularCustomerName: triangularCustomerName || undefined,
+      triangularCustomerDoc: triangularCustomerDocNorm || undefined,
+      paymentTerms: paymentTerms !== undefined && paymentTerms !== null ? String(paymentTerms) : undefined,
+      carrier: carrier || undefined,
+      deliveryDate: parseDate(deliveryDate),
+      notes: notes || undefined,
+      createdById: createdById,
+      subtotal,
+      discountTotal,
+      total,
+      items: { create: normalizedItems },
+    } as const;
+
+    try {
+      const created = await prisma.salesOrder.create({
+        data: orderCreateData,
+        include: { items: true },
+      });
+      return NextResponse.json(created, { status: 201 });
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      if (!msg.includes('Could not figure out an ID in create')) throw e;
+
+      const createdId = await prisma.$transaction(async (tx) => {
+        const nextOrderIdRows = await tx.$queryRawUnsafe<any[]>('SELECT COALESCE(MAX(id), 0) + 1 as id FROM salesorder');
+        const nextOrderId = nextOrderIdRows?.[0]?.id ? Number(nextOrderIdRows[0].id) : null;
+        if (!nextOrderId || !Number.isFinite(nextOrderId) || nextOrderId <= 0) return null;
+
+        await tx.$executeRawUnsafe(
+          `INSERT INTO salesorder
+            (id, code, entityId, customerName, customerDoc, clientId, triangularCustomerName, triangularCustomerDoc, paymentTerms, carrier, deliveryDate, notes, createdById, subtotal, discountTotal, total, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+          Math.trunc(nextOrderId),
+          code,
+          entityId ?? null,
+          customerName,
+          customerDocNorm || null,
+          clientId ?? null,
+          triangularCustomerName || null,
+          triangularCustomerDocNorm || null,
+          paymentTerms !== undefined && paymentTerms !== null ? String(paymentTerms) : null,
+          carrier || null,
+          parseDate(deliveryDate) ?? null,
+          notes || null,
+          createdById ?? null,
+          subtotal,
+          discountTotal,
+          total,
+        );
+
+        const id = Math.trunc(nextOrderId);
+
+        const nextItemIdRows = await tx.$queryRawUnsafe<any[]>('SELECT COALESCE(MAX(id), 0) + 1 as id FROM salesorderitem');
+        let nextItemId = nextItemIdRows?.[0]?.id ? Number(nextItemIdRows[0].id) : null;
+        if (!nextItemId || !Number.isFinite(nextItemId) || nextItemId <= 0) return null;
+
+        for (const it of normalizedItems as any[]) {
+          const creasesJson = it.creases !== undefined ? JSON.stringify(it.creases) : null;
+          await tx.$executeRawUnsafe(
+            `INSERT INTO salesorderitem
+              (id, orderId, inventoryItemId, sku, name, quantity, unit, unitPrice, discountPct, lineTotal, width, length, grammage, diameter, tube, weightKg, creases, clientOrderNumber, clientOrderItemNumber, itemDeliveryDate, internalResin, externalResin)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            Math.trunc(nextItemId),
+            Math.trunc(id),
+            it.inventoryItemId ?? null,
+            it.sku ?? null,
+            it.name,
+            Math.trunc(Number(it.quantity ?? 1)),
+            it.unit ?? null,
+            Number(it.unitPrice ?? 0),
+            Number(it.discountPct ?? 0),
+            Number(it.lineTotal ?? 0),
+            it.width ?? null,
+            it.length ?? null,
+            it.grammage ?? null,
+            it.diameter ?? null,
+            it.tube ?? null,
+            it.weightKg ?? null,
+            creasesJson,
+            it.clientOrderNumber ?? null,
+            it.clientOrderItemNumber ?? null,
+            it.itemDeliveryDate instanceof Date ? it.itemDeliveryDate : (it.itemDeliveryDate ? new Date(it.itemDeliveryDate) : null),
+            it.internalResin ? 1 : 0,
+            it.externalResin ? 1 : 0,
+          );
+          nextItemId += 1;
+        }
+
+        return Math.trunc(id);
+      });
+
+      if (!createdId || !Number.isFinite(createdId)) {
+        return NextResponse.json({ error: 'Falha ao obter ID do pedido após criação (fallback)' }, { status: 500 });
+      }
+
+      return NextResponse.json({ id: createdId }, { status: 201 });
+    }
   } catch (err: any) {
     console.error('Create order error:', err);
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
