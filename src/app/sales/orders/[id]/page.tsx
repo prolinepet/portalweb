@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { SalesOrderItemRow, supportsSheetDims, supportsCoreDims } from "../components/SalesOrderItemRow";
+import { SalesOrderItemCard, SalesOrderItemRow, supportsSheetDims, supportsCoreDims } from "../components/SalesOrderItemRow";
 
 type InventoryItem = {
   id: number;
@@ -253,6 +253,31 @@ function translateHistoryMessageLabel(m: string): string {
   return raw.slice(0, startIdx) + translated + rest;
 }
 
+function isoToBrDate(iso: string): string {
+  const s = String(iso || '').trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return s;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function brToIsoDate(br: string): string | null {
+  const s = String(br || '').trim();
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const dd = Number(m[1]);
+  const mm = Number(m[2]);
+  const yyyy = Number(m[3]);
+  if (!Number.isFinite(dd) || !Number.isFinite(mm) || !Number.isFinite(yyyy)) return null;
+  if (yyyy < 1900 || yyyy > 2200) return null;
+  if (mm < 1 || mm > 12) return null;
+  if (dd < 1 || dd > 31) return null;
+  const dt = new Date(yyyy, mm - 1, dd);
+  if (dt.getFullYear() !== yyyy || dt.getMonth() !== mm - 1 || dt.getDate() !== dd) return null;
+  const isoMm = String(mm).padStart(2, '0');
+  const isoDd = String(dd).padStart(2, '0');
+  return `${String(yyyy).padStart(4, '0')}-${isoMm}-${isoDd}`;
+}
+
 export default function SalesOrderMaintenancePage() {
   const params = useParams() as any;
   const id = Number(params.id);
@@ -262,6 +287,7 @@ export default function SalesOrderMaintenancePage() {
   const [error, setError] = useState<string | null>(null);
   const [showFeaturesFor, setShowFeaturesFor] = useState<number | null>(null);
   const [hdrDraft, setHdrDraft] = useState<{ paymentTerms?: string; deliveryDate?: string; customerName?: string; customerDoc?: string; triangularCustomerName?: string; triangularCustomerDoc?: string }>({});
+  const [deliveryDateBr, setDeliveryDateBr] = useState('');
   const [hdrCustomerId, setHdrCustomerId] = useState<number | null>(null);
   const [isHeaderEditing, setIsHeaderEditing] = useState(false);
   const [addingItems, setAddingItems] = useState(false);
@@ -274,10 +300,16 @@ export default function SalesOrderMaintenancePage() {
   const [checkingEdit, setCheckingEdit] = useState(false);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
 
+  const canEditOrder = isEditableStatus(order?.status);
+
   // Billing History
   const [showBilling, setShowBilling] = useState(false);
   const [invoices, setInvoices] = useState<SalesOrderInvoice[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
+
+  useEffect(() => {
+    setDeliveryDateBr(isoToBrDate(hdrDraft.deliveryDate ?? ''));
+  }, [hdrDraft.deliveryDate]);
 
   const loadInvoices = async () => {
     setLoadingInvoices(true);
@@ -565,12 +597,12 @@ export default function SalesOrderMaintenancePage() {
 
 
   return (
-    <div className="p-3 space-y-2">
+    <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold">Manutenção de Pedidos</h1>
           {order && (
-            <span className={`text-xs px-2 py-1 rounded ${statusChipStyle(statusLabelPt(order.status))}`}>
+            <span className={`hidden sm:inline-flex text-xs px-2 py-1 rounded ${statusChipStyle(statusLabelPt(order.status))}`}>
               {statusLabelPt(order.status)}
             </span>
           )}
@@ -597,148 +629,23 @@ export default function SalesOrderMaintenancePage() {
       {order && (
         <div className="space-y-3">
           {/* Header do pedido com ícones à direita */}
-          <div className="border rounded bg-white p-2 text-sm">
-            <div className="flex items-start gap-3">
-              <div className="flex flex-col gap-3 flex-1">
-                {/* Linha Superior: Número, Data, Entidade, Última Simulação */}
-                <div className="flex flex-wrap items-center gap-8">
-                  <div>
-                    <span className="text-gray-600">Número</span>
-                    <div className="font-mono mt-1">{order.code}</div>
+          <div className="border rounded bg-white p-2 text-sm overflow-x-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-start gap-3 min-w-0">
+              <div className="order-1 sm:order-2 w-full sm:w-auto sm:ml-auto">
+                <div className="flex flex-col items-stretch sm:items-end gap-2">
+                  <div className="flex sm:justify-end">
+                    <button 
+                      className={`flex items-center gap-1 px-3 py-1 text-sm bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 text-gray-700 ${!isEditableStatus(order?.status) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      onClick={handleSimulateTaxes}
+                      disabled={simulating || !isEditableStatus(order?.status)}
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                      {simulating ? 'Simulando...' : 'Simular Impostos'}
+                    </button>
                   </div>
-                  <div>
-                    <span className="text-gray-600">Pedido ERP</span>
-                    <div className="font-mono mt-1 text-blue-600">{order.erpOrderNumber || '-'}</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Data</span>
-                    <div className="mt-1">{new Date(order.orderDate).toLocaleDateString('pt-BR')}</div>
-                  </div>
-                  {order.entity && (
-                    <div>
-                      <span className="text-gray-600">Entidade</span>
-                      <div className="mt-1 font-medium">{order.entity.name}</div>
-                    </div>
-                  )}
-                  {order.lastTaxSimulation && (
-                     <div className="ml-auto">
-                       <span className="text-gray-600">Última simulação</span>
-                       <div className="mt-1">
-                         {new Date(order.lastTaxSimulation).toLocaleDateString('pt-BR')} - {new Date(order.lastTaxSimulation).toLocaleTimeString('pt-BR')}
-                       </div>
-                     </div>
-                  )}
-                </div>
 
-                {/* Linha de Inputs: Cliente, Pagamento, Entrega */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mt-2">
-                  <div className={`md:col-span-6 ${!isHeaderEditing || (order.items && order.items.length > 0) || !['OPEN', 'Orçamento'].includes(order.status || '') ? "opacity-75 pointer-events-none" : ""}`}>
-                     <AsyncSelect
-                        label="Cliente"
-                        value={hdrDraft.customerName ?? ''}
-                        onChange={(val) => setHdrDraft((d) => ({ ...d, customerName: val }))}
-                        onSelectObj={(item) => {
-                           setHdrDraft((d) => ({ ...d, customerName: item.name, customerDoc: item.doc }));
-                           setHdrCustomerId(Number(item.id));
-                           (async () => {
-                             try {
-                               const ptRes = await fetch(`/api/base/payment-terms?clientId=${Number(item.id)}`);
-                               const ptData = await ptRes.json();
-                               const list = Array.isArray(ptData) ? ptData : [];
-                               const first = list[0];
-                               if (first?.description) {
-                                 const newVal = first.code != null ? `[${first.code}] ${first.description}` : String(first.description);
-                                 setHdrDraft((d) => ({ ...d, paymentTerms: newVal }));
-                               }
-                             } catch {}
-                           })();
-                        }}
-                        fetchUrl={(q) => `/api/base/clients?q=${q}`}
-                        placeholder="Pesquise por nome ou documento"
-                        getLabel={(item) => item.name}
-                        renderOption={(item) => (
-                          <div>
-                            <div className="font-medium">{item.name}</div>
-                            <div className="text-xs text-gray-500">{item.doc}</div>
-                          </div>
-                        )}
-                      />
-                  </div>
-                  <div className={`md:col-span-3 ${!isHeaderEditing ? "opacity-75 pointer-events-none" : ""}`}>
-                    <AsyncSelect
-                      label="Condição de pagamento"
-                      value={hdrDraft.paymentTerms ?? ''}
-                      onChange={(val) => setHdrDraft((d) => ({ ...d, paymentTerms: val }))}
-                      onSelectObj={(item) => {
-                         const newVal = `[${item.code}] ${item.description}`;
-                         setHdrDraft((d) => ({ ...d, paymentTerms: newVal }));
-                      }}
-                      fetchUrl={(q) => `/api/base/payment-terms?clientId=${hdrCustomerId ? String(hdrCustomerId) : '0'}&q=${q}`}
-                      placeholder="Digite código ou descrição"
-                      getLabel={(item) => `[${item.code}] ${item.description}`}
-                      renderOption={(item) => (
-                        <div>
-                          <div className="font-medium">{item.description}</div>
-                          <div className="text-xs text-gray-500">Código: {item.code} | Parcelas: {item.installments}</div>
-                        </div>
-                      )}
-                    />
-                  </div>
-                  <div className="md:col-span-3">
-                    <span className="text-gray-600">Entrega</span>
-                    <input type="date" className="mt-1 w-full px-2 py-1 border rounded" value={hdrDraft.deliveryDate ?? ''} onChange={(e) => setHdrDraft((d) => ({ ...d, deliveryDate: e.target.value }))} disabled={!isHeaderEditing} />
-                  </div>
-                  <div className={`md:col-span-6 ${!isHeaderEditing ? "opacity-75 pointer-events-none" : ""}`}>
-                     <AsyncSelect
-                        label="Cliente Remessa Triangular"
-                        value={hdrDraft.triangularCustomerName ?? ''}
-                        onChange={(val) => setHdrDraft((d) => ({ ...d, triangularCustomerName: val }))}
-                        onSelectObj={(item) => {
-                           setHdrDraft((d) => ({ ...d, triangularCustomerName: item.name, triangularCustomerDoc: item.doc }));
-                        }}
-                        fetchUrl={(q) => `/api/base/clients?q=${q}`}
-                        placeholder="Pesquise por nome ou documento"
-                        getLabel={(item) => item.name}
-                        renderOption={(item) => (
-                          <div>
-                            <div className="font-medium">{item.name}</div>
-                            <div className="text-xs text-gray-500">{item.doc}</div>
-                          </div>
-                        )}
-                      />
-                  </div>
-                </div>
-
-                {/* Totais */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-2">
-                  <div>
-                    <span className="text-gray-600">Total Sem Imp R$</span>
-                    <div className="mt-1 w-full px-2 py-1 border rounded bg-gray-50 text-gray-800">{fmtCurrency(globalTotalNoTax)}</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Total Com Imp R$</span>
-                    <div className="mt-1 w-full px-2 py-1 border rounded bg-yellow-100 text-gray-800 font-bold">{fmtCurrency(order.totalWithTax ?? 0)}</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Total Peso (KG)</span>
-                    <div className="mt-1 w-full px-2 py-1 border rounded bg-gray-50 text-gray-800">{fmtInt(globalWeight)}</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Total Fat. R$</span>
-                    <div className="mt-1 w-full px-2 py-1 border rounded bg-blue-50 text-gray-800 font-medium" title="Atualizado via ERP">{fmtCurrency(order.totalInvoiced ?? 0)}</div>
-                  </div>
-                </div>
-              </div>
-              <div className="ml-auto flex gap-2">
-                <button 
-                  className={`flex items-center gap-1 px-3 py-1 text-sm bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 text-gray-700 ${!isEditableStatus(order?.status) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  onClick={handleSimulateTaxes}
-                  disabled={simulating || !isEditableStatus(order?.status)}
-                >
-                  {simulating ? 'Simulando...' : 'Simular Impostos'}
-                </button>
-
-                <button className={`${ICON_BTN} ${integrating || !isEditableStatus(order?.status) || isHeaderEditing ? 'opacity-50 cursor-not-allowed' : ''}`} title="Enviar para ERP" aria-label="Enviar para ERP" disabled={integrating || !isEditableStatus(order?.status) || isHeaderEditing} style={{ opacity: integrating || !isEditableStatus(order?.status) || isHeaderEditing ? 0.5 : 1, pointerEvents: integrating || !isEditableStatus(order?.status) || isHeaderEditing ? 'none' : 'auto' }} onClick={async () => {
+                  <div className="flex items-center gap-2 sm:justify-end">
+                    <button className={`${ICON_BTN} ${integrating || !isEditableStatus(order?.status) || isHeaderEditing ? 'opacity-50 cursor-not-allowed' : ''}`} title="Enviar para ERP" aria-label="Enviar para ERP" disabled={integrating || !isEditableStatus(order?.status) || isHeaderEditing} style={{ opacity: integrating || !isEditableStatus(order?.status) || isHeaderEditing ? 0.5 : 1, pointerEvents: integrating || !isEditableStatus(order?.status) || isHeaderEditing ? 'none' : 'auto' }} onClick={async () => {
                   if (!order) return;
                   if (!confirm('Confirma enviar este pedido para o ERP?')) return;
                   setIntegrating(true);
@@ -776,25 +683,59 @@ export default function SalesOrderMaintenancePage() {
                       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                   )}
                 </button>
-                <button className={`${ICON_BTN} ${!isDeletableStatus(order?.status) || isHeaderEditing ? 'opacity-50 cursor-not-allowed' : ''}`} title="Excluir" aria-label="Excluir" disabled={!isDeletableStatus(order?.status) || isHeaderEditing} style={{ opacity: !isDeletableStatus(order?.status) || isHeaderEditing ? 0.5 : 1, pointerEvents: !isDeletableStatus(order?.status) || isHeaderEditing ? 'none' : 'auto' }} onClick={async () => { if (!order) return; if (!confirm('Confirma excluir este pedido?')) return; const r = await fetch(`/api/sales/orders/${order.id}`, { method: 'DELETE' }); if (r.ok) router.push('/sales/orders'); }}>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                </button>
-                {isHeaderEditing ? (
-                  <>
-                    <button className="inline-flex items-center justify-center w-8 h-8 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 text-green-600" title="Salvar" aria-label="Salvar" onClick={() => saveHeader({ paymentTerms: hdrDraft.paymentTerms, deliveryDate: hdrDraft.deliveryDate, customerName: hdrDraft.customerName, customerDoc: hdrDraft.customerDoc, triangularCustomerName: hdrDraft.triangularCustomerName, triangularCustomerDoc: hdrDraft.triangularCustomerDoc, clientId: hdrCustomerId })}>
+                    <button className={`${ICON_BTN} ${!isDeletableStatus(order?.status) || isHeaderEditing ? 'opacity-50 cursor-not-allowed' : ''}`} title="Excluir" aria-label="Excluir" disabled={!isDeletableStatus(order?.status) || isHeaderEditing} style={{ opacity: !isDeletableStatus(order?.status) || isHeaderEditing ? 0.5 : 1, pointerEvents: !isDeletableStatus(order?.status) || isHeaderEditing ? 'none' : 'auto' }} onClick={async () => { if (!order) return; if (!confirm('Confirma excluir este pedido?')) return; const r = await fetch(`/api/sales/orders/${order.id}`, { method: 'DELETE' }); if (r.ok) router.push('/sales/orders'); }}>
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+
+                    <button
+                      className={`${ICON_BTN} ${isHeaderEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      title="Copiar Pedido"
+                      aria-label="Copiar Pedido"
+                      disabled={isHeaderEditing}
+                      style={{ opacity: isHeaderEditing ? 0.5 : 1, pointerEvents: isHeaderEditing ? 'none' : 'auto' }}
+                      onClick={() => {
+                        if (!order) return;
+                        router.push(`/sales/orders/new?copyFrom=${order.id}`);
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                      </svg>
+                    </button>
+
+                    {isHeaderEditing ? (
+                      <>
+                        <button className="inline-flex items-center justify-center w-8 h-8 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 text-green-600" title="Salvar" aria-label="Salvar" onClick={() => {
+                      const digits = deliveryDateBr.replace(/\D/g, '');
+                      if (digits.length !== 0 && digits.length !== 8) {
+                        alert('Entrega inválida. Use DD/MM/AAAA.');
+                        return;
+                      }
+                      if (digits.length === 8) {
+                        const iso = brToIsoDate(deliveryDateBr);
+                        if (!iso) {
+                          alert('Entrega inválida. Use DD/MM/AAAA.');
+                          return;
+                        }
+                        saveHeader({ paymentTerms: hdrDraft.paymentTerms, deliveryDate: iso, customerName: hdrDraft.customerName, customerDoc: hdrDraft.customerDoc, triangularCustomerName: hdrDraft.triangularCustomerName, triangularCustomerDoc: hdrDraft.triangularCustomerDoc, clientId: hdrCustomerId });
+                        return;
+                      }
+                      saveHeader({ paymentTerms: hdrDraft.paymentTerms, deliveryDate: '', customerName: hdrDraft.customerName, customerDoc: hdrDraft.customerDoc, triangularCustomerName: hdrDraft.triangularCustomerName, triangularCustomerDoc: hdrDraft.triangularCustomerDoc, clientId: hdrCustomerId });
+                    }}>
                       <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17Z"/></svg>
                     </button>
                     <button className="inline-flex items-center justify-center w-8 h-8 bg-red-50 border border-red-200 rounded shadow-sm hover:bg-red-100 text-red-600" title="Cancelar" aria-label="Cancelar" onClick={() => { setIsHeaderEditing(false); setHdrCustomerId((order as any)?.clientId != null ? Number((order as any).clientId) : hdrCustomerId); setHdrDraft({ paymentTerms: order.paymentTerms || '', deliveryDate: order.deliveryDate ? new Date(order.deliveryDate).toISOString().slice(0,10) : '', customerName: order.customerName || '', customerDoc: order.customerDoc || '', triangularCustomerName: order.triangularCustomerName || '', triangularCustomerDoc: order.triangularCustomerDoc || '' }); }}>
                       <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.41 4.29 19.71 2.88 18.3 9.17 12 2.88 5.71 4.29 4.29 10.59 10.59 16.89 4.29l1.41 1.42Z"/></svg>
                     </button>
-                  </>
-                ) : (
-                  <button 
-                    className={`${ICON_BTN} ${(!isEditableStatus(order?.status) && statusLabelPt(order?.status) !== 'Integrado') || checkingEdit ? 'opacity-50 cursor-not-allowed' : ''}`} 
-                    title="Editar" 
-                    aria-label="Editar" 
-                    disabled={(!isEditableStatus(order?.status) && statusLabelPt(order?.status) !== 'Integrado') || checkingEdit} 
-                    onClick={async () => {
+                      </>
+                    ) : (
+                      <button 
+                        className={`${ICON_BTN} ${(!isEditableStatus(order?.status) && statusLabelPt(order?.status) !== 'Integrado') || checkingEdit ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                        title="Editar" 
+                        aria-label="Editar" 
+                        disabled={(!isEditableStatus(order?.status) && statusLabelPt(order?.status) !== 'Integrado') || checkingEdit} 
+                        onClick={async () => {
                         const status = statusLabelPt(order?.status);
                         if (status === 'Integrado') {
                             setCheckingEdit(true);
@@ -868,7 +809,162 @@ export default function SalesOrderMaintenancePage() {
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
                     )}
                   </button>
-                )}
+                    )}
+                  </div>
+                </div>
+                <div className="mt-2 sm:hidden">
+                  <span className={`inline-flex text-xs px-2 py-1 rounded ${statusChipStyle(statusLabelPt(order.status))}`}>
+                    {statusLabelPt(order.status)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="order-2 sm:order-1 flex flex-col gap-3 flex-1 min-w-0">
+                {/* Linha Superior: Número, Data, Entidade, Última Simulação */}
+                <div className="flex flex-wrap items-center gap-8">
+                  <div>
+                    <span className="text-gray-600">Número</span>
+                    <div className="font-mono mt-1">{order.code}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Pedido ERP</span>
+                    <div className="font-mono mt-1 text-blue-600">{order.erpOrderNumber || '-'}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Data</span>
+                    <div className="mt-1">{new Date(order.orderDate).toLocaleDateString('pt-BR')}</div>
+                  </div>
+                  {order.entity && (
+                    <div>
+                      <span className="text-gray-600">Entidade</span>
+                      <div className="mt-1 font-medium">{order.entity.name}</div>
+                    </div>
+                  )}
+                  {order.lastTaxSimulation && (
+                     <div className="ml-auto">
+                       <span className="text-gray-600">Última simulação</span>
+                       <div className="mt-1">
+                         {new Date(order.lastTaxSimulation).toLocaleDateString('pt-BR')} - {new Date(order.lastTaxSimulation).toLocaleTimeString('pt-BR')}
+                       </div>
+                     </div>
+                  )}
+                </div>
+
+                {/* Linha de Inputs: Cliente, Pagamento, Entrega */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mt-2 min-w-0">
+                  <div className={`md:col-span-6 ${!isHeaderEditing || (order.items && order.items.length > 0) || !['OPEN', 'Orçamento'].includes(order.status || '') ? "opacity-75 pointer-events-none" : ""}`}>
+                     <AsyncSelect
+                        label="Cliente"
+                        value={hdrDraft.customerName ?? ''}
+                        onChange={(val) => setHdrDraft((d) => ({ ...d, customerName: val }))}
+                        onSelectObj={(item) => {
+                           setHdrDraft((d) => ({ ...d, customerName: item.name, customerDoc: item.doc }));
+                           setHdrCustomerId(Number(item.id));
+                           (async () => {
+                             try {
+                               const ptRes = await fetch(`/api/base/payment-terms?clientId=${Number(item.id)}`);
+                               const ptData = await ptRes.json();
+                               const list = Array.isArray(ptData) ? ptData : [];
+                               const first = list[0];
+                               if (first?.description) {
+                                 const newVal = first.code != null ? `[${first.code}] ${first.description}` : String(first.description);
+                                 setHdrDraft((d) => ({ ...d, paymentTerms: newVal }));
+                               }
+                             } catch {}
+                           })();
+                        }}
+                        fetchUrl={(q) => `/api/base/clients?q=${q}`}
+                        placeholder="Pesquise por nome ou documento"
+                        getLabel={(item) => item.name}
+                        renderOption={(item) => (
+                          <div>
+                            <div className="font-medium">{item.name}</div>
+                            <div className="text-xs text-gray-500">{item.doc}</div>
+                          </div>
+                        )}
+                      />
+                  </div>
+                  <div className={`md:col-span-3 ${!isHeaderEditing ? "opacity-75 pointer-events-none" : ""}`}>
+                    <AsyncSelect
+                      label="Condição de pagamento"
+                      value={hdrDraft.paymentTerms ?? ''}
+                      onChange={(val) => setHdrDraft((d) => ({ ...d, paymentTerms: val }))}
+                      onSelectObj={(item) => {
+                         const newVal = `[${item.code}] ${item.description}`;
+                         setHdrDraft((d) => ({ ...d, paymentTerms: newVal }));
+                      }}
+                      fetchUrl={(q) => `/api/base/payment-terms?clientId=${hdrCustomerId ? String(hdrCustomerId) : '0'}&q=${q}`}
+                      placeholder="Digite código ou descrição"
+                      getLabel={(item) => `[${item.code}] ${item.description}`}
+                      renderOption={(item) => (
+                        <div>
+                          <div className="font-medium">{item.description}</div>
+                          <div className="text-xs text-gray-500">Código: {item.code} | Parcelas: {item.installments}</div>
+                        </div>
+                      )}
+                    />
+                  </div>
+                  <div className="md:col-span-3 min-w-0">
+                    <span className="text-gray-600">Entrega</span>
+                    <input type="text" inputMode="numeric" placeholder="DD/MM/AAAA" className="mt-1 block w-full min-w-0 max-w-full px-2 py-1 border rounded sm:hidden" value={deliveryDateBr} onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+                      let next = digits;
+                      if (digits.length > 2) next = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+                      if (digits.length > 4) next = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+                      setDeliveryDateBr(next);
+                      if (digits.length === 0) {
+                        setHdrDraft((d) => ({ ...d, deliveryDate: '' }));
+                        return;
+                      }
+                      if (digits.length !== 8) {
+                        setHdrDraft((d) => ({ ...d, deliveryDate: '' }));
+                        return;
+                      }
+                      const iso = brToIsoDate(next);
+                      setHdrDraft((d) => ({ ...d, deliveryDate: iso ?? '' }));
+                    }} disabled={!isHeaderEditing} />
+                    <input type="date" className="mt-1 hidden sm:block w-full min-w-0 max-w-full px-2 py-1 border rounded" value={hdrDraft.deliveryDate ?? ''} onChange={(e) => setHdrDraft((d) => ({ ...d, deliveryDate: e.target.value }))} disabled={!isHeaderEditing} />
+                  </div>
+                  <div className={`md:col-span-6 ${!isHeaderEditing ? "opacity-75 pointer-events-none" : ""}`}>
+                     <AsyncSelect
+                        label="Cliente Remessa Triangular"
+                        value={hdrDraft.triangularCustomerName ?? ''}
+                        onChange={(val) => setHdrDraft((d) => ({ ...d, triangularCustomerName: val }))}
+                        onSelectObj={(item) => {
+                           setHdrDraft((d) => ({ ...d, triangularCustomerName: item.name, triangularCustomerDoc: item.doc }));
+                        }}
+                        fetchUrl={(q) => `/api/base/clients?q=${q}`}
+                        placeholder="Pesquise por nome ou documento"
+                        getLabel={(item) => item.name}
+                        renderOption={(item) => (
+                          <div>
+                            <div className="font-medium">{item.name}</div>
+                            <div className="text-xs text-gray-500">{item.doc}</div>
+                          </div>
+                        )}
+                      />
+                  </div>
+                </div>
+
+                {/* Totais */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-2">
+                  <div>
+                    <span className="text-gray-600">Total Sem Imp R$</span>
+                    <div className="mt-1 w-full px-2 py-1 border rounded bg-gray-50 text-gray-800">{fmtCurrency(globalTotalNoTax)}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Total Com Imp R$</span>
+                    <div className="mt-1 w-full px-2 py-1 border rounded bg-yellow-100 text-gray-800 font-bold">{fmtCurrency(order.totalWithTax ?? 0)}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Total Peso (KG)</span>
+                    <div className="mt-1 w-full px-2 py-1 border rounded bg-gray-50 text-gray-800">{fmtInt(globalWeight)}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Total Fat. R$</span>
+                    <div className="mt-1 w-full px-2 py-1 border rounded bg-blue-50 text-gray-800 font-medium" title="Atualizado via ERP">{fmtCurrency(order.totalInvoiced ?? 0)}</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -935,53 +1031,93 @@ export default function SalesOrderMaintenancePage() {
               </button>
             </div>
             {showBilling && (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Nr Nota Fiscal</th>
-                      <th className="px-3 py-2 text-left">Data Emissão</th>
-                      <th className="px-3 py-2 text-right">Vlr Tot Nota R$</th>
-                      <th className="px-3 py-2 text-right">Peso Tot Nota Kg</th>
-                      <th className="px-3 py-2 text-center">Opções</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loadingInvoices && <tr><td colSpan={5} className="px-3 py-4 text-center text-gray-500">Carregando...</td></tr>}
-                    {!loadingInvoices && invoices.length === 0 && <tr><td colSpan={5} className="px-3 py-4 text-center text-gray-500">Nenhum faturamento registrado.</td></tr>}
-                    {!loadingInvoices && invoices.map((inv) => (
-                      <tr key={inv.id} className="border-t hover:bg-gray-50">
-                        <td className="px-3 py-2">{inv.invoiceNumber}</td>
-                        <td className="px-3 py-2">{new Date(inv.issueDate).toLocaleDateString('pt-BR')}</td>
-                        <td className="px-3 py-2 text-right">{fmtCurrency(inv.totalValue)}</td>
-                        <td className="px-3 py-2 text-right">{fmtNumber(inv.totalWeight)}</td>
-                        <td className="px-3 py-2 text-center">
-                           <div className="flex justify-center gap-2">
-                             {inv.danfeFileName && (
-                               <a 
-                                 href={`/api/sales/orders/${id}/invoices/${inv.id}/download?type=danfe`} 
-                                 target="_blank" 
-                                 className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 text-blue-600"
-                               >
-                                 Baixar DANFE
-                               </a>
-                             )}
-                             {inv.xmlFileName && (
-                               <a 
-                                 href={`/api/sales/orders/${id}/invoices/${inv.id}/download?type=xml`} 
-                                 target="_blank" 
-                                 className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 text-green-600"
-                               >
-                                 Baixar XML
-                               </a>
-                             )}
-                           </div>
-                        </td>
+              <>
+                <div className="sm:hidden divide-y">
+                  {loadingInvoices && <div className="px-3 py-4 text-center text-gray-500 text-sm">Carregando...</div>}
+                  {!loadingInvoices && invoices.length === 0 && <div className="px-3 py-4 text-center text-gray-500 text-sm">Nenhum faturamento registrado.</div>}
+                  {!loadingInvoices && invoices.map((inv) => (
+                    <div key={inv.id} className="p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-gray-900 truncate">{inv.invoiceNumber}</div>
+                          <div className="text-xs text-gray-600">{new Date(inv.issueDate).toLocaleDateString('pt-BR')}</div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-xs text-gray-600">{fmtNumber(inv.totalWeight)} Kg</div>
+                          <div className="text-sm font-medium text-gray-900">{fmtCurrency(inv.totalValue)}</div>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-center gap-2">
+                        {inv.danfeFileName && (
+                          <a 
+                            href={`/api/sales/orders/${id}/invoices/${inv.id}/download?type=danfe`} 
+                            target="_blank" 
+                            className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 text-blue-600"
+                          >
+                            Baixar DANFE
+                          </a>
+                        )}
+                        {inv.xmlFileName && (
+                          <a 
+                            href={`/api/sales/orders/${id}/invoices/${inv.id}/download?type=xml`} 
+                            target="_blank" 
+                            className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 text-green-600"
+                          >
+                            Baixar XML
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Nr Nota Fiscal</th>
+                        <th className="px-3 py-2 text-left">Data Emissão</th>
+                        <th className="px-3 py-2 text-right">Vlr Tot Nota R$</th>
+                        <th className="px-3 py-2 text-right">Peso Tot Nota Kg</th>
+                        <th className="px-3 py-2 text-center">Opções</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {loadingInvoices && <tr><td colSpan={5} className="px-3 py-4 text-center text-gray-500">Carregando...</td></tr>}
+                      {!loadingInvoices && invoices.length === 0 && <tr><td colSpan={5} className="px-3 py-4 text-center text-gray-500">Nenhum faturamento registrado.</td></tr>}
+                      {!loadingInvoices && invoices.map((inv) => (
+                        <tr key={inv.id} className="border-t hover:bg-gray-50">
+                          <td className="px-3 py-2">{inv.invoiceNumber}</td>
+                          <td className="px-3 py-2">{new Date(inv.issueDate).toLocaleDateString('pt-BR')}</td>
+                          <td className="px-3 py-2 text-right">{fmtCurrency(inv.totalValue)}</td>
+                          <td className="px-3 py-2 text-right">{fmtNumber(inv.totalWeight)}</td>
+                          <td className="px-3 py-2 text-center">
+                            <div className="flex justify-center gap-2">
+                              {inv.danfeFileName && (
+                                <a 
+                                  href={`/api/sales/orders/${id}/invoices/${inv.id}/download?type=danfe`} 
+                                  target="_blank" 
+                                  className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 text-blue-600"
+                                >
+                                  Baixar DANFE
+                                </a>
+                              )}
+                              {inv.xmlFileName && (
+                                <a 
+                                  href={`/api/sales/orders/${id}/invoices/${inv.id}/download?type=xml`} 
+                                  target="_blank" 
+                                  className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 text-green-600"
+                                >
+                                  Baixar XML
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
 
@@ -990,9 +1126,14 @@ export default function SalesOrderMaintenancePage() {
             <div className="px-3 py-2 border-b flex items-center gap-2">
               <span className="text-sm text-gray-700">Itens</span>
               <button 
-                className={`ml-auto px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 ${!isHeaderEditing ? 'opacity-50 cursor-not-allowed' : ''}`} 
-                disabled={!isHeaderEditing} 
-                onClick={() => { setAddingItems(true); searchClientItems(''); }}
+                className={`ml-auto px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 ${!isHeaderEditing && !canEditOrder ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                disabled={!isHeaderEditing && !canEditOrder} 
+                onClick={() => { 
+                  if (!isHeaderEditing) setIsHeaderEditing(true);
+                  setAddingItems(true);
+                  setSearchTerm('');
+                  searchClientItems('');
+                }}
               >
                 Adicionar itens
               </button>
@@ -1000,7 +1141,7 @@ export default function SalesOrderMaintenancePage() {
             {addingItems && (
               <div className="p-3 border-b">
                 <div className="flex items-center gap-2">
-                  <input className="flex-1 px-2 py-1 border rounded" placeholder="Pesquisar itens do cliente" value={searchTerm} onChange={(e) => { const v = e.target.value; setSearchTerm(v); searchClientItems(v); }} />
+                  <input className="flex-1 px-2 py-1 border rounded" placeholder="Pesquisar itens do cliente" value={searchTerm} onChange={(e) => { const v = e.target.value; setSearchTerm(v); searchClientItems(v); }} autoFocus />
                   <button className="px-2 py-1 text-xs border rounded" onClick={() => setAddingItems(false)}>Fechar</button>
                 </div>
                 <div className="mt-2">
@@ -1024,7 +1165,59 @@ export default function SalesOrderMaintenancePage() {
           {groups.map(([fam, list]) => (
             <div key={fam} className="border rounded bg-white">
               <div className="p-2 text-xs text-gray-600">{fam}</div>
-              <div className="overflow-x-auto">
+              <div className="sm:hidden divide-y">
+                {list.map((it) => {
+                  const hasSheet = list.some(supportsSheetDims);
+                  const hasCore = list.some(supportsCoreDims);
+                  const isFeatures = showFeaturesFor === it.id;
+
+                  return (
+                    <SalesOrderItemCard
+                      key={it.id}
+                      item={it}
+                      isOrderEditable={isEditableStatus(order?.status)}
+                      canDelete={isDeletableStatus(order?.status)}
+                      onPreviewUpdate={(updated) => {
+                        setOrderItems((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+                      }}
+                      onAutoSave={async (updated) => {
+                        if (!order) return;
+                        try {
+                          const res = await fetch(`/api/sales/orders/items/${updated.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(updated)
+                          });
+                          if (!res.ok) {
+                            const err = await res.json().catch(() => ({}));
+                            throw new Error(err.error || "Falha ao salvar item");
+                          }
+                        } catch (e: any) { alert(e?.message || String(e)); }
+                      }}
+                      onDelete={async () => {
+                        if (!order) return;
+                        if (!confirm("Confirma excluir este item?")) return;
+                        try {
+                          const r = await fetch(`/api/sales/orders/items/${it.id}`, { method: "DELETE" });
+                          if (!r.ok) {
+                            const err = await r.json().catch(() => ({}));
+                            throw new Error(err.error || "Falha ao excluir item");
+                          }
+                          await refreshOrder();
+                        } catch (e: any) { alert(e?.message || String(e)); }
+                      }}
+                      showFeatures={isFeatures}
+                      toggleFeatures={() => setShowFeaturesFor(isFeatures ? null : it.id)}
+                      computeWeightKg={computeWeightKg}
+                      fmtInt={fmtInt}
+                      hasSheetCol={hasSheet}
+                      hasCoreCol={hasCore}
+                      onSaveSuccess={refreshOrder}
+                    />
+                  );
+                })}
+              </div>
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50">
@@ -1068,7 +1261,10 @@ export default function SalesOrderMaintenancePage() {
                                if (!confirm('Confirma excluir este item?')) return;
                                try {
                                  const res = await fetch(`/api/sales/orders/items/${it.id}`, { method: 'DELETE' });
-                                 if (!res.ok) throw new Error('Falha ao excluir item');
+                                 if (!res.ok) {
+                                   const err = await res.json().catch(() => ({}));
+                                   throw new Error(err.error || 'Falha ao excluir item');
+                                 }
                                  await refreshOrder();
                                } catch (e: any) { alert(e?.message || String(e)); }
                            }}
