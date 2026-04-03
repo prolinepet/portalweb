@@ -164,12 +164,6 @@ export default function Sidebar({ perms, mobileOpen, setMobileOpen, pathname, us
       >
         <div className={`px-3 py-4 border-b border-gray-800 flex items-center ${collapsed ? "justify-center md:justify-center" : "gap-2"}`}>
           <img src="/icons/logo-prolinepet.svg" alt="Prolinepet" className={`${collapsed && !mobileOpen ? "w-8 h-8" : "h-8 w-28"} object-contain`} />
-          {(!collapsed || mobileOpen) && (
-            <div className={`md:${collapsed ? "hidden" : "block"}`}>
-              <div className="text-sm font-semibold">Prolinepet</div>
-              <div className="text-xs text-gray-300">Manutenção</div>
-            </div>
-          )}
           {/* Desktop Toggle */}
           <button onClick={toggle} className="ml-auto text-gray-300 hover:text-white hidden md:block" aria-label="Alternar menu">
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"/></svg>
