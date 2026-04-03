@@ -67,7 +67,7 @@ export default function WorkOrderDetail() {
         <body>
           <div class="wrap">
             <div class="header">
-              <img class="logo" src="/icons/icon-512.png" alt="Prolinepet" />
+              <img class="logo" src="/icons/logo-prolinepet.svg" alt="Prolinepet" />
               <div>
                 <div class="title">Ordem de Serviço #${wo.code || wo.id}</div>
                 <div class="meta">Emitida por: Prolinepet • ${new Date().toLocaleString()}</div>
