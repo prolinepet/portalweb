@@ -51,6 +51,7 @@ export default function SalesDashboard() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState<string>('');
   const [entityId, setEntityId] = useState<string>('');
+  const [breakdownTab, setBreakdownTab] = useState<'family' | 'client' | 'representative' | 'region'>('family');
 
   const months = [
     { value: '1', label: 'Janeiro' },
@@ -94,6 +95,29 @@ export default function SalesDashboard() {
   }, [year, month, entityId]);
 
   const fmtMoney = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+
+  const BreakdownGrid = ({ firstColumnLabel }: { firstColumnLabel: string }) => (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-xs border border-gray-300">
+        <thead>
+          <tr className="bg-indigo-100 text-gray-900">
+            <th className="border border-gray-300 px-2 py-1 text-left font-semibold">{firstColumnLabel}</th>
+            <th className="border border-gray-300 px-2 py-1 text-right font-semibold">Meta Prevista</th>
+            <th className="border border-gray-300 px-2 py-1 text-right font-semibold">Carregado</th>
+            <th className="border border-gray-300 px-2 py-1 text-right font-semibold">Devolução</th>
+            <th className="border border-gray-300 px-2 py-1 text-right font-semibold">Realizado Líq</th>
+            <th className="border border-gray-300 px-2 py-1 text-right font-semibold">(%)Atingimento</th>
+            <th className="border border-gray-300 px-2 py-1 text-right font-semibold">Em Carteira</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td className="border border-gray-300 px-2 py-2 text-gray-500" colSpan={7}>Sem dados</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
 
   // Common options for charts
   const commonOptions: ChartOptions<'bar'> = {
@@ -227,6 +251,92 @@ export default function SalesDashboard() {
                 <option key={e.id} value={e.id}>{e.name}</option>
             ))}
           </select>
+        </div>
+      </div>
+
+      <div className="bg-white rounded shadow border border-gray-200">
+        <div className="border-b border-gray-200 px-4">
+          <ul className="flex flex-wrap -mb-px text-sm font-medium text-center text-gray-500">
+            <li className="mr-2">
+              <button
+                onClick={() => setBreakdownTab('family')}
+                className={`inline-block p-3 border-b-2 rounded-t-lg transition-colors duration-200 ${
+                  breakdownTab === 'family'
+                    ? "text-blue-600 border-blue-600"
+                    : "border-transparent hover:text-gray-600 hover:border-gray-300"
+                }`}
+                aria-current={breakdownTab === 'family' ? "page" : undefined}
+              >
+                Por Família
+              </button>
+            </li>
+            <li className="mr-2">
+              <button
+                onClick={() => setBreakdownTab('client')}
+                className={`inline-block p-3 border-b-2 rounded-t-lg transition-colors duration-200 ${
+                  breakdownTab === 'client'
+                    ? "text-blue-600 border-blue-600"
+                    : "border-transparent hover:text-gray-600 hover:border-gray-300"
+                }`}
+                aria-current={breakdownTab === 'client' ? "page" : undefined}
+              >
+                Por Cliente
+              </button>
+            </li>
+            <li className="mr-2">
+              <button
+                onClick={() => setBreakdownTab('representative')}
+                className={`inline-block p-3 border-b-2 rounded-t-lg transition-colors duration-200 ${
+                  breakdownTab === 'representative'
+                    ? "text-blue-600 border-blue-600"
+                    : "border-transparent hover:text-gray-600 hover:border-gray-300"
+                }`}
+                aria-current={breakdownTab === 'representative' ? "page" : undefined}
+              >
+                Por Representante
+              </button>
+            </li>
+            <li className="mr-2">
+              <button
+                onClick={() => setBreakdownTab('region')}
+                className={`inline-block p-3 border-b-2 rounded-t-lg transition-colors duration-200 ${
+                  breakdownTab === 'region'
+                    ? "text-blue-600 border-blue-600"
+                    : "border-transparent hover:text-gray-600 hover:border-gray-300"
+                }`}
+                aria-current={breakdownTab === 'region' ? "page" : undefined}
+              >
+                Por Região
+              </button>
+            </li>
+          </ul>
+        </div>
+
+        <div className="p-4">
+          {breakdownTab === 'family' && (
+            <div className="space-y-2">
+              <div className="text-sm font-semibold text-gray-700">Por Família</div>
+              <BreakdownGrid firstColumnLabel="Descrição Família" />
+            </div>
+          )}
+          {breakdownTab === 'client' && (
+            <div className="space-y-2">
+              <div className="text-sm font-semibold text-gray-700">Por Cliente</div>
+              <BreakdownGrid firstColumnLabel="Descrição Cliente" />
+            </div>
+          )}
+          {breakdownTab === 'representative' && (
+            <div className="space-y-2">
+              <div className="text-sm font-semibold text-gray-700">Por Representante</div>
+              <BreakdownGrid firstColumnLabel="Descrição Representante" />
+            </div>
+          )}
+          {breakdownTab === 'region' && (
+            <div className="space-y-2">
+              <div className="text-sm font-semibold text-gray-700">Por Região</div>
+              <BreakdownGrid firstColumnLabel="Descrição Região" />
+            </div>
+          )}
         </div>
       </div>
 
