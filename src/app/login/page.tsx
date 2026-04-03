@@ -169,7 +169,7 @@ function LoginForm() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="w-full max-w-sm bg-white shadow rounded p-6">
         <div className="flex flex-col items-center mb-4">
-          <img src="/icons/icon-512.png" alt="Prolinepet" className="w-24 max-h-20 object-contain mb-2" />
+          <img src="/icons/logo-prolinepet.svg" alt="Prolinepet" className="h-16 w-48 object-contain mb-2" />
           <h1 className="text-xl font-semibold">
             {step === 'credentials' && "Seja bem vindo"}
             {step === '2fa' && "Verificação em Duas Etapas"}

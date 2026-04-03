@@ -163,7 +163,7 @@ export default function Sidebar({ perms, mobileOpen, setMobileOpen, pathname, us
         `}
       >
         <div className={`px-3 py-4 border-b border-gray-800 flex items-center ${collapsed ? "justify-center md:justify-center" : "gap-2"}`}>
-          <img src="/icons/logo prolinepet.png" alt="Prolinepet" className="w-8 h-8 object-contain" />
+          <img src="/icons/logo-prolinepet.svg" alt="Prolinepet" className={`${collapsed && !mobileOpen ? "w-8 h-8" : "h-8 w-28"} object-contain`} />
           {(!collapsed || mobileOpen) && (
             <div className={`md:${collapsed ? "hidden" : "block"}`}>
               <div className="text-sm font-semibold">Prolinepet</div>
