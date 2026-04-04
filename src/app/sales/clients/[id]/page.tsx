@@ -1,6 +1,6 @@
 "use client";
 // Rebuild trigger: Fix webpack runtime error
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 type Client = { 
@@ -35,8 +35,7 @@ type SalesOrder = {
 };
 type LinkedItem = { id: number; name: string; sku?: string | null; unit?: string | null; unitPrice?: number; width?: number; length?: number; grammage?: number };
 type CartItem = { id: number; inventoryItemId: number; name: string; sku?: string | null; unit?: string | null; quantity: number; unitPrice: number };
-
-const normalizeDoc = (doc?: string | null) => String(doc || '').replace(/\D+/g, '');
+ 
 
 const statusColor = (s: string) => {
   const v = (s || '').trim();
