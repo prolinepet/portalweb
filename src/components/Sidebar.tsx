@@ -162,7 +162,7 @@ export default function Sidebar({ perms, mobileOpen, setMobileOpen, pathname, us
           w-64
         `}
       >
-        <div className={`px-3 py-4 border-b border-gray-800 flex items-center ${collapsed ? "justify-center md:justify-center" : "gap-2"}`}>
+        <div className={`px-3 py-4 border-b border-gray-950 flex items-center ${collapsed ? "justify-center md:justify-center" : "gap-2"}`}>
           <img src="/icons/logo-prolinepet.svg" alt="Prolinepet" className={`${collapsed && !mobileOpen ? "w-8 h-8" : "h-8 w-28"} object-contain`} />
           {/* Desktop Toggle */}
           <button onClick={toggle} className="ml-auto text-gray-300 hover:text-white hidden md:block" aria-label="Alternar menu">
@@ -174,7 +174,7 @@ export default function Sidebar({ perms, mobileOpen, setMobileOpen, pathname, us
           </button>
         </div>
       {mobileOpen && (
-        <div className="px-3 py-3 border-b border-gray-800 md:hidden">
+        <div className="px-3 py-3 border-b border-gray-950 md:hidden">
           <div className="text-xs text-gray-300">Usuário</div>
           <div className="text-sm font-medium text-white truncate">{userLabel || "-"}</div>
           <Link
@@ -270,7 +270,7 @@ export default function Sidebar({ perms, mobileOpen, setMobileOpen, pathname, us
           );
         })}
       </nav>
-      <div className="mt-auto p-2 border-t border-gray-800">
+      <div className="mt-auto p-2 border-t border-gray-950">
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
           className={`w-full ${collapsed ? "px-0" : "px-3"} py-2 rounded text-sm text-gray-200 hover:bg-gray-700 flex items-center ${collapsed ? "justify-center" : "gap-2"}`}

@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import React, { useEffect, useMemo, useState } from "react";
 
 type OrderItem = { id: number; name: string; quantity: number; unitPrice: number; discountPct: number };
@@ -191,7 +192,7 @@ export default function SalesOrdersPage() {
           <span>Listagem de pedidos</span>
           <div className="ml-auto flex items-center gap-2">
             <span className="text-xs text-gray-500">{filtered.length} registro(s)</span>
-            <a href="/sales/orders/new" className="px-3 py-1.5 text-xs border rounded bg-white hover:bg-gray-100">Novo Pedido</a>
+            <Link href="/sales/orders/new" className="px-3 py-1.5 text-xs border rounded bg-white hover:bg-gray-100">Novo Pedido</Link>
           </div>
         </div>
         <div className="sm:hidden divide-y">
@@ -268,7 +269,10 @@ export default function SalesOrdersPage() {
                     if (!confirm('Confirma excluir este pedido?')) return;
                     try {
                       const r = await fetch(`/api/sales/orders/${o.id}`, { method: 'DELETE' });
-                      if (!r.ok) throw new Error('Falha ao excluir pedido');
+                      if (!r.ok) {
+                        const body = await r.json().catch(() => null as any);
+                        throw new Error(body?.error || 'Falha ao excluir pedido');
+                      }
                       setOrders((prev) => prev.filter((so) => so.id !== o.id));
                     } catch (e: any) { alert(e?.message || String(e)); }
                   }}>
@@ -362,7 +366,10 @@ export default function SalesOrdersPage() {
                         if (!confirm('Confirma excluir este pedido?')) return;
                         try {
                           const r = await fetch(`/api/sales/orders/${o.id}`, { method: 'DELETE' });
-                          if (!r.ok) throw new Error('Falha ao excluir pedido');
+                          if (!r.ok) {
+                            const body = await r.json().catch(() => null as any);
+                            throw new Error(body?.error || 'Falha ao excluir pedido');
+                          }
                           setOrders((prev) => prev.filter((so) => so.id !== o.id));
                         } catch (e: any) { alert(e?.message || String(e)); }
                       }}>

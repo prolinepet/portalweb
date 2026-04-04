@@ -7,6 +7,38 @@ function normalizeDoc(doc: string): string {
   return (doc || '').replace(/\D+/g, '');
 }
 
+function parsePositiveInt(raw: unknown): number | null {
+  const s = String(raw ?? '').trim();
+  const m = s.match(/^\d+/);
+  if (!m) return null;
+  const n = Number(m[0]);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.trunc(n);
+}
+
+async function resolveOrderKey(rawKey: string): Promise<{ id: number; customerDoc: string | null; clientId: number | null } | null> {
+  const key = String(rawKey ?? '').trim();
+  if (!key) return null;
+  if (!/^[A-Za-z0-9-]+$/.test(key)) return null;
+
+  const numeric = parsePositiveInt(key);
+  if (numeric) {
+    const byId = await prisma.salesOrder.findUnique({
+      where: { id: numeric },
+      select: { id: true, customerDoc: true, clientId: true },
+    });
+    if (byId) return byId;
+  }
+
+  const code = key.toUpperCase();
+  if (code.length > 32) return null;
+  const byCode = await prisma.salesOrder.findFirst({
+    where: { code },
+    select: { id: true, customerDoc: true, clientId: true },
+  });
+  return byCode;
+}
+
 async function shouldRestrictToLinkedClients(userId: number): Promise<boolean> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { salesRepAdmin: true, isSalesAdmin: true } });
   if (user?.isSalesAdmin) return false;
@@ -15,8 +47,17 @@ async function shouldRestrictToLinkedClients(userId: number): Promise<boolean> {
   return hasLinks;
 }
 
-async function canAccessOrderByCustomerDoc(userId: number, customerDoc?: string | null): Promise<boolean> {
-  const doc = normalizeDoc(String(customerDoc || ''));
+async function canAccessOrder(userId: number, order: { clientId?: number | null; customerDoc?: string | null }): Promise<boolean> {
+  const clientId = order?.clientId != null ? Number(order.clientId) : null;
+  if (clientId && Number.isFinite(clientId) && clientId > 0) {
+    const byId = await prisma.userClientRep.findFirst({
+      where: { userId, clientId: Math.trunc(clientId) },
+      select: { id: true }
+    });
+    if (byId) return true;
+  }
+
+  const doc = normalizeDoc(String(order?.customerDoc || ''));
   if (!doc) return false;
   const link = await prisma.userClientRep.findFirst({
     where: { userId, client: { is: { doc } } },
@@ -25,52 +66,79 @@ async function canAccessOrderByCustomerDoc(userId: number, customerDoc?: string 
   return Boolean(link);
 }
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  const userId = session?.user ? Number((session.user as any).id) : null;
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const id = Number(params.id);
-  const orderExists = await prisma.salesOrder.findUnique({ where: { id }, select: { id: true, customerDoc: true } });
-  if (!orderExists) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
-
-  if (await shouldRestrictToLinkedClients(userId)) {
-    const ok = await canAccessOrderByCustomerDoc(userId, orderExists.customerDoc);
-    if (!ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  const order = await prisma.salesOrder.findUnique({
-    where: { id },
-    include: {
-      entity: true,
-      items: {
-        include: {
-          inventoryItem: { include: { commercialFamily: true } }
-        }
-      }
-    }
-  });
-  if (!order) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
-  const history = await prisma.salesOrderStatusHistory.findMany({
-    where: { orderId: id },
-    orderBy: { changedAt: 'desc' },
-    select: { id: true, status: true, changedAt: true, messages: true },
-  });
-  return NextResponse.json({ ...order, statusHistory: history });
-}
-
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function GET(_: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const session = await getServerSession(authOptions);
     const userId = session?.user ? Number((session.user as any).id) : null;
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const id = Number(params.id);
-    const orderExists = await prisma.salesOrder.findUnique({ where: { id }, select: { id: true, customerDoc: true } });
+    const rawKey = String(params.id ?? '').trim();
+    if (!rawKey) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+
+    const orderKey = await resolveOrderKey(rawKey);
+    if (!orderKey) {
+      if (!/^[A-Za-z0-9-]+$/.test(rawKey) || rawKey.length > 32) {
+        return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+      }
+      return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
+    }
+    const id = Number(orderKey.id);
+
+    if (await shouldRestrictToLinkedClients(userId)) {
+      const ok = await canAccessOrder(userId, orderKey);
+      if (!ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const order = await prisma.salesOrder.findUnique({
+      where: { id },
+      include: {
+        entity: true,
+        items: {
+          include: {
+            inventoryItem: { include: { commercialFamily: true } }
+          }
+        }
+      }
+    });
+    if (!order) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
+
+    let history: any[] = [];
+    try {
+      history = await prisma.salesOrderStatusHistory.findMany({
+        where: { orderId: id },
+        orderBy: { changedAt: 'desc' },
+        select: { id: true, status: true, changedAt: true, messages: true },
+      });
+    } catch {
+      const base = await prisma.salesOrderStatusHistory.findMany({
+        where: { orderId: id },
+        orderBy: { changedAt: 'desc' },
+        select: { id: true, status: true, changedAt: true },
+      });
+      history = base.map((h) => ({ ...h, messages: [] }));
+    }
+
+    return NextResponse.json({ ...order, statusHistory: history });
+  } catch (err: any) {
+    return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  try {
+    const session = await getServerSession(authOptions);
+    const userId = session?.user ? Number((session.user as any).id) : null;
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const id = parsePositiveInt(params.id);
+    if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+    const orderExists = await prisma.salesOrder.findUnique({ where: { id }, select: { id: true, customerDoc: true, clientId: true } });
     if (!orderExists) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
 
     if (await shouldRestrictToLinkedClients(userId)) {
-      const ok = await canAccessOrderByCustomerDoc(userId, orderExists.customerDoc);
+      const ok = await canAccessOrder(userId, orderExists);
       if (!ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -142,22 +210,36 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const session = await getServerSession(authOptions);
     const userId = session?.user ? Number((session.user as any).id) : null;
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const id = Number(params.id);
-    const orderExists = await prisma.salesOrder.findUnique({ where: { id }, select: { id: true, customerDoc: true } });
-    if (!orderExists) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
+    const rawKey = String(params.id ?? '').trim();
+    if (!rawKey) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+
+    const orderKey = await resolveOrderKey(rawKey);
+    if (!orderKey) {
+      if (!/^[A-Za-z0-9-]+$/.test(rawKey) || rawKey.length > 32) {
+        return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+      }
+      return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
+    }
+    const id = Number(orderKey.id);
 
     if (await shouldRestrictToLinkedClients(userId)) {
-      const ok = await canAccessOrderByCustomerDoc(userId, orderExists.customerDoc);
+      const ok = await canAccessOrder(userId, orderKey);
       if (!ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    await prisma.salesOrder.delete({ where: { id } });
+    await prisma.$transaction([
+      prisma.salesOrderItem.deleteMany({ where: { orderId: id } }),
+      prisma.salesOrderInvoice.deleteMany({ where: { orderId: id } }),
+      prisma.salesOrderStatusHistory.deleteMany({ where: { orderId: id } }),
+      prisma.salesOrder.delete({ where: { id } }),
+    ]);
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });

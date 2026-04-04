@@ -1,12 +1,9 @@
 const path = require('path');
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
-  output: 'standalone',
+  cleanDistDir: false,
   webpack: (config) => {
     config.resolve.alias['@'] = path.resolve(__dirname, 'src');
     return config;

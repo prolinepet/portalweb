@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { SalesOrderItemCard, SalesOrderItemRow, supportsSheetDims, supportsCoreDims } from "../components/SalesOrderItemRow";
 
@@ -280,7 +281,9 @@ function brToIsoDate(br: string): string | null {
 
 export default function SalesOrderMaintenancePage() {
   const params = useParams() as any;
-  const id = Number(params.id);
+  const idParam = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const idKey = String(idParam ?? '').trim();
+  const numericId = Number.isFinite(Number(idKey)) ? Math.trunc(Number(idKey)) : null;
   const router = useRouter();
   const [order, setOrder] = useState<SalesOrder | null>(null);
   const [loading, setLoading] = useState(true);
@@ -312,9 +315,11 @@ export default function SalesOrderMaintenancePage() {
   }, [hdrDraft.deliveryDate]);
 
   const loadInvoices = async () => {
+    const oid = order?.id ?? numericId;
+    if (!oid) return;
     setLoadingInvoices(true);
     try {
-      const res = await fetch(`/api/sales/orders/${id}/invoices`);
+      const res = await fetch(`/api/sales/orders/${oid}/invoices`);
       if (res.ok) {
         const data = await res.json();
         setInvoices(Array.isArray(data) ? data : []);
@@ -425,8 +430,15 @@ export default function SalesOrderMaintenancePage() {
   };
 
   useEffect(() => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    const hardTimeout = setTimeout(() => {
+      setError((prev) => prev ?? 'Tempo limite ao carregar o pedido. Tente novamente.');
+      setLoading(false);
+    }, 30000);
+
     const load = async () => {
-      if (!Number.isFinite(id)) {
+      if (!idKey) {
         setError('ID do pedido inválido na URL');
         setLoading(false);
         return;
@@ -435,11 +447,8 @@ export default function SalesOrderMaintenancePage() {
       setLoading(true);
       setError(null);
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 20000);
-
       try {
-        const res = await fetch(`/api/sales/orders/${id}`, { cache: 'no-store', signal: controller.signal });
+        const res = await fetch(`/api/sales/orders/${encodeURIComponent(idKey)}`, { cache: 'no-store', signal: controller.signal });
 
         if (!res.ok) {
           let msg = `Falha ao carregar pedido (HTTP ${res.status})`;
@@ -473,7 +482,7 @@ export default function SalesOrderMaintenancePage() {
           try {
             const docDigits = String(data.customerDoc || '').replace(/\D+/g, '');
             if (docDigits) {
-              const cRes = await fetch(`/api/base/clients?q=${encodeURIComponent(docDigits)}`);
+              const cRes = await fetch(`/api/base/clients?q=${encodeURIComponent(docDigits)}`, { cache: 'no-store', signal: controller.signal });
               const cArr = await cRes.json();
               if (Array.isArray(cArr)) {
                 const match = cArr.find((x: any) => String(x?.doc || '').replace(/\D+/g, '') === docDigits) || cArr[0];
@@ -489,13 +498,18 @@ export default function SalesOrderMaintenancePage() {
           setError(e?.message || String(e));
         }
       } finally {
-        clearTimeout(timeout);
         setLoading(false);
       }
     };
 
     load();
-  }, [id]);
+
+    return () => {
+      clearTimeout(timeout);
+      clearTimeout(hardTimeout);
+      controller.abort();
+    };
+  }, [idKey]);
 
   const fmtCurrency = (n: number | undefined) => (n ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const fmtNumber = (n: number | undefined) => (n ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -570,7 +584,9 @@ export default function SalesOrderMaintenancePage() {
   };
 
   const refreshOrder = async () => {
-    const r = await fetch(`/api/sales/orders/${id}`, { cache: 'no-store' });
+    const oid = order?.id ?? numericId;
+    if (!oid) return;
+    const r = await fetch(`/api/sales/orders/${oid}`, { cache: 'no-store' });
     const data = await r.json();
     setOrder(data);
     setOrderItems(data.items || []);
@@ -608,12 +624,12 @@ export default function SalesOrderMaintenancePage() {
           )}
         </div>
         <div className="flex gap-2">
-          <a href="/sales/orders/new" className="px-3 py-2 border rounded bg-white hover:bg-gray-50" title="Novo Pedido" aria-label="Novo Pedido">
+          <Link href="/sales/orders/new" className="px-3 py-2 border rounded bg-white hover:bg-gray-50" title="Novo Pedido" aria-label="Novo Pedido">
             <span className="inline-flex items-center gap-2">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M11 11V4h2v7h7v2h-7v7h-2v-7H4v-2h7Z"/></svg>
               Novo Pedido
             </span>
-          </a>
+          </Link>
           <button className="px-3 py-2 border rounded" title="Voltar" aria-label="Voltar" onClick={() => router.back()}>
             <span className="inline-flex items-center gap-2">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2Z"/></svg>
@@ -1050,7 +1066,7 @@ export default function SalesOrderMaintenancePage() {
                       <div className="mt-2 flex items-center gap-2">
                         {inv.danfeFileName && (
                           <a 
-                            href={`/api/sales/orders/${id}/invoices/${inv.id}/download?type=danfe`} 
+                            href={`/api/sales/orders/${order?.id ?? numericId}/invoices/${inv.id}/download?type=danfe`} 
                             target="_blank" 
                             className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 text-blue-600"
                           >
@@ -1059,7 +1075,7 @@ export default function SalesOrderMaintenancePage() {
                         )}
                         {inv.xmlFileName && (
                           <a 
-                            href={`/api/sales/orders/${id}/invoices/${inv.id}/download?type=xml`} 
+                            href={`/api/sales/orders/${order?.id ?? numericId}/invoices/${inv.id}/download?type=xml`} 
                             target="_blank" 
                             className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 text-green-600"
                           >
@@ -1094,7 +1110,7 @@ export default function SalesOrderMaintenancePage() {
                             <div className="flex justify-center gap-2">
                               {inv.danfeFileName && (
                                 <a 
-                                  href={`/api/sales/orders/${id}/invoices/${inv.id}/download?type=danfe`} 
+                                  href={`/api/sales/orders/${order?.id ?? numericId}/invoices/${inv.id}/download?type=danfe`} 
                                   target="_blank" 
                                   className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 text-blue-600"
                                 >
@@ -1103,7 +1119,7 @@ export default function SalesOrderMaintenancePage() {
                               )}
                               {inv.xmlFileName && (
                                 <a 
-                                  href={`/api/sales/orders/${id}/invoices/${inv.id}/download?type=xml`} 
+                                  href={`/api/sales/orders/${order?.id ?? numericId}/invoices/${inv.id}/download?type=xml`} 
                                   target="_blank" 
                                   className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 text-green-600"
                                 >

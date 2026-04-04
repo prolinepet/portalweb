@@ -1,6 +1,6 @@
 "use client";
 // Rebuild trigger: Fix webpack runtime error
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 type Client = { 
@@ -35,6 +35,8 @@ type SalesOrder = {
 };
 type LinkedItem = { id: number; name: string; sku?: string | null; unit?: string | null; unitPrice?: number; width?: number; length?: number; grammage?: number };
 type CartItem = { id: number; inventoryItemId: number; name: string; sku?: string | null; unit?: string | null; quantity: number; unitPrice: number };
+
+const normalizeDoc = (doc?: string | null) => String(doc || '').replace(/\D+/g, '');
 
 const statusColor = (s: string) => {
   const v = (s || '').trim();
@@ -144,7 +146,7 @@ export default function ClientDetailsPage() {
 
   const PAGE_SIZE = 20;
 
-  const refreshCart = async () => {
+  const refreshCart = useCallback(async () => {
     if (!client) return;
     const r = await fetch(`/api/clients/${client.id}/cart`, { cache: 'no-store' });
     if (r.ok) {
@@ -153,7 +155,7 @@ export default function ClientDetailsPage() {
     } else {
       setCartItems([]);
     }
-  };
+  }, [client]);
 
   useEffect(() => {
     const load = async () => {
@@ -183,15 +185,15 @@ export default function ClientDetailsPage() {
           } else {
             setOrders([]);
           }
-          const li = await fetch(`/api/clients/items/by-doc/${encodeURIComponent(c.doc)}`, { cache: 'no-store' });
-          if (li.ok) {
-            const linked: LinkedItem[] = await li.json();
-            setLinkedItems(Array.isArray(linked) ? linked : []);
-          } else {
-            setLinkedItems([]);
-          }
         } else {
           setOrders([]);
+        }
+
+        const li = await fetch(`/api/clients/${encodeURIComponent(String(id))}/items`, { cache: 'no-store' });
+        if (li.ok) {
+          const linked: LinkedItem[] = await li.json();
+          setLinkedItems(Array.isArray(linked) ? linked : []);
+        } else {
           setLinkedItems([]);
         }
       } catch (e: any) {
@@ -205,7 +207,7 @@ export default function ClientDetailsPage() {
     if (client) {
         refreshCart();
     }
-  }, [client]);
+  }, [client, refreshCart]);
 
   useEffect(() => {
     const last = Math.max(0, Math.ceil(orders.length / PAGE_SIZE) - 1);
@@ -447,7 +449,7 @@ export default function ClientDetailsPage() {
             <li className="mr-2">
               <button
                 onClick={() => setActiveTab("orders")}
-                className={`inline-block px-3 py-2 border-b-2 rounded-t-lg transition-colors duration-200 ${
+                className={`inline-block px-3 py-2 border-b-2 border-solid rounded-t-lg transition-colors duration-200 ${
                   activeTab === "orders"
                     ? "text-blue-600 border-blue-600 active group-hover:text-blue-600"
                     : "border-transparent hover:text-gray-600 hover:border-gray-300"
@@ -460,7 +462,7 @@ export default function ClientDetailsPage() {
             <li className="mr-2">
               <button
                 onClick={() => setActiveTab("paymentTerms")}
-                className={`inline-block px-3 py-2 border-b-2 rounded-t-lg transition-colors duration-200 ${
+                className={`inline-block px-3 py-2 border-b-2 border-solid rounded-t-lg transition-colors duration-200 ${
                   activeTab === "paymentTerms"
                     ? "text-blue-600 border-blue-600 active group-hover:text-blue-600"
                     : "border-transparent hover:text-gray-600 hover:border-gray-300"
@@ -473,7 +475,7 @@ export default function ClientDetailsPage() {
             <li className="mr-2">
               <button
                 onClick={() => setActiveTab("linkedItems")}
-                className={`inline-block px-3 py-2 border-b-2 rounded-t-lg transition-colors duration-200 ${
+                className={`inline-block px-3 py-2 border-b-2 border-solid rounded-t-lg transition-colors duration-200 ${
                   activeTab === "linkedItems"
                     ? "text-blue-600 border-blue-600 active group-hover:text-blue-600"
                     : "border-transparent hover:text-gray-600 hover:border-gray-300"
@@ -567,7 +569,8 @@ export default function ClientDetailsPage() {
                             if (r.ok) {
                               setOrders((prev) => prev.filter((x) => x.id !== o.id));
                             } else {
-                              alert('Erro ao excluir pedido');
+                              const body = await r.json().catch(() => null as any);
+                              alert(body?.error || 'Erro ao excluir pedido');
                             }
                           }}
                         >
@@ -666,7 +669,8 @@ export default function ClientDetailsPage() {
                                 if (r.ok) {
                                     setOrders((prev) => prev.filter((x) => x.id !== o.id));
                                 } else {
-                                    alert('Erro ao excluir pedido');
+                                    const body = await r.json().catch(() => null as any);
+                                    alert(body?.error || 'Erro ao excluir pedido');
                                 }
                             }}
                           > <TrashIcon /> </IconBtn>
