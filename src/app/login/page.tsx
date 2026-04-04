@@ -2,6 +2,7 @@
 import { useRef, useState, Suspense, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import QRCode from 'qrcode';
 
 function LoginForm() {
@@ -226,7 +227,7 @@ function LoginForm() {
                       Escaneie o QR Code abaixo com o Google Authenticator ou outro app compatível.
                   </p>
                   {qrCodeUrl ? (
-                      <img src={qrCodeUrl} alt="QR Code 2FA" className="w-48 h-48 mb-4 border rounded" />
+                      <Image src={qrCodeUrl} alt="QR Code 2FA" width={192} height={192} className="w-48 h-48 mb-4 border rounded" unoptimized loader={({ src }) => src} />
                   ) : (
                       <div className="w-48 h-48 mb-4 border rounded flex items-center justify-center bg-gray-100 text-gray-400">
                           Carregando...
