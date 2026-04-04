@@ -162,16 +162,21 @@ export default function Sidebar({ perms, mobileOpen, setMobileOpen, pathname, us
           w-64
         `}
       >
-        <div className={`px-3 py-4 border-b border-gray-950 flex items-center ${collapsed ? "justify-center md:justify-center" : "gap-2"}`}>
-          <img src="/icons/logo-prolinepet.svg" alt="Prolinepet" className={`${collapsed && !mobileOpen ? "w-8 h-8" : "h-8 w-28"} object-contain`} />
-          {/* Desktop Toggle */}
-          <button onClick={toggle} className="ml-auto text-gray-300 hover:text-white hidden md:block" aria-label="Alternar menu">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"/></svg>
-          </button>
-          {/* Mobile Close */}
-          <button onClick={() => setMobileOpen?.(false)} className="ml-auto text-gray-300 hover:text-white md:hidden" aria-label="Fechar menu">
-            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
+        <div className="px-3 py-4 border-b border-gray-950 grid grid-cols-[1fr_auto_1fr] items-center">
+          <div />
+          <img
+            src="/icons/logo-prolinepet.svg"
+            alt="Prolinepet"
+            className={`${collapsed && !mobileOpen ? "w-8 h-8" : "h-8 w-28"} object-contain justify-self-center`}
+          />
+          <div className="flex justify-end">
+            <button onClick={toggle} className="text-gray-300 hover:text-white hidden md:block" aria-label="Alternar menu">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"/></svg>
+            </button>
+            <button onClick={() => setMobileOpen?.(false)} className="text-gray-300 hover:text-white md:hidden" aria-label="Fechar menu">
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
         </div>
       {mobileOpen && (
         <div className="px-3 py-3 border-b border-gray-950 md:hidden">
