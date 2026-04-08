@@ -426,6 +426,62 @@ model ClientItem {
   @@map("clientitem")
 }
 
+model PriceTable {
+  id       Int    @id @default(autoincrement())
+  nrtabpre String @unique @db.VarChar(20)
+  descricao String @db.VarChar(40)
+  situacao Int    @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  items PriceTableItem[]
+  orderTypeLinks OrderTypePriceTable[]
+
+  @@index([descricao])
+  @@map("tabelapreco")
+}
+
+model PriceTableItem {
+  id            Int           @id @default(autoincrement())
+  priceTableId  Int
+  inventoryItemId Int
+  unitPrice     Float         @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  priceTable    PriceTable    @relation(fields: [priceTableId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id])
+
+  @@unique([priceTableId, inventoryItemId])
+  @@index([inventoryItemId])
+  @@map("tabelaprecoitem")
+}
+
+model OrderType {
+  id         Int      @id @default(autoincrement())
+  codtipoped Int      @unique
+  descricao  String   @db.VarChar(40)
+  situacao   Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  priceTables OrderTypePriceTable[]
+
+  @@index([descricao])
+  @@map("tipopedido")
+}
+
+model OrderTypePriceTable {
+  id          Int       @id @default(autoincrement())
+  orderTypeId Int
+  priceTableId Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  orderType   OrderType @relation(fields: [orderTypeId], references: [id], onDelete: Cascade)
+  priceTable  PriceTable @relation(fields: [priceTableId], references: [id], onDelete: Cascade)
+
+  @@unique([orderTypeId, priceTableId])
+  @@index([priceTableId])
+  @@map("tipopedidotabelapreco")
+}
+
 model ClientPaymentTerm {
   id            Int         @id @default(autoincrement())
   clientId      Int

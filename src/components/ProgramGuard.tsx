@@ -23,6 +23,10 @@ function pathToProgramCode(pathname: string): string | null {
   if (pathname.startsWith("/base/payment-terms")) return "PAYMENT_TERMS";
   if (pathname.startsWith("/base/commercial-family")) return "COMMERCIAL_FAMILY";
   if (pathname.startsWith("/base/items")) return "ITEM_MAINTENANCE";
+  if (pathname.startsWith("/base/price-tables/maintenance")) return "PRICE_TABLE_MAINTENANCE";
+  if (pathname.startsWith("/base/price-tables")) return "PRICE_TABLE_LIST";
+  if (pathname.startsWith("/base/order-types/maintenance")) return "ORDER_TYPE_MAINTENANCE";
+  if (pathname.startsWith("/base/order-types")) return "ORDER_TYPE_LIST";
   // SAC
   if (pathname.startsWith("/sac/complaints/maintenance")) return "SAC_COMPLAINT_MAINTENANCE";
   if (pathname.startsWith("/sac/complaints/search")) return "SAC_COMPLAINT_SEARCH";
