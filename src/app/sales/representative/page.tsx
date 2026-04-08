@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 type User = { id: number; name: string; email: string };
 type Client = { id: number; doc?: string; name: string; cidade?: string; estado?: string };
-type BasePriceRow = { sku: string; description: string; unit: string; unitPrice: number };
+type BasePriceRow = { inventoryItemId: number; sku: string | null; name: string | null; unit: string; unitPrice: number };
 
 export default function RepresentativePage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -16,6 +16,7 @@ export default function RepresentativePage() {
   const [mode, setMode] = useState<"all" | "linked" | "unlinked">("linked");
   const [activeTab, setActiveTab] = useState<"clients" | "basePrice">("clients");
   const [basePrices, setBasePrices] = useState<BasePriceRow[]>([]);
+  const [basePriceQuery, setBasePriceQuery] = useState("");
 
   const filteredUsers = useMemo(() => {
     const q = userQuery.trim().toLowerCase();
@@ -70,8 +71,20 @@ export default function RepresentativePage() {
     setLinked(Array.isArray(arr) ? arr : []);
   }, []);
 
+  const loadBasePrices = useCallback(async (userId: number | null) => {
+    if (!userId) { setBasePrices([]); return; }
+    const q = basePriceQuery.trim();
+    const res = await fetch(`/api/sales/representatives/${userId}/base-prices?q=${encodeURIComponent(q)}&take=2000`, { cache: "no-store" });
+    if (!res.ok) { setBasePrices([]); return; }
+    const arr = await res.json().catch(() => []);
+    setBasePrices(Array.isArray(arr) ? arr : []);
+  }, [basePriceQuery]);
+
   useEffect(() => { Promise.all([loadUsers(), loadClients()]); }, [loadUsers, loadClients]);
   useEffect(() => { loadLinked(selectedUserId); }, [selectedUserId, loadLinked]);
+  useEffect(() => {
+    if (activeTab === "basePrice") loadBasePrices(selectedUserId);
+  }, [activeTab, selectedUserId, loadBasePrices]);
 
   const toggleRow = async (c: any, checked: boolean) => {
     if (!selectedUserId) return;
@@ -214,6 +227,15 @@ export default function RepresentativePage() {
           </div>
         ) : (
           <div className="mt-3 space-y-3">
+            <div>
+              <label className="text-xs text-gray-600">Filtro</label>
+              <input
+                value={basePriceQuery}
+                onChange={(e) => setBasePriceQuery(e.target.value)}
+                placeholder="SKU ou descrição"
+                className="w-full border rounded px-3 py-2"
+              />
+            </div>
             <div className="border rounded">
               <table className="min-w-full text-sm">
                 <thead>
@@ -226,9 +248,9 @@ export default function RepresentativePage() {
                 </thead>
                 <tbody>
                   {basePrices.map((r) => (
-                    <tr key={`${r.sku}::${r.unit}`} className="border-b">
-                      <td className="p-2 font-mono">{r.sku}</td>
-                      <td className="p-2">{r.description}</td>
+                    <tr key={`${r.inventoryItemId}::${r.unit}`} className="border-b">
+                      <td className="p-2 font-mono">{r.sku || ""}</td>
+                      <td className="p-2">{r.name || ""}</td>
                       <td className="p-2">{r.unit}</td>
                       <td className="p-2 text-right">{fmtCurrency(r.unitPrice)}</td>
                     </tr>
