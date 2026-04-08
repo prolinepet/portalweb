@@ -95,6 +95,7 @@ model InventoryItem {
   clientItems     ClientItem[]
   clientCartItems ClientCartItem[]
   userInventoryItemPrices UserInventoryItemPrice[]
+  priceTableItems PriceTableItem[]
 
   @@map("inventoryitem")
 }
