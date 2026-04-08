@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "postinstall": "npm run prisma:generate",
+    "prebuild": "npm run prisma:generate",
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "node server.js",
