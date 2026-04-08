@@ -13,7 +13,7 @@ export async function POST() {
       create: { code: 'BASE', name: 'Base', description: 'Módulo Base', isActive: true },
     });
 
-    // 2) Garantir programas do módulo BASE (Clientes, Condição de Pagamento, Família Comercial, Manutenção de Item)
+    // 2) Garantir programas do módulo BASE
     const ensureProgram = async (code: string, name: string, moduleId: number) => {
       const existing = await prisma.program.findUnique({ where: { code } });
       if (!existing) return prisma.program.create({ data: { code, name, moduleId, isActive: true } });
@@ -26,6 +26,10 @@ export async function POST() {
     const payTermsProg = await ensureProgram('PAYMENT_TERMS', 'Condição de Pagamento', base.id);
     const commFamilyProg = await ensureProgram('COMMERCIAL_FAMILY', 'Família Comercial', base.id);
     const itemMaintProg = await ensureProgram('ITEM_MAINTENANCE', 'Manutenção de Item', base.id);
+    const priceTableListProg = await ensureProgram('PRICE_TABLE_LIST', 'Tabela Preço - Listagem', base.id);
+    const priceTableMaintProg = await ensureProgram('PRICE_TABLE_MAINTENANCE', 'Tabela Preço - Manutenção', base.id);
+    const orderTypeListProg = await ensureProgram('ORDER_TYPE_LIST', 'Tipo de Pedido - Listagem', base.id);
+    const orderTypeMaintProg = await ensureProgram('ORDER_TYPE_MAINTENANCE', 'Tipo de Pedido - Manutenção', base.id);
 
     // 3) Vincular módulo BASE a todas as entidades
     const entities = await prisma.entity.findMany();
@@ -43,7 +47,7 @@ export async function POST() {
     const baseEMs = await prisma.entityModule.findMany({ where: { moduleId: base.id } });
     let entityModuleProgramsLinked = 0;
     for (const em of baseEMs) {
-      for (const p of [clientsProg, payTermsProg, commFamilyProg, itemMaintProg]) {
+      for (const p of [clientsProg, payTermsProg, commFamilyProg, itemMaintProg, priceTableListProg, priceTableMaintProg, orderTypeListProg, orderTypeMaintProg]) {
         await prisma.entityModuleProgram.upsert({
           where: { entityModuleId_programId: { entityModuleId: em.id, programId: p.id } },
           update: { allowed: true },
@@ -72,7 +76,7 @@ export async function POST() {
           create: { userEntityId: ue.id, moduleId: base.id, allowed: true },
         });
         userEntityModuleLinked++;
-        for (const p of [clientsProg, payTermsProg, commFamilyProg, itemMaintProg]) {
+        for (const p of [clientsProg, payTermsProg, commFamilyProg, itemMaintProg, priceTableListProg, priceTableMaintProg, orderTypeListProg, orderTypeMaintProg]) {
           await prisma.userEntityModuleProgram.upsert({
             where: { userEntityModuleId_programId: { userEntityModuleId: uem.id, programId: p.id } },
             update: { allowed: true },
@@ -86,7 +90,7 @@ export async function POST() {
     return NextResponse.json({
       ok: true,
       module: { id: base.id, code: base.code },
-      programs: [clientsProg.code, payTermsProg.code, commFamilyProg.code, itemMaintProg.code],
+      programs: [clientsProg.code, payTermsProg.code, commFamilyProg.code, itemMaintProg.code, priceTableListProg.code, priceTableMaintProg.code, orderTypeListProg.code, orderTypeMaintProg.code],
       stats: {
         entities: entities.length,
         users: users.length,
