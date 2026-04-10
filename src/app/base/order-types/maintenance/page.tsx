@@ -268,7 +268,7 @@ export default function OrderTypeMaintenancePage() {
               className={`w-full border rounded px-2 py-1 text-sm ${canEditHeader ? "" : "bg-gray-50"}`}
             />
           </div>
-          <div className="md:col-span-3">
+          <div className="md:col-span-2">
             <label className="text-xs text-gray-600">Descrição</label>
             <input
               value={form.descricao}
@@ -289,8 +289,8 @@ export default function OrderTypeMaintenancePage() {
               <option value="2">2 - Inativo</option>
             </select>
           </div>
-          <div className="md:col-span-1 flex items-end justify-end">
-            <div className="flex items-center gap-2">
+          <div className="md:col-span-2 flex items-end justify-end">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <button onClick={() => router.push("/base/order-types/maintenance")} className="px-3 py-2 rounded border text-sm">
                 Novo
               </button>
