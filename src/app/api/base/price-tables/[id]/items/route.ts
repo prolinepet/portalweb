@@ -38,12 +38,18 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     if (!Number.isFinite(priceTableId) || priceTableId <= 0) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
     const body = await request.json().catch(() => ({}));
-    const inventoryItemIdRaw = Number(body?.inventoryItemId);
-    const inventoryItemId = Number.isFinite(inventoryItemIdRaw) ? Math.trunc(inventoryItemIdRaw) : NaN;
+    let inventoryItemIdRaw = Number(body?.inventoryItemId);
+    let inventoryItemId = Number.isFinite(inventoryItemIdRaw) ? Math.trunc(inventoryItemIdRaw) : NaN;
+    if (!Number.isFinite(inventoryItemId) || inventoryItemId <= 0) {
+      const sku = String(body?.sku ?? "").trim();
+      if (!sku) return NextResponse.json({ error: "Item inválido" }, { status: 400 });
+      const item = await prisma.inventoryItem.findUnique({ where: { sku }, select: { id: true } });
+      if (!item) return NextResponse.json({ error: "Item não encontrado" }, { status: 404 });
+      inventoryItemId = item.id;
+    }
     const unitPriceRaw = Number(body?.unitPrice);
     const unitPrice = Number.isFinite(unitPriceRaw) ? unitPriceRaw : NaN;
 
-    if (!Number.isFinite(inventoryItemId) || inventoryItemId <= 0) return NextResponse.json({ error: "Item inválido" }, { status: 400 });
     if (!Number.isFinite(unitPrice) || unitPrice < 0) return NextResponse.json({ error: "Preço unitário inválido" }, { status: 400 });
 
     const upserted = await prisma.priceTableItem.upsert({
@@ -64,3 +70,31 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   }
 }
 
+export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  try {
+    const priceTableId = Number(params.id);
+    if (!Number.isFinite(priceTableId) || priceTableId <= 0) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+
+    const url = new URL(request.url);
+    const sku = String(url.searchParams.get("sku") ?? "").trim();
+    const inventoryItemIdRaw = Number(url.searchParams.get("inventoryItemId"));
+    let inventoryItemId = Number.isFinite(inventoryItemIdRaw) ? Math.trunc(inventoryItemIdRaw) : NaN;
+
+    if (!Number.isFinite(inventoryItemId) || inventoryItemId <= 0) {
+      if (!sku) return NextResponse.json({ error: "Item inválido" }, { status: 400 });
+      const item = await prisma.inventoryItem.findUnique({ where: { sku }, select: { id: true } });
+      if (!item) return NextResponse.json({ error: "Item não encontrado" }, { status: 404 });
+      inventoryItemId = item.id;
+    }
+
+    const deleted = await prisma.priceTableItem.deleteMany({
+      where: { priceTableId: Math.trunc(priceTableId), inventoryItemId },
+    });
+
+    if (!deleted.count) return NextResponse.json({ error: "Item da tabela de preço não encontrado" }, { status: 404 });
+    return NextResponse.json({ ok: true });
+  } catch (err: any) {
+    return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
+  }
+}
