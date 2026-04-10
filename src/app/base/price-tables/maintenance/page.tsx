@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -32,18 +33,18 @@ function situacaoLabel(v: number) {
 function Tabs({ active }: { active: "list" | "maint" }) {
   return (
     <div className="flex items-center gap-2 border-b">
-      <a
+      <Link
         href="/base/price-tables"
         className={`px-3 py-2 text-sm ${active === "list" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}
       >
         Listagem
-      </a>
-      <a
+      </Link>
+      <Link
         href="/base/price-tables/maintenance"
         className={`px-3 py-2 text-sm ${active === "maint" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}
       >
         Manutenção
-      </a>
+      </Link>
     </div>
   );
 }
@@ -451,4 +452,3 @@ export default function PriceTableMaintenancePage() {
     </div>
   );
 }
-
