@@ -86,10 +86,8 @@ function programHref(code: string): string | null {
     case 'PAYMENT_TERMS': return '/base/payment-terms';
     case 'COMMERCIAL_FAMILY': return '/base/commercial-family';
     case 'ITEM_MAINTENANCE': return '/base/items';
-    case 'PRICE_TABLE_LIST': return '/base/price-tables';
-    case 'PRICE_TABLE_MAINTENANCE': return '/base/price-tables/maintenance';
-    case 'ORDER_TYPE_LIST': return '/base/order-types';
-    case 'ORDER_TYPE_MAINTENANCE': return '/base/order-types/maintenance';
+    case 'PRICE_TABLE_ADMIN': return '/base/price-tables';
+    case 'ORDER_TYPE_ADMIN': return '/base/order-types';
     // SAC
     case 'SAC_COMPLAINT_MAINTENANCE': return '/sac/complaints/maintenance';
     case 'SAC_COMPLAINT_SEARCH': return '/sac/complaints/search';
@@ -247,10 +245,8 @@ export default function Sidebar({ perms, mobileOpen, setMobileOpen, pathname, us
                         case 'PAYMENT_TERMS': return Icon.settings;
                         case 'COMMERCIAL_FAMILY': return Icon.settings;
                         case 'ITEM_MAINTENANCE': return Icon.inventory;
-                        case 'PRICE_TABLE_LIST': return Icon.reports;
-                        case 'PRICE_TABLE_MAINTENANCE': return Icon.reports;
-                        case 'ORDER_TYPE_LIST': return Icon.reports;
-                        case 'ORDER_TYPE_MAINTENANCE': return Icon.reports;
+                        case 'PRICE_TABLE_ADMIN': return Icon.reports;
+                        case 'ORDER_TYPE_ADMIN': return Icon.reports;
                         case 'SAC_STANDARD_OCCURRENCE': return Icon.settings;
                         // Gestão FinTI
                         case 'DESPESAS': return Icon.reports;
