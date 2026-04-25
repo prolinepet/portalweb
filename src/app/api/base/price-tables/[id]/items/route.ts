@@ -38,7 +38,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     if (!Number.isFinite(priceTableId) || priceTableId <= 0) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
     const body = await request.json().catch(() => ({}));
-    let inventoryItemIdRaw = Number(body?.inventoryItemId);
+    const inventoryItemIdRaw = Number(body?.inventoryItemId);
     let inventoryItemId = Number.isFinite(inventoryItemIdRaw) ? Math.trunc(inventoryItemIdRaw) : NaN;
     if (!Number.isFinite(inventoryItemId) || inventoryItemId <= 0) {
       const sku = String(body?.sku ?? "").trim();

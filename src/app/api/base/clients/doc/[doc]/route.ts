@@ -20,6 +20,18 @@ async function ensurePaymentTermByCode(code: number): Promise<number | null> {
 }
 
 async function resolvePaymentTermId(body: any): Promise<number | null> {
+  const nested =
+    body && typeof body === 'object'
+      ? (body?.paymentTerm && typeof body.paymentTerm === 'object' ? body.paymentTerm : null) ??
+        (body?.paymentTerms && typeof body.paymentTerms === 'object' ? body.paymentTerms : null) ??
+        (body?.condPagto && typeof body.condPagto === 'object' ? body.condPagto : null) ??
+        null
+      : null;
+  if (nested) {
+    const nestedId = await resolvePaymentTermId(nested);
+    if (nestedId) return nestedId;
+  }
+
   const num = (v: any): number | null => {
     if (v === null || v === undefined) return null;
     if (typeof v === 'number') return Number.isFinite(v) ? Math.trunc(v) : null;
@@ -41,6 +53,7 @@ async function resolvePaymentTermId(body: any): Promise<number | null> {
     num(body?.paymentTermId) ??
     num(body?.paymentTermsId) ??
     num(body?.condPagtoId) ??
+    num(body?.id) ??
     null;
   if (idCandidate) return idCandidate;
 
@@ -50,6 +63,8 @@ async function resolvePaymentTermId(body: any): Promise<number | null> {
     num(body?.paymentTermsCode) ??
     num(body?.condPagtoCode) ??
     num(body?.condPagto) ??
+    num(body?.code) ??
+    num(body?.codigo) ??
     null;
   if (codeCandidate) {
     const term = await prisma.paymentTerm.findFirst({ where: { code: codeCandidate }, select: { id: true } }).catch(() => null);
@@ -63,6 +78,8 @@ async function resolvePaymentTermId(body: any): Promise<number | null> {
     str(body?.paymentTermsDescription) ??
     str(body?.condPagtoDescription) ??
     str(body?.condPagtoDesc) ??
+    str(body?.description) ??
+    str(body?.descricao) ??
     str(body?.paymentTerms) ??
     str(body?.paymentTerm) ??
     null;
@@ -100,7 +117,13 @@ async function resolvePaymentTermIdFromAny(v: any): Promise<number | null> {
   const s = String(v).trim();
   if (!s) return null;
   const digits = s.replace(/\D/g, '');
-  if (!digits) return null;
+  if (!digits) {
+    const byDesc = await prisma.paymentTerm
+      .findFirst({ where: { description: { equals: s } }, select: { id: true } })
+      .catch(() => null);
+    if (byDesc?.id) return byDesc.id;
+    return null;
+  }
   const n = Number(digits);
   if (!Number.isFinite(n)) return null;
 
@@ -190,10 +213,34 @@ export async function PATCH(request: Request, props: { params: Promise<{ doc: st
     const listProvided = paymentTermIds !== null;
     const singleProvided = !listProvided && (body.paymentTermId !== undefined || body.paymentTermCode !== undefined || body.condPagto !== undefined || body.condPagtoCode !== undefined);
     if (listProvided && paymentTermIds.length === 0) {
-      return NextResponse.json(
-        { error: 'condicoesPagamento informado, mas nenhuma condição foi reconhecida (verifique se o código existe em paymentterm.code)' },
-        { status: 400 }
-      );
+      const rawList = extractPaymentTermList(body) ?? [];
+      const hasMeaningful = rawList.some((it) => {
+        if (it === null || it === undefined) return false;
+        if (typeof it === 'number') return Number.isFinite(it) && it > 0;
+        if (typeof it === 'string') {
+          const s = it.trim();
+          if (!s) return false;
+          const digits = s.replace(/\D/g, '');
+          return digits ? Number(digits) > 0 : true;
+        }
+        if (typeof it === 'object') {
+          const anyIt: any = it;
+          const candidates = [anyIt?.code, anyIt?.codigo, anyIt?.id, anyIt?.paymentTermCode, anyIt?.paymentTermId, anyIt?.condPagtoCode, anyIt?.condPagtoId, anyIt?.condPagto];
+          for (const c of candidates) {
+            const n = Number(String(c ?? '').replace(/\D/g, ''));
+            if (Number.isFinite(n) && n > 0) return true;
+          }
+          const desc = String(anyIt?.description ?? anyIt?.descricao ?? anyIt?.condPagtoDescription ?? anyIt?.paymentTermDescription ?? '').trim();
+          return desc.length > 0;
+        }
+        return false;
+      });
+      if (hasMeaningful) {
+        return NextResponse.json(
+          { error: 'condicoesPagamento informado, mas nenhuma condição foi reconhecida (verifique se o código existe em paymentterm.code)' },
+          { status: 400 }
+        );
+      }
     }
     if (listProvided) {
       fields.paymentTermId = paymentTermIds[0] ?? null;
