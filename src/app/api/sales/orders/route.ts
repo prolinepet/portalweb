@@ -142,6 +142,7 @@ export async function POST(request: Request) {
       customerName,
       customerDoc,
       customerId,
+      orderTypeId: orderTypeIdRaw,
       triangularCustomerName,
       triangularCustomerDoc,
       paymentTerms,
@@ -166,6 +167,12 @@ export async function POST(request: Request) {
       const c = await prisma.client.findFirst({ where: { doc: customerDocNorm }, select: { id: true } }).catch(() => null);
       if (c?.id) clientId = Number(c.id);
     }
+
+    const orderTypeId =
+      typeof orderTypeIdRaw === 'number' && Number.isFinite(orderTypeIdRaw) && orderTypeIdRaw > 0
+        ? Math.trunc(orderTypeIdRaw)
+        : null;
+
     const parseDate = (value: any): Date | undefined => {
       if (!value) return undefined;
       if (value instanceof Date && !isNaN(value.getTime())) return value;
@@ -332,12 +339,28 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: 'Condição de pagamento não corresponde ao cadastro do cliente' }, { status: 400 });
         }
       }
+
+      const linkedOrderTypesCount = await prisma.clientOrderType.count({ where: { clientId } });
+      const hasLinkedOrderTypes = linkedOrderTypesCount > 0;
+      if (hasLinkedOrderTypes && !orderTypeId) {
+        return NextResponse.json({ error: 'Tipo de pedido é obrigatório para este cliente' }, { status: 400 });
+      }
+      if (hasLinkedOrderTypes && orderTypeId) {
+        const allowed = await prisma.clientOrderType.findUnique({
+          where: { clientId_orderTypeId: { clientId, orderTypeId } },
+          select: { id: true },
+        });
+        if (!allowed?.id) {
+          return NextResponse.json({ error: 'Tipo de pedido não permitido para este cliente' }, { status: 400 });
+        }
+      }
     }
 
     const baseOrderCreateData = {
       entityId,
       customerName,
       customerDoc: customerDocNorm || undefined,
+      orderTypeId,
       clientId: clientId,
       triangularCustomerName: triangularCustomerName || undefined,
       triangularCustomerDoc: triangularCustomerDocNorm || undefined,
@@ -376,13 +399,14 @@ export async function POST(request: Request) {
 
             await tx.$executeRawUnsafe(
               `INSERT INTO salesorder
-                (id, code, entityId, customerName, customerDoc, clientId, triangularCustomerName, triangularCustomerDoc, paymentTerms, carrier, deliveryDate, notes, createdById, subtotal, discountTotal, total, createdAt, updatedAt)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                (id, code, entityId, customerName, customerDoc, orderTypeId, clientId, triangularCustomerName, triangularCustomerDoc, paymentTerms, carrier, deliveryDate, notes, createdById, subtotal, discountTotal, total, createdAt, updatedAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
               Math.trunc(nextOrderId),
               code,
               entityId ?? null,
               customerName,
               customerDocNorm || null,
+              orderTypeId ?? null,
               clientId ?? null,
               triangularCustomerName || null,
               triangularCustomerDocNorm || null,

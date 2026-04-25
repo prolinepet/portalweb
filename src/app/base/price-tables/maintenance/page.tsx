@@ -30,6 +30,26 @@ function situacaoLabel(v: number) {
   return v === 1 ? "Ativo" : v === 2 ? "Inativo" : String(v);
 }
 
+function parsePriceInput(v: string): number | null {
+  const raw = String(v ?? "").trim();
+  if (!raw) return null;
+  const compact = raw.replace(/\s+/g, "");
+  const hasDot = compact.includes(".");
+  const hasComma = compact.includes(",");
+
+  let normalized = compact;
+  if (hasDot && hasComma) {
+    normalized = normalized.replace(/\./g, "").replace(",", ".");
+  } else if (hasComma && !hasDot) {
+    normalized = normalized.replace(",", ".");
+  }
+
+  normalized = normalized.replace(/[^0-9.-]/g, "");
+  if (!normalized) return null;
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : null;
+}
+
 function Tabs({ active }: { active: "list" | "maint" }) {
   return (
     <div className="flex items-center gap-2 border-b">
@@ -82,6 +102,8 @@ export default function PriceTableMaintenancePage() {
 
   const canEditHeader = mode === "new" || mode === "edit";
   const priceTableId = useMemo(() => (id && Number.isFinite(id) && id > 0 ? Math.trunc(id) : null), [id]);
+  const brl = useMemo(() => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }), []);
+  const numPt = useMemo(() => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), []);
 
   const load = useCallback(async (pid: number) => {
     setLoading(true);
@@ -204,7 +226,7 @@ export default function PriceTableMaintenancePage() {
       sku: String(it.sku ?? ""),
       name: String(it.name ?? ""),
       unit: String(it.unit ?? ""),
-      unitPrice: linked ? String(linked.unitPrice ?? 0) : "",
+      unitPrice: linked ? numPt.format(Number(linked.unitPrice ?? 0)) : "",
     });
     setItemQuery(`${it.sku ? `${it.sku} - ` : ""}${it.name || ""}`.trim());
     setShowItemSug(false);
@@ -214,8 +236,8 @@ export default function PriceTableMaintenancePage() {
     if (!priceTableId) return;
     const inventoryItemId = linkForm.inventoryItemId;
     if (!inventoryItemId) return alert("Selecione um item");
-    const unitPriceRaw = Number(String(linkForm.unitPrice || "").replace(",", "."));
-    if (!Number.isFinite(unitPriceRaw) || unitPriceRaw < 0) return alert("Preço unitário inválido");
+    const unitPriceRaw = parsePriceInput(linkForm.unitPrice);
+    if (unitPriceRaw === null || unitPriceRaw < 0) return alert("Preço unitário inválido");
     try {
       const res = await fetch(`/api/base/price-tables/${priceTableId}/items`, {
         method: "POST",
@@ -413,7 +435,7 @@ export default function PriceTableMaintenancePage() {
                         <td className="px-3 py-2">{it.sku || it.inventoryItemId}</td>
                         <td className="px-3 py-2">{it.name}</td>
                         <td className="px-3 py-2">{it.unit}</td>
-                        <td className="px-3 py-2 text-right">{Number(it.unitPrice || 0).toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right">{brl.format(Number(it.unitPrice || 0))}</td>
                         <td className="px-3 py-2 text-right">
                           <div className="inline-flex items-center gap-2">
                             <button
@@ -423,7 +445,7 @@ export default function PriceTableMaintenancePage() {
                                   sku: String(it.sku ?? ""),
                                   name: String(it.name ?? ""),
                                   unit: String(it.unit ?? ""),
-                                  unitPrice: String(it.unitPrice ?? 0),
+                                  unitPrice: numPt.format(Number(it.unitPrice ?? 0)),
                                 });
                                 setItemQuery(`${it.sku ? `${it.sku} - ` : ""}${it.name || ""}`.trim());
                               }}

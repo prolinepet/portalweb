@@ -7,6 +7,9 @@ USING OpenEdge.Net.HTTP.IHttpRequest.
 USING OpenEdge.Net.HTTP.IHttpResponse.
 USING OpenEdge.Net.HTTP.RequestBuilder.
 USING Progress.Json.ObjectModel.JsonObject.
+USING Progress.Json.ObjectModel.JsonArray.
+USING Progress.Json.ObjectModel.JsonConstruct.
+USING Progress.Json.ObjectModel.JsonValue.
 USING Progress.Json.ObjectModel.ObjectModelParser.
 
 DEFINE TEMP-TABLE ttApiResultado NO-UNDO
@@ -166,6 +169,109 @@ PROCEDURE pAddResultado PRIVATE:
     ttApiResultado.statusReason = pcReason
     ttApiResultado.responseBody = plcResp
     ttApiResultado.errorMessage = plcErr.
+END PROCEDURE.
+
+FUNCTION fParseIntFromJsonObject RETURNS INTEGER (plcJson AS LONGCHAR, pcField AS CHARACTER):
+  DEFINE VARIABLE oParser AS ObjectModelParser NO-UNDO.
+  DEFINE VARIABLE oRoot   AS JsonConstruct    NO-UNDO.
+  DEFINE VARIABLE oObj    AS JsonObject       NO-UNDO.
+  DEFINE VARIABLE iVal    AS INTEGER          NO-UNDO.
+
+  IF plcJson = "" OR plcJson = ? THEN RETURN 0.
+  oParser = NEW ObjectModelParser().
+  oRoot = oParser:Parse(plcJson) NO-ERROR.
+  IF ERROR-STATUS:ERROR OR NOT VALID-OBJECT(oRoot) THEN RETURN 0.
+
+  IF NOT TYPE-OF(oRoot, JsonObject) THEN RETURN 0.
+  oObj = CAST(oRoot, JsonObject).
+  iVal = 0.
+  iVal = oObj:GetInteger(pcField) NO-ERROR.
+  IF ERROR-STATUS:ERROR THEN RETURN 0.
+  RETURN iVal.
+END FUNCTION.
+
+FUNCTION fFindPriceTableIdByNrTabPre RETURNS INTEGER (pcNrTabPre AS CHARACTER):
+  DEFINE VARIABLE cUrl    AS CHARACTER       NO-UNDO.
+  DEFINE VARIABLE iStatus AS INTEGER         NO-UNDO.
+  DEFINE VARIABLE cReason AS CHARACTER       NO-UNDO.
+  DEFINE VARIABLE lcResp  AS LONGCHAR        NO-UNDO.
+  DEFINE VARIABLE oParser AS ObjectModelParser NO-UNDO.
+  DEFINE VARIABLE oRoot   AS JsonConstruct   NO-UNDO.
+  DEFINE VARIABLE oArr    AS JsonArray       NO-UNDO.
+  DEFINE VARIABLE oVal    AS JsonValue       NO-UNDO.
+  DEFINE VARIABLE oObj    AS JsonObject      NO-UNDO.
+  DEFINE VARIABLE i       AS INTEGER         NO-UNDO.
+  DEFINE VARIABLE cCode   AS CHARACTER       NO-UNDO.
+  DEFINE VARIABLE iId     AS INTEGER         NO-UNDO.
+
+  IF TRIM(pcNrTabPre) = "" THEN RETURN 0.
+
+  cUrl = fBaseUrl() + "/api/base/price-tables?q=" + TRIM(pcNrTabPre).
+  RUN pHttpJson ("GET", cUrl, "", OUTPUT iStatus, OUTPUT cReason, OUTPUT lcResp).
+  IF iStatus < 200 OR iStatus >= 300 THEN RETURN 0.
+
+  oParser = NEW ObjectModelParser().
+  oRoot = oParser:Parse(lcResp) NO-ERROR.
+  IF ERROR-STATUS:ERROR OR NOT VALID-OBJECT(oRoot) THEN RETURN 0.
+  IF NOT TYPE-OF(oRoot, JsonArray) THEN RETURN 0.
+
+  oArr = CAST(oRoot, JsonArray).
+  DO i = 1 TO oArr:Length:
+    oVal = oArr:GetJsonValue(i) NO-ERROR.
+    IF ERROR-STATUS:ERROR OR NOT VALID-OBJECT(oVal) THEN NEXT.
+    IF NOT TYPE-OF(oVal, JsonObject) THEN NEXT.
+    oObj = CAST(oVal, JsonObject).
+    cCode = oObj:GetCharacter("nrtabpre") NO-ERROR.
+    IF ERROR-STATUS:ERROR THEN NEXT.
+    IF TRIM(cCode) <> TRIM(pcNrTabPre) THEN NEXT.
+    iId = oObj:GetInteger("id") NO-ERROR.
+    IF ERROR-STATUS:ERROR THEN RETURN 0.
+    RETURN iId.
+  END.
+
+  RETURN 0.
+END FUNCTION.
+
+PROCEDURE upsertPriceTable:
+  DEFINE INPUT  PARAMETER pcNrTabPre   AS CHARACTER NO-UNDO.
+  DEFINE INPUT  PARAMETER pcDescricao  AS CHARACTER NO-UNDO.
+  DEFINE INPUT  PARAMETER piSituacao   AS INTEGER   NO-UNDO.
+  DEFINE OUTPUT PARAMETER iPriceTableId AS INTEGER  NO-UNDO.
+
+  DEFINE VARIABLE oBody     AS JsonObject NO-UNDO.
+  DEFINE VARIABLE cUrl      AS CHARACTER  NO-UNDO.
+  DEFINE VARIABLE iStatus   AS INTEGER    NO-UNDO.
+  DEFINE VARIABLE cReason   AS CHARACTER  NO-UNDO.
+  DEFINE VARIABLE lcResp    AS LONGCHAR   NO-UNDO.
+  DEFINE VARIABLE iFoundId  AS INTEGER    NO-UNDO.
+
+  iPriceTableId = 0.
+  IF TRIM(pcNrTabPre) = "" THEN RETURN.
+
+  oBody = NEW JsonObject().
+  oBody:Add("nrtabpre", TRIM(pcNrTabPre)).
+  IF TRIM(pcDescricao) <> "" THEN oBody:Add("descricao", TRIM(pcDescricao)).
+  IF piSituacao <> 0 THEN oBody:Add("situacao", piSituacao).
+
+  cUrl = fBaseUrl() + "/api/base/price-tables".
+  RUN pHttpJson ("POST", cUrl, oBody:GetJsonText(), OUTPUT iStatus, OUTPUT cReason, OUTPUT lcResp).
+
+  IF iStatus = 201 OR (iStatus >= 200 AND iStatus < 300) THEN DO:
+    iPriceTableId = fParseIntFromJsonObject(lcResp, "id").
+    IF iPriceTableId > 0 THEN RETURN.
+  END.
+
+  IF iStatus = 409 THEN DO:
+    iFoundId = fFindPriceTableIdByNrTabPre(pcNrTabPre).
+    IF iFoundId <= 0 THEN RETURN.
+
+    cUrl = fBaseUrl() + "/api/base/price-tables/" + STRING(iFoundId).
+    RUN pHttpJson ("PATCH", cUrl, oBody:GetJsonText(), OUTPUT iStatus, OUTPUT cReason, OUTPUT lcResp).
+    IF iStatus >= 200 AND iStatus < 300 THEN DO:
+      iPriceTableId = fParseIntFromJsonObject(lcResp, "id").
+      IF iPriceTableId <= 0 THEN iPriceTableId = iFoundId.
+    END.
+  END.
 END PROCEDURE.
 
 PROCEDURE administracao_usuario:
@@ -491,4 +597,3 @@ FUNCTION fApiKey RETURNS CHARACTER ():
   IF c = ? THEN c = "".
   RETURN TRIM(c).
 END FUNCTION.
-

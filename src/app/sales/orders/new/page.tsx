@@ -14,6 +14,8 @@ type InventoryItem = {
   grammage?: number | null;
 };
 
+type OrderType = { id: number; codtipoped: number; descricao: string; situacao: number };
+
 type OrderItem = {
   id: number;
   name: string;
@@ -44,6 +46,7 @@ type SalesOrder = {
   customerName: string;
   customerId?: number;
   customerDoc?: string | null;
+  orderTypeId?: number | null;
   triangularCustomerName?: string | null;
   triangularCustomerDoc?: string | null;
   paymentTerms?: string | null;
@@ -180,6 +183,7 @@ function NewSalesOrderContent() {
     customerId: undefined,
     paymentTerms: '',
     deliveryDate: '',
+    orderTypeId: null,
     items: [],
     subtotal: 0,
     discountTotal: 0,
@@ -188,6 +192,8 @@ function NewSalesOrderContent() {
 
   const [loading, setLoading] = useState(false);
   const [simulating, setSimulating] = useState(false);
+  const [linkedOrderTypes, setLinkedOrderTypes] = useState<OrderType[]>([]);
+  const [linkedOrderTypesLoading, setLinkedOrderTypesLoading] = useState(false);
 
   const loadFirstPaymentTermForClient = async (clientId: number) => {
     if (!Number.isFinite(clientId) || clientId <= 0) return;
@@ -202,6 +208,32 @@ function NewSalesOrderContent() {
       }
     } catch {}
   };
+
+  const loadLinkedOrderTypesForClient = async (clientId: number) => {
+    if (!Number.isFinite(clientId) || clientId <= 0) {
+      setLinkedOrderTypes([]);
+      setOrder((prev) => ({ ...prev, orderTypeId: null }));
+      return;
+    }
+    setLinkedOrderTypesLoading(true);
+    try {
+      const res = await fetch(`/api/base/clients/${encodeURIComponent(String(clientId))}/order-types`, { cache: 'no-store' });
+      const data = await res.json().catch(() => []);
+      const list = Array.isArray(data) ? (data as OrderType[]) : [];
+      const active = list.filter((ot) => ot && ot.situacao === 1);
+      setLinkedOrderTypes(active);
+      setOrder((prev) => {
+        const current = prev.orderTypeId ?? null;
+        const stillValid = current && active.some((ot) => Number(ot.id) === Number(current));
+        return stillValid ? prev : { ...prev, orderTypeId: null };
+      });
+    } catch {
+      setLinkedOrderTypes([]);
+      setOrder((prev) => ({ ...prev, orderTypeId: null }));
+    } finally {
+      setLinkedOrderTypesLoading(false);
+    }
+  };
   
   useEffect(() => {
     if (copyFromParam) return;
@@ -212,8 +244,9 @@ function NewSalesOrderContent() {
           if (Array.isArray(arr)) {
             const c = arr.find((x: any) => String(x.id) === customerIdParam);
             if (c) {
-              setOrder(prev => ({ ...prev, customerName: c.name, customerDoc: c.doc, customerId: c.id }));
+              setOrder(prev => ({ ...prev, customerName: c.name, customerDoc: c.doc, customerId: c.id, orderTypeId: null }));
               loadFirstPaymentTermForClient(Number(c.id));
+              loadLinkedOrderTypesForClient(Number(c.id));
             }
           }
         })
@@ -304,6 +337,7 @@ function NewSalesOrderContent() {
           customerId: Number.isFinite(clientId) && clientId > 0 ? clientId : undefined,
           paymentTerms: (src as any)?.paymentTerms ?? '',
           deliveryDate: (src as any)?.deliveryDate ? new Date((src as any).deliveryDate).toISOString().slice(0, 10) : '',
+          orderTypeId: typeof (src as any)?.orderTypeId === 'number' ? Number((src as any).orderTypeId) : null,
           triangularCustomerName: (src as any)?.triangularCustomerName ?? '',
           triangularCustomerDoc: (src as any)?.triangularCustomerDoc ?? '',
           items: copiedItems,
@@ -311,6 +345,11 @@ function NewSalesOrderContent() {
           discountTotal: 0,
           total: 0
         });
+        if (Number.isFinite(clientId) && clientId > 0) {
+          loadLinkedOrderTypesForClient(clientId);
+        } else {
+          setLinkedOrderTypes([]);
+        }
       } catch (e: any) {
         alert(e?.message || String(e));
       } finally {
@@ -429,6 +468,7 @@ function NewSalesOrderContent() {
           customerName: order.customerName,
           customerDoc: order.customerDoc,
           customerId: order.customerId,
+          orderTypeId: order.orderTypeId,
           triangularCustomerName: order.triangularCustomerName,
           triangularCustomerDoc: order.triangularCustomerDoc,
           entityCnpj: sessionEntity?.cnpj,
@@ -633,8 +673,9 @@ function NewSalesOrderContent() {
                   value={order.customerName || ''}
                   onChange={(val) => setOrder(prev => ({ ...prev, customerName: val }))}
                   onSelectObj={(c) => {
-                    setOrder(prev => ({ ...prev, customerName: c.name, customerDoc: c.doc, customerId: c.id }));
+                    setOrder(prev => ({ ...prev, customerName: c.name, customerDoc: c.doc, customerId: c.id, orderTypeId: null }));
                     loadFirstPaymentTermForClient(Number(c.id));
+                    loadLinkedOrderTypesForClient(Number(c.id));
                   }}
                   fetchUrl={(q) => `/api/base/clients?q=${q}`}
                   placeholder="Busque por nome ou documento"
@@ -648,7 +689,38 @@ function NewSalesOrderContent() {
                 />
               </div>
 
-              <div className="md:col-span-3">
+              <div className="md:col-span-6">
+                <span className="text-gray-600">Tipo de pedido</span>
+                <select
+                  className="mt-1 w-full px-2 py-1 border rounded"
+                  value={order.orderTypeId != null ? String(order.orderTypeId) : ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setOrder((prev) => ({ ...prev, orderTypeId: v ? Number(v) : null }));
+                  }}
+                  disabled={!order.customerId || linkedOrderTypesLoading || linkedOrderTypes.length === 0}
+                >
+                  <option value="">
+                    {!order.customerId
+                      ? 'Selecione um cliente'
+                      : linkedOrderTypesLoading
+                      ? 'Carregando...'
+                      : linkedOrderTypes.length === 0
+                      ? 'Nenhum tipo vinculado'
+                      : 'Selecione...'}
+                  </option>
+                  {linkedOrderTypes
+                    .slice()
+                    .sort((a, b) => String(a.descricao || '').localeCompare(String(b.descricao || ''), 'pt-BR'))
+                    .map((ot) => (
+                      <option key={ot.id} value={String(ot.id)}>
+                        {ot.codtipoped} - {ot.descricao}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="md:col-span-6">
                 <AsyncSelect
                   label="Condição de pagamento"
                   value={order.paymentTerms || ''}
@@ -668,7 +740,7 @@ function NewSalesOrderContent() {
                   )}
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="md:col-span-6">
                 <span className="text-gray-600">Entrega</span>
                 <input 
                   type="date" 

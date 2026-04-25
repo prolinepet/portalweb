@@ -134,7 +134,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     const id = parsePositiveInt(params.id);
     if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
-    const orderExists = await prisma.salesOrder.findUnique({ where: { id }, select: { id: true, customerDoc: true, clientId: true } });
+    const orderExists = await prisma.salesOrder.findUnique({ where: { id }, select: { id: true, customerDoc: true, clientId: true, orderTypeId: true } });
     if (!orderExists) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
 
     if (await shouldRestrictToLinkedClients(userId)) {
@@ -167,6 +167,12 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (typeof body.clientId === 'number') {
       allowed.clientId = Number.isFinite(body.clientId) ? Math.trunc(body.clientId) : null;
     }
+    if (typeof body.orderTypeId === 'number') {
+      allowed.orderTypeId = Number.isFinite(body.orderTypeId) && body.orderTypeId > 0 ? Math.trunc(body.orderTypeId) : null;
+    }
+    if (body.orderTypeId === null) {
+      allowed.orderTypeId = null;
+    }
     if (typeof body.triangularCustomerName === 'string') {
       allowed.triangularCustomerName = String(body.triangularCustomerName);
     }
@@ -179,6 +185,29 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     if (Object.keys(allowed).length === 0) {
       return NextResponse.json({ error: 'Nada para atualizar' }, { status: 400 });
+    }
+
+    const effectiveClientId = typeof allowed.clientId === 'number' ? allowed.clientId : orderExists.clientId;
+    const effectiveOrderTypeId =
+      typeof allowed.orderTypeId === 'number' || allowed.orderTypeId === null
+        ? allowed.orderTypeId
+        : orderExists.orderTypeId;
+
+    if (effectiveClientId) {
+      const linkedOrderTypesCount = await prisma.clientOrderType.count({ where: { clientId: effectiveClientId } });
+      const hasLinkedOrderTypes = linkedOrderTypesCount > 0;
+      if (hasLinkedOrderTypes && !effectiveOrderTypeId) {
+        return NextResponse.json({ error: 'Tipo de pedido é obrigatório para este cliente' }, { status: 400 });
+      }
+      if (hasLinkedOrderTypes && effectiveOrderTypeId) {
+        const allowedLink = await prisma.clientOrderType.findUnique({
+          where: { clientId_orderTypeId: { clientId: effectiveClientId, orderTypeId: effectiveOrderTypeId } },
+          select: { id: true },
+        });
+        if (!allowedLink?.id) {
+          return NextResponse.json({ error: 'Tipo de pedido não permitido para este cliente' }, { status: 400 });
+        }
+      }
     }
 
     const updated = await prisma.salesOrder.update({

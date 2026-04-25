@@ -37,6 +37,7 @@ type LinkedItem = { id: number; name: string; sku?: string | null; unit?: string
 type CartItem = { id: number; inventoryItemId: number; name: string; sku?: string | null; unit?: string | null; quantity: number; unitPrice: number };
 type Representative = { id: number; name: string };
 type BasePriceRow = { inventoryItemId: number; unit: string; unitPrice: number };
+type OrderType = { id: number; codtipoped: number; descricao: string; situacao: number };
 
 const statusColor = (s: string) => {
   const v = (s || '').trim();
@@ -130,6 +131,10 @@ export default function ClientDetailsPage() {
   const id = Number(params.id);
   const [client, setClient] = useState<Client | null>(null);
   const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
+  const [orderTypes, setOrderTypes] = useState<OrderType[]>([]);
+  const [linkedOrderTypes, setLinkedOrderTypes] = useState<OrderType[]>([]);
+  const [orderTypesLoading, setOrderTypesLoading] = useState(false);
+  const [orderTypeToLink, setOrderTypeToLink] = useState<string>("");
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -139,7 +144,7 @@ export default function ClientDetailsPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [selected, setSelected] = useState<SalesOrder | null>(null);
   const [integratingId, setIntegratingId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"orders" | "paymentTerms" | "linkedItems">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "paymentTerms" | "linkedItems" | "orderTypes">("orders");
   const [ordersPage, setOrdersPage] = useState(0);
   const [paymentTermsPage, setPaymentTermsPage] = useState(0);
   const [linkedItemsPage, setLinkedItemsPage] = useState(0);
@@ -155,6 +160,28 @@ export default function ClientDetailsPage() {
   const [applyingAdjust, setApplyingAdjust] = useState(false);
 
   const PAGE_SIZE = 20;
+
+  const refreshOrderTypes = useCallback(async () => {
+    if (!Number.isFinite(id) || id <= 0) return;
+    setOrderTypesLoading(true);
+    try {
+      const [allRes, linkedRes] = await Promise.all([
+        fetch(`/api/base/order-types`, { cache: "no-store" }),
+        fetch(`/api/base/clients/${encodeURIComponent(String(id))}/order-types`, { cache: "no-store" }),
+      ]);
+
+      const all = allRes.ok ? await allRes.json() : [];
+      const linked = linkedRes.ok ? await linkedRes.json() : [];
+
+      setOrderTypes(Array.isArray(all) ? all : []);
+      setLinkedOrderTypes(Array.isArray(linked) ? linked : []);
+    } catch {
+      setOrderTypes([]);
+      setLinkedOrderTypes([]);
+    } finally {
+      setOrderTypesLoading(false);
+    }
+  }, [id]);
 
   const refreshLinkedItems = useCallback(async () => {
     const li = await fetch(`/api/clients/${encodeURIComponent(String(id))}/items`, { cache: 'no-store' });
@@ -282,6 +309,12 @@ export default function ClientDetailsPage() {
       loadBasePrices().catch(() => {});
     }
   }, [activeTab, id]);
+
+  useEffect(() => {
+    if (activeTab === "orderTypes") {
+      refreshOrderTypes().catch(() => {});
+    }
+  }, [activeTab, refreshOrderTypes]);
 
   useEffect(() => {
     const loadUnlinked = async () => {
@@ -621,6 +654,19 @@ export default function ClientDetailsPage() {
                 aria-current={activeTab === "linkedItems" ? "page" : undefined}
               >
                 Itens Cliente
+              </button>
+            </li>
+            <li className="mr-2">
+              <button
+                onClick={() => setActiveTab("orderTypes")}
+                className={`inline-block px-3 py-2 border-b-2 border-solid rounded-t-lg transition-colors duration-200 ${
+                  activeTab === "orderTypes"
+                    ? "text-blue-600 border-blue-600 active group-hover:text-blue-600"
+                    : "border-transparent hover:text-gray-600 hover:border-gray-300"
+                }`}
+                aria-current={activeTab === "orderTypes" ? "page" : undefined}
+              >
+                Tipo Pedido
               </button>
             </li>
           </ul>
@@ -1153,6 +1199,145 @@ export default function ClientDetailsPage() {
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === "orderTypes" && (
+          <div className="border rounded bg-white overflow-hidden">
+            <div className="px-3 py-2 border-b bg-gray-50 flex items-center">
+              <div className="text-sm text-gray-700">Tipos de pedido vinculados ao cliente</div>
+              <div className="ml-auto text-xs text-gray-500">
+                {orderTypesLoading ? "Carregando..." : `${linkedOrderTypes.length} registro(s)`}
+              </div>
+            </div>
+
+            <div className="px-3 py-2 border-b flex flex-wrap items-end gap-3">
+              <div className="min-w-[260px]">
+                <div className="text-gray-600 text-sm">Vincular Tipo de Pedido</div>
+                <select
+                  className="mt-1 w-full px-2 py-1 border rounded text-sm"
+                  value={orderTypeToLink}
+                  onChange={(e) => setOrderTypeToLink(e.target.value)}
+                  disabled={orderTypesLoading}
+                >
+                  <option value="">Selecione...</option>
+                  {orderTypes
+                    .filter((ot) => ot && ot.situacao === 1)
+                    .filter((ot) => !linkedOrderTypes.some((l) => Number(l.id) === Number(ot.id)))
+                    .sort((a, b) => String(a.descricao || "").localeCompare(String(b.descricao || ""), "pt-BR"))
+                    .map((ot) => (
+                      <option key={ot.id} value={String(ot.id)}>
+                        {ot.codtipoped} - {ot.descricao}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <button
+                className="px-3 py-2 text-xs border rounded bg-white hover:bg-gray-100 disabled:opacity-50"
+                disabled={!orderTypeToLink || orderTypesLoading}
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/base/clients/${encodeURIComponent(String(id))}/order-types`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ orderTypeId: Number(orderTypeToLink) }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+                    setOrderTypeToLink("");
+                    await refreshOrderTypes();
+                  } catch (e: any) {
+                    alert(e?.message || String(e));
+                  }
+                }}
+              >
+                Vincular
+              </button>
+            </div>
+
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="p-2 text-left">Código</th>
+                    <th className="p-2 text-left">Descrição</th>
+                    <th className="p-2 text-left">Situação</th>
+                    <th className="p-2 text-left">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!orderTypesLoading && linkedOrderTypes.length === 0 && (
+                    <tr>
+                      <td className="p-3 text-gray-500" colSpan={4}>
+                        Sem vínculos
+                      </td>
+                    </tr>
+                  )}
+                  {linkedOrderTypes.map((ot) => (
+                    <tr key={ot.id} className="border-t">
+                      <td className="p-2 font-mono">{ot.codtipoped}</td>
+                      <td className="p-2">{ot.descricao}</td>
+                      <td className="p-2">{ot.situacao === 1 ? "Ativo" : "Inativo"}</td>
+                      <td className="p-2">
+                        <button
+                          className="px-3 py-1.5 text-xs border rounded hover:bg-gray-100"
+                          onClick={async () => {
+                            if (!confirm("Desvincular este tipo de pedido do cliente?")) return;
+                            try {
+                              const res = await fetch(
+                                `/api/base/clients/${encodeURIComponent(String(id))}/order-types/${encodeURIComponent(String(ot.id))}`,
+                                { method: "DELETE" }
+                              );
+                              const data = await res.json().catch(() => ({}));
+                              if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+                              await refreshOrderTypes();
+                            } catch (e: any) {
+                              alert(e?.message || String(e));
+                            }
+                          }}
+                        >
+                          Desvincular
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="sm:hidden divide-y">
+              {linkedOrderTypes.map((ot) => (
+                <div key={ot.id} className="p-3">
+                  <div className="text-sm font-semibold text-gray-900">
+                    {ot.codtipoped} - {ot.descricao}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-600">Situação: {ot.situacao === 1 ? "Ativo" : "Inativo"}</div>
+                  <div className="mt-2">
+                    <button
+                      className="px-3 py-2 text-xs border rounded"
+                      onClick={async () => {
+                        if (!confirm("Desvincular este tipo de pedido do cliente?")) return;
+                        try {
+                          const res = await fetch(
+                            `/api/base/clients/${encodeURIComponent(String(id))}/order-types/${encodeURIComponent(String(ot.id))}`,
+                            { method: "DELETE" }
+                          );
+                          const data = await res.json().catch(() => ({}));
+                          if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+                          await refreshOrderTypes();
+                        } catch (e: any) {
+                          alert(e?.message || String(e));
+                        }
+                      }}
+                    >
+                      Desvincular
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {!orderTypesLoading && linkedOrderTypes.length === 0 && <div className="p-3 text-gray-500 text-sm">Sem vínculos</div>}
+            </div>
           </div>
         )}
       </div>
