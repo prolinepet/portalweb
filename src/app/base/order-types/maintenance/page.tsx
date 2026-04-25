@@ -51,7 +51,7 @@ function Tabs({ active }: { active: "list" | "maint" }) {
 export default function OrderTypeMaintenancePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const idParam = searchParams.get("id");
+  const idParam = searchParams?.get("id") ?? null;
   const id = idParam ? Number(idParam) : null;
 
   const [mode, setMode] = useState<"new" | "view" | "edit">("new");
