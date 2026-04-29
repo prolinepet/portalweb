@@ -145,8 +145,6 @@ export const SalesOrderItemRow = ({
     item.discountPct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   );
   const [isSaving, setIsSaving] = useState(false);
-  const [weightInput, setWeightInput] = useState('');
-  const [isEditingWeight, setIsEditingWeight] = useState(false);
   const [isRowLocked, setIsRowLocked] = useState(false);
 
   useEffect(() => {
@@ -160,14 +158,6 @@ export const SalesOrderItemRow = ({
       return prev;
     });
   }, [item]);
-
-  // Sync weight input with item changes (unless editing)
-  useEffect(() => {
-    if (!isEditingWeight) {
-        const w = computeWeightKg(localItem);
-        setWeightInput(fmtInt(w));
-    }
-  }, [localItem, computeWeightKg, fmtInt, isEditingWeight]);
 
   const saveItem = async (data: Partial<OrderItem>) => {
     if (!onAutoSave) return; // Local mode only
@@ -207,26 +197,6 @@ export const SalesOrderItemRow = ({
     const validNum = isNaN(num) ? 0 : num;
     
     handleChange('discountPct', validNum);
-  };
-
-  const handleWeightChange = (val: string) => {
-    setWeightInput(val);
-    
-    // Parse PT-BR format: remove dots (thousands), replace comma with dot
-    const clean = val.replace(/\./g, '').replace(',', '.');
-    const w = parseFloat(clean);
-    
-    if (!isNaN(w) && w >= 0) {
-        const unitItem = { ...localItem, quantity: 1 };
-        const unitWeight = computeWeightKg(unitItem);
-        
-        if (unitWeight > 0) {
-            const newQty = Math.round(w / unitWeight);
-            if (newQty !== localItem.quantity && newQty > 0) {
-                 handleChange('quantity', newQty);
-            }
-        }
-    }
   };
 
   const showWidthLengthGram = supportsSheetDims(localItem);
@@ -311,15 +281,9 @@ export const SalesOrderItemRow = ({
         <td className="p-2">
             <input 
                 type="text" 
-                className={`w-24 px-2 py-1 border rounded ${!canEdit ? disabledClass : ''}`}
-                disabled={!canEdit}
-                value={weightInput} 
-                onChange={(e) => handleWeightChange(e.target.value)}
-                onFocus={() => setIsEditingWeight(true)}
-                onBlur={() => {
-                    setIsEditingWeight(false);
-                    setWeightInput(fmtInt(computeWeightKg(localItem)));
-                }}
+                className={`w-24 px-2 py-1 border rounded ${disabledClass}`}
+                disabled
+                value={fmtInt(computeWeightKg(localItem))} 
             />
         </td>
         <td className="p-2">
@@ -478,8 +442,6 @@ export const SalesOrderItemCard = ({
     item.discountPct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   );
   const [isSaving, setIsSaving] = useState(false);
-  const [weightInput, setWeightInput] = useState('');
-  const [isEditingWeight, setIsEditingWeight] = useState(false);
   const [isRowLocked, setIsRowLocked] = useState(false);
 
   useEffect(() => {
@@ -493,13 +455,6 @@ export const SalesOrderItemCard = ({
       return prev;
     });
   }, [item]);
-
-  useEffect(() => {
-    if (!isEditingWeight) {
-        const w = computeWeightKg(localItem);
-        setWeightInput(fmtInt(w));
-    }
-  }, [localItem, computeWeightKg, fmtInt, isEditingWeight]);
 
   const saveItem = async (data: Partial<OrderItem>) => {
     if (!onAutoSave) return;
@@ -536,25 +491,6 @@ export const SalesOrderItemCard = ({
     const validNum = isNaN(num) ? 0 : num;
     
     handleChange('discountPct', validNum);
-  };
-
-  const handleWeightChange = (val: string) => {
-    setWeightInput(val);
-    
-    const clean = val.replace(/\./g, '').replace(',', '.');
-    const w = parseFloat(clean);
-    
-    if (!isNaN(w) && w >= 0) {
-        const unitItem = { ...localItem, quantity: 1 };
-        const unitWeight = computeWeightKg(unitItem);
-        
-        if (unitWeight > 0) {
-            const newQty = Math.round(w / unitWeight);
-            if (newQty !== localItem.quantity && newQty > 0) {
-                 handleChange('quantity', newQty);
-            }
-        }
-    }
   };
 
   const showWidthLengthGram = supportsSheetDims(localItem);
@@ -625,15 +561,9 @@ export const SalesOrderItemCard = ({
           <div className="text-[11px] text-gray-600">Peso (KG)</div>
           <input 
             type="text"
-            className={`w-full px-2 py-1 border rounded text-sm ${!canEdit ? disabledClass : ''}`}
-            disabled={!canEdit}
-            value={weightInput} 
-            onChange={(e) => handleWeightChange(e.target.value)}
-            onFocus={() => setIsEditingWeight(true)}
-            onBlur={() => {
-                setIsEditingWeight(false);
-                setWeightInput(fmtInt(computeWeightKg(localItem)));
-            }}
+            className={`w-full px-2 py-1 border rounded text-sm ${disabledClass}`}
+            disabled
+            value={fmtInt(computeWeightKg(localItem))} 
           />
         </div>
         <div>

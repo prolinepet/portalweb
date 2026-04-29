@@ -21,6 +21,11 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (body.name !== undefined) data.name = String(body.name || '').trim();
     if (body.sku !== undefined) data.sku = String(body.sku || '').trim();
     if (body.unit !== undefined) data.unit = String(body.unit || '').trim();
+    if (body.unitWeightKg !== undefined) {
+      const raw = String(body.unitWeightKg ?? '').trim();
+      const n = raw === '' ? NaN : Number(raw.replace(',', '.'));
+      data.unitWeightKg = Number.isFinite(n) ? n : null;
+    }
     if (body.commercialFamilyId !== undefined) {
       const cfid = Number(body.commercialFamilyId);
       if (Number.isFinite(cfid) && cfid > 0) {

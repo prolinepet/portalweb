@@ -184,6 +184,11 @@ export async function POST(request: Request) {
   if (body.unit !== undefined) data.unit = String(body.unit || '').trim();
   if (body.quantity !== undefined) data.quantity = Number(body.quantity);
   if (body.minStock !== undefined) data.minStock = Number(body.minStock);
+  if (body.unitWeightKg !== undefined) {
+    const raw = String(body.unitWeightKg ?? '').trim();
+    const n = raw === '' ? NaN : Number(raw.replace(',', '.'));
+    data.unitWeightKg = Number.isFinite(n) ? n : null;
+  }
   if (body.width !== undefined) data.width = Number(body.width);
   if (body.length !== undefined) data.length = Number(body.length);
   if (body.grammage !== undefined) data.grammage = Number(body.grammage);

@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useRef, useState, Suspense } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type InventoryItem = {
@@ -9,6 +9,7 @@ type InventoryItem = {
   unit?: string | null;
   commercialFamily?: { id: number; description?: string | null; name?: string | null; priceBy?: string | null } | null;
   unitPrice?: number | null;
+  unitWeightKg?: number | null;
   width?: number | null;
   length?: number | null;
   grammage?: number | null;
@@ -194,27 +195,50 @@ function NewSalesOrderContent() {
   const [simulating, setSimulating] = useState(false);
   const [linkedOrderTypes, setLinkedOrderTypes] = useState<OrderType[]>([]);
   const [linkedOrderTypesLoading, setLinkedOrderTypesLoading] = useState(false);
+  const [paymentTermsOptions, setPaymentTermsOptions] = useState<any[]>([]);
+  const [paymentTermsLoading, setPaymentTermsLoading] = useState(false);
   const lastOrderTypeIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     lastOrderTypeIdRef.current = order.orderTypeId != null ? Number(order.orderTypeId) : null;
   }, [order.orderTypeId]);
 
-  const loadFirstPaymentTermForClient = async (clientId: number) => {
-    if (!Number.isFinite(clientId) || clientId <= 0) return;
-    try {
-      const res = await fetch(`/api/base/payment-terms?clientId=${clientId}`);
-      const data = await res.json();
-      const list = Array.isArray(data) ? data : [];
-      const first = list[0];
-      if (first?.description) {
-        const v = first.code != null ? `[${first.code}] ${first.description}` : String(first.description);
-        setOrder((prev) => ({ ...prev, paymentTerms: v }));
-      }
-    } catch {}
-  };
+  const paymentTermLabel = useCallback((pt: any): string => {
+    const code = pt?.code;
+    const desc = pt?.description;
+    if (code == null && desc == null) return '';
+    if (code == null) return String(desc || '').trim();
+    return `[${code}] ${String(desc || '').trim()}`.trim();
+  }, []);
 
-  const loadLinkedOrderTypesForClient = async (clientId: number) => {
+  const loadPaymentTermsForClient = useCallback(async (clientId: number) => {
+    if (!Number.isFinite(clientId) || clientId <= 0) {
+      setPaymentTermsOptions([]);
+      setOrder((prev) => ({ ...prev, paymentTerms: '' }));
+      return;
+    }
+    setPaymentTermsLoading(true);
+    try {
+      const res = await fetch(`/api/base/payment-terms?clientId=${clientId}`, { cache: 'no-store' });
+      const data = await res.json().catch(() => []);
+      const list = Array.isArray(data) ? data : [];
+      setPaymentTermsOptions(list);
+      const labels = list.map(paymentTermLabel).filter(Boolean);
+      setOrder((prev) => {
+        const current = String(prev.paymentTerms || '');
+        const stillValid = current && labels.includes(current);
+        if (stillValid) return prev;
+        return { ...prev, paymentTerms: labels[0] || '' };
+      });
+    } catch {
+      setPaymentTermsOptions([]);
+      setOrder((prev) => ({ ...prev, paymentTerms: '' }));
+    } finally {
+      setPaymentTermsLoading(false);
+    }
+  }, [paymentTermLabel]);
+
+  const loadLinkedOrderTypesForClient = useCallback(async (clientId: number) => {
     if (!Number.isFinite(clientId) || clientId <= 0) {
       setLinkedOrderTypes([]);
       setOrder((prev) => ({ ...prev, orderTypeId: null }));
@@ -240,7 +264,7 @@ function NewSalesOrderContent() {
     } finally {
       setLinkedOrderTypesLoading(false);
     }
-  };
+  }, []);
 
   const ensureItemsCompatibilityForOrderType = async (nextOrderTypeId: number | null): Promise<{ ok: boolean; nextItems?: OrderItem[] }> => {
     if (!order.customerId) return { ok: true };
@@ -315,14 +339,14 @@ function NewSalesOrderContent() {
             const c = arr.find((x: any) => String(x.id) === customerIdParam);
             if (c) {
               setOrder(prev => ({ ...prev, customerName: c.name, customerDoc: c.doc, customerId: c.id, orderTypeId: null }));
-              loadFirstPaymentTermForClient(Number(c.id));
+              loadPaymentTermsForClient(Number(c.id));
               loadLinkedOrderTypesForClient(Number(c.id));
             }
           }
         })
         .catch(console.error);
     }
-  }, [customerIdParam, copyFromParam]);
+  }, [customerIdParam, copyFromParam, loadLinkedOrderTypesForClient, loadPaymentTermsForClient]);
 
   useEffect(() => {
     const copyId = Number(copyFromParam);
@@ -421,8 +445,10 @@ function NewSalesOrderContent() {
         });
         if (Number.isFinite(clientId) && clientId > 0) {
           loadLinkedOrderTypesForClient(clientId);
+          loadPaymentTermsForClient(clientId);
         } else {
           setLinkedOrderTypes([]);
+          setPaymentTermsOptions([]);
         }
       } catch (e: any) {
         alert(e?.message || String(e));
@@ -430,7 +456,7 @@ function NewSalesOrderContent() {
         setLoading(false);
       }
     })();
-  }, [copyFromParam]);
+  }, [copyFromParam, loadLinkedOrderTypesForClient, loadPaymentTermsForClient]);
   
   const [currentDate, setCurrentDate] = useState('');
   const [sessionEntity, setSessionEntity] = useState<{ id: number; name: string; cnpj: string } | null>(null);
@@ -633,6 +659,11 @@ function NewSalesOrderContent() {
   };
 
   const computeWeightKg = (it: OrderItem): number => {
+    const unitWeight = Number((it as any)?.inventoryItem?.unitWeightKg ?? 0);
+    const qty = it.quantity ?? 0;
+    if (Number.isFinite(unitWeight) && unitWeight > 0 && Number.isFinite(qty) && qty > 0) {
+      return unitWeight * qty;
+    }
     const hasDims = supportsSheetDims(it);
     if (hasDims) {
       const w = it.width ?? 0;
@@ -754,8 +785,8 @@ function NewSalesOrderContent() {
                   value={order.customerName || ''}
                   onChange={(val) => setOrder(prev => ({ ...prev, customerName: val }))}
                   onSelectObj={(c) => {
-                    setOrder(prev => ({ ...prev, customerName: c.name, customerDoc: c.doc, customerId: c.id, orderTypeId: null }));
-                    loadFirstPaymentTermForClient(Number(c.id));
+                    setOrder(prev => ({ ...prev, customerName: c.name, customerDoc: c.doc, customerId: c.id, orderTypeId: null, paymentTerms: '' }));
+                    loadPaymentTermsForClient(Number(c.id));
                     loadLinkedOrderTypesForClient(Number(c.id));
                   }}
                   fetchUrl={(q) => `/api/base/clients?q=${q}`}
@@ -811,24 +842,32 @@ function NewSalesOrderContent() {
               </div>
 
               <div className="md:col-span-6">
-                <AsyncSelect
-                  label="Condição de pagamento"
-                  value={order.paymentTerms || ''}
-                  onChange={(val) => setOrder(prev => ({ ...prev, paymentTerms: val }))}
-                  onSelectObj={(item) => {
-                    const v = item?.code != null ? `[${item.code}] ${item.description}` : String(item?.description || '');
-                    setOrder((prev) => ({ ...prev, paymentTerms: v }));
-                  }}
-                  fetchUrl={(q) => `/api/base/payment-terms?clientId=${order.customerId ? String(order.customerId) : '0'}&q=${q}`}
-                  placeholder="Busque por descrição ou código"
-                  getLabel={(item) => item?.code != null ? `[${item.code}] ${item.description}` : item.description}
-                  renderOption={(item) => (
-                    <div>
-                      <div className="font-medium">{item.description}</div>
-                      <div className="text-xs text-gray-500">Cód: {item.code} - Parcelas: {item.installments}</div>
-                    </div>
-                  )}
-                />
+                <span className="text-gray-600">Condição de pagamento</span>
+                <select
+                  className="mt-1 w-full px-2 py-1 border rounded"
+                  value={order.paymentTerms ?? ''}
+                  onChange={(e) => setOrder((prev) => ({ ...prev, paymentTerms: e.target.value }))}
+                  disabled={!order.customerId || paymentTermsLoading || paymentTermsOptions.length === 0}
+                >
+                  <option value="">
+                    {!order.customerId
+                      ? 'Selecione um cliente'
+                      : paymentTermsLoading
+                      ? 'Carregando...'
+                      : paymentTermsOptions.length === 0
+                      ? 'Nenhuma condição vinculada'
+                      : 'Selecione...'}
+                  </option>
+                  {paymentTermsOptions.map((pt) => {
+                    const label = paymentTermLabel(pt);
+                    if (!label) return null;
+                    return (
+                      <option key={String(pt?.code ?? label)} value={label}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
               </div>
               <div className="md:col-span-6">
                 <span className="text-gray-600">Entrega</span>
@@ -936,7 +975,6 @@ function NewSalesOrderContent() {
         {/* Groups */}
         {groups.map(([fam, list]) => (
           <div key={fam} className="border rounded bg-white">
-            <div className="p-2 text-xs text-gray-600">{fam}</div>
             <div className="sm:hidden divide-y">
               {list.map((it) => (
                 <SalesOrderItemCard

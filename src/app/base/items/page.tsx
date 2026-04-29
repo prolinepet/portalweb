@@ -6,6 +6,7 @@ type Item = {
   name: string;
   sku?: string | null;
   unit?: string | null;
+  unitWeightKg?: number | null;
   commercialFamilyId?: number | null;
   commercialFamily?: { id: number; description: string } | null;
 };
@@ -23,7 +24,7 @@ export default function BaseItemMaintenancePage() {
   // Formulário unificado (inclusão/alteração)
   const [formOpen, setFormOpen] = useState<boolean>(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState<{ sku: string; name: string; unit: string; commercialFamilyId: number | null }>({ sku: "", name: "", unit: "", commercialFamilyId: null });
+  const [form, setForm] = useState<{ sku: string; name: string; unit: string; unitWeightKg: string; commercialFamilyId: number | null }>({ sku: "", name: "", unit: "", unitWeightKg: "", commercialFamilyId: null });
   const [saving, setSaving] = useState<boolean>(false);
   const [saveMsg, setSaveMsg] = useState<string>("");
   // Busca de família comercial
@@ -101,7 +102,7 @@ export default function BaseItemMaintenancePage() {
 
   const openAddForm = () => {
     setEditingId(null);
-    setForm({ sku: "", name: "", unit: "", commercialFamilyId: null });
+    setForm({ sku: "", name: "", unit: "", unitWeightKg: "", commercialFamilyId: null });
     setFamilyQuery("");
     setFamilySug([]);
     setShowFamilySug(false);
@@ -112,7 +113,7 @@ export default function BaseItemMaintenancePage() {
 
   const openEditForm = (item: Item) => {
     setEditingId(item.id);
-    setForm({ sku: item.sku || "", name: item.name || "", unit: item.unit || "", commercialFamilyId: item.commercialFamilyId ?? null });
+    setForm({ sku: item.sku || "", name: item.name || "", unit: item.unit || "", unitWeightKg: item.unitWeightKg != null ? String(item.unitWeightKg) : "", commercialFamilyId: item.commercialFamilyId ?? null });
     setFamilyQuery(item.commercialFamily?.description || "");
     setShowFamilySug(false);
     // Carregar disponibilidade
@@ -126,7 +127,7 @@ export default function BaseItemMaintenancePage() {
   const cancelForm = () => {
     setFormOpen(false);
     setEditingId(null);
-    setForm({ sku: "", name: "", unit: "", commercialFamilyId: null });
+    setForm({ sku: "", name: "", unit: "", unitWeightKg: "", commercialFamilyId: null });
     setFamilyQuery("");
     setFamilySug([]);
     setShowFamilySug(false);
@@ -138,7 +139,15 @@ export default function BaseItemMaintenancePage() {
     if (saving) return;
     setSaveMsg("");
     setSaving(true);
-    const payload = { sku: form.sku.trim(), name: form.name.trim(), unit: form.unit.trim(), commercialFamilyId: form.commercialFamilyId };
+    const unitWeightRaw = String(form.unitWeightKg || '').trim();
+    const unitWeightNum = unitWeightRaw === '' ? null : Number(unitWeightRaw.replace(',', '.'));
+    const payload = {
+      sku: form.sku.trim(),
+      name: form.name.trim(),
+      unit: form.unit.trim(),
+      unitWeightKg: unitWeightNum != null && Number.isFinite(unitWeightNum) ? unitWeightNum : null,
+      commercialFamilyId: form.commercialFamilyId
+    };
     try {
       if (editingId) {
         const res = await fetch(`/api/items/${editingId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -233,6 +242,17 @@ export default function BaseItemMaintenancePage() {
                 <div>
                   <label className="text-xs text-gray-600">Unidade de medida</label>
                   <input value={form.unit} onChange={(e)=>setForm((f)=>({ ...f, unit: e.target.value }))} className="w-full border rounded px-2 py-1 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600">Peso Unit (KG)</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={form.unitWeightKg}
+                    onChange={(e) => setForm((f) => ({ ...f, unitWeightKg: e.target.value }))}
+                    className="w-full border rounded px-2 py-1 text-sm"
+                    placeholder="Ex.: 0,250"
+                  />
                 </div>
                 <div className="md:col-span-2">
                   <label className="text-xs text-gray-600">Família Comercial</label>
