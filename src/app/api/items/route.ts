@@ -70,25 +70,36 @@ export async function GET(request: Request) {
           },
           select: {
             inventoryItemId: true,
+            priceTableId: true,
             unitPrice: true,
+            priceTable: { select: { id: true, nrtabpre: true, descricao: true } },
             inventoryItem: { include: { commercialFamily: true } },
           },
         });
 
-        const byInvId = new Map<number, { item: any; unitPrice: number }>();
+        const byInvId = new Map<number, { item: any; unitPrice: number; priceTable: any | null }>();
         for (const r of rows) {
           const invId = Number(r.inventoryItemId);
           if (!Number.isFinite(invId) || invId <= 0) continue;
           const unitPrice = Number(r.unitPrice ?? 0);
           const existing = byInvId.get(invId);
-          if (!existing || unitPrice < existing.unitPrice) {
-            byInvId.set(invId, { item: r.inventoryItem, unitPrice });
+          const ptId = Number((r as any)?.priceTableId);
+          const exPtId = Number((existing as any)?.priceTable?.id);
+          const shouldReplace =
+            !existing ||
+            unitPrice < existing.unitPrice ||
+            (unitPrice === existing.unitPrice &&
+              Number.isFinite(ptId) &&
+              ptId > 0 &&
+              (!Number.isFinite(exPtId) || exPtId <= 0 || ptId < exPtId));
+          if (shouldReplace) {
+            byInvId.set(invId, { item: r.inventoryItem, unitPrice, priceTable: (r as any)?.priceTable ?? null });
           }
         }
 
         let items = Array.from(byInvId.values())
           .filter((x) => x.item)
-          .map((x) => ({ ...x.item, unitPrice: x.unitPrice }));
+          .map((x) => ({ ...x.item, unitPrice: x.unitPrice, priceTable: x.priceTable }));
 
         if (qParam) {
           const lower = qParam.toLowerCase();

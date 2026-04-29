@@ -9,6 +9,7 @@ type InventoryItem = {
   unit?: string | null;
   commercialFamily?: { id: number; description?: string | null; name?: string | null; priceBy?: string | null } | null;
   unitPrice?: number | null;
+  priceTable?: { id: number; nrtabpre: string; descricao: string } | null;
   unitWeightKg?: number | null;
   width?: number | null;
   length?: number | null;
@@ -323,7 +324,10 @@ function NewSalesOrderContent() {
         if (!Number.isFinite(id) || id <= 0) return it;
         const allowed = allowedById.get(id);
         const nextUnitPrice = allowed?.unitPrice != null ? Number(allowed.unitPrice) : it.unitPrice;
-        return { ...it, unitPrice: nextUnitPrice };
+        const nextInv: InventoryItem | null = allowed && typeof allowed === 'object'
+          ? ({ ...(it.inventoryItem || {}), ...(allowed as any) } as InventoryItem)
+          : it.inventoryItem ?? null;
+        return { ...it, unitPrice: nextUnitPrice, inventoryItem: nextInv };
       });
 
     return { ok: true, nextItems };
@@ -999,6 +1003,7 @@ function NewSalesOrderContent() {
                     <th className="p-2 text-left">Item</th>
                     <th className="p-2 text-left">SKU</th>
                     <th className="p-2 text-left">UM</th>
+                    <th className="p-2 text-left">Tab. Preço</th>
                     {(() => { const hasCore = list.some(supportsCoreDims); return hasCore ? (<><th className="p-2 text-left">Diâmetro</th><th className="p-2 text-left">Tubete</th></>) : null; })()}
                     <th className="p-2 text-left">Qtd</th>
                     <th className="p-2 text-left">Peso (KG)</th>
