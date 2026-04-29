@@ -69,6 +69,59 @@ export async function POST(request: Request) {
     if (!customerDocRaw) return NextResponse.json({ error: 'CNPJ do cliente não encontrado.' }, { status: 400 });
     if (!entityDoc) return NextResponse.json({ error: 'Representante (Entidade) não identificado.' }, { status: 400 });
 
+    const clientId = body?.customerId != null ? Number(body.customerId) : body?.clientId != null ? Number(body.clientId) : null;
+    const orderTypeId = body?.orderTypeId != null ? Number(body.orderTypeId) : null;
+    const invIds = Array.from(
+      new Set(
+        (items || [])
+          .map((it: any) => Number(it?.inventoryItemId ?? it?.inventoryItem?.id))
+          .filter((n: any) => Number.isFinite(n) && n > 0)
+      )
+    );
+    const priceTableByInvId = new Map<number, { id: number; nrtabpre: string; descricao: string }>();
+    if (clientId && Number.isFinite(clientId) && clientId > 0 && orderTypeId && Number.isFinite(orderTypeId) && orderTypeId > 0 && invIds.length > 0) {
+      const [clientLinks, typeLinks] = await Promise.all([
+        prisma.clientPriceTable.findMany({ where: { clientId: Math.trunc(clientId) }, select: { priceTableId: true } }),
+        prisma.orderTypePriceTable.findMany({ where: { orderTypeId: Math.trunc(orderTypeId) }, select: { priceTableId: true } }),
+      ]);
+      const clientPtIds = new Set(clientLinks.map((l) => Number(l.priceTableId)));
+      const allowedPtIds = Array.from(
+        new Set(typeLinks.map((l) => Number(l.priceTableId)).filter((id) => clientPtIds.has(id)))
+      ).filter((n) => Number.isFinite(n) && n > 0);
+      if (allowedPtIds.length > 0) {
+        const rows = await prisma.priceTableItem.findMany({
+          where: { priceTableId: { in: allowedPtIds }, inventoryItemId: { in: invIds } },
+          select: {
+            inventoryItemId: true,
+            priceTableId: true,
+            unitPrice: true,
+            priceTable: { select: { id: true, nrtabpre: true, descricao: true } },
+          },
+        });
+        const bestByInvId = new Map<number, { unitPrice: number; priceTable: { id: number; nrtabpre: string; descricao: string } }>();
+        for (const r of rows) {
+          const invId = Number((r as any)?.inventoryItemId);
+          if (!Number.isFinite(invId) || invId <= 0) continue;
+          const unitPrice = Number((r as any)?.unitPrice ?? 0);
+          const existing = bestByInvId.get(invId);
+          const pt = (r as any)?.priceTable;
+          const ptId = Number((r as any)?.priceTableId);
+          const exPtId = Number((existing as any)?.priceTable?.id);
+          const shouldReplace =
+            !existing ||
+            unitPrice < existing.unitPrice ||
+            (unitPrice === existing.unitPrice &&
+              Number.isFinite(ptId) &&
+              ptId > 0 &&
+              (!Number.isFinite(exPtId) || exPtId <= 0 || ptId < exPtId));
+          if (shouldReplace && pt && typeof pt === 'object') bestByInvId.set(invId, { unitPrice, priceTable: pt });
+        }
+        for (const [k, v] of bestByInvId.entries()) {
+          if (v?.priceTable?.id) priceTableByInvId.set(k, v.priceTable);
+        }
+      }
+    }
+
     // Construct Payload
     // Note: Since the order is not saved, we use 0 or dummy values for IDs
     const payload = {
@@ -91,6 +144,22 @@ export async function POST(request: Request) {
           entityDoc: entityDoc
         },
         orderitem: items.map((item: any) => ({
+          priceTableId: (() => {
+            const invId = Number(item?.inventoryItemId ?? item?.inventoryItem?.id);
+            const pt = Number.isFinite(invId) && invId > 0 ? priceTableByInvId.get(invId) : null;
+            const fallback = item?.inventoryItem?.priceTable;
+            if (pt?.id) return pt.id;
+            const fbId = Number(fallback?.id);
+            return Number.isFinite(fbId) && fbId > 0 ? fbId : 0;
+          })(),
+          priceTableCode: (() => {
+            const invId = Number(item?.inventoryItemId ?? item?.inventoryItem?.id);
+            const pt = Number.isFinite(invId) && invId > 0 ? priceTableByInvId.get(invId) : null;
+            const fallback = item?.inventoryItem?.priceTable;
+            if (pt?.nrtabpre) return String(pt.nrtabpre);
+            const fb = String(fallback?.nrtabpre || '').trim();
+            return fb;
+          })(),
           orderId: 0,
           sku: item.sku || item.inventoryItem?.sku || "",
           quantity: item.quantity,
