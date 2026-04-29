@@ -286,9 +286,26 @@ function NewSalesOrderContent() {
     params.set('clientId', String(order.customerId));
     params.set('orderTypeId', String(nextOrderTypeId));
     params.set('ids', invIds.join(','));
-    const res = await fetch(`/api/items?${params.toString()}`, { cache: 'no-store' });
+    const [res, ptRes] = await Promise.all([
+      fetch(`/api/items?${params.toString()}`, { cache: 'no-store' }),
+      fetch(`/api/base/order-types/${encodeURIComponent(String(Math.trunc(nextOrderTypeId)))}/price-tables`, { cache: 'no-store' })
+        .catch(() => null as any),
+    ]);
     const arr = await res.json().catch(() => []);
     const allowedList = Array.isArray(arr) ? arr : [];
+    let allowedPtSet: Set<number> | null = null;
+    try {
+      if (ptRes && ptRes.ok) {
+        const ptArr = await ptRes.json().catch(() => []);
+        allowedPtSet = new Set<number>(
+          (Array.isArray(ptArr) ? ptArr : [])
+            .map((x: any) => Number(x?.priceTableId))
+            .filter((n: any) => Number.isFinite(n) && n > 0)
+        );
+      }
+    } catch {
+      allowedPtSet = null;
+    }
     const allowedById = new Map<number, any>();
     for (const it of allowedList) {
       const id = Number(it?.id);
@@ -296,26 +313,32 @@ function NewSalesOrderContent() {
       allowedById.set(id, it);
     }
 
-    const missing = items.filter((it) => {
+    const toRemove: OrderItem[] = items.filter((it) => {
       const id = Number(it?.inventoryItem?.id);
-      return Number.isFinite(id) && id > 0 && !allowedById.has(id);
+      const ptId = Number((it as any)?.inventoryItem?.priceTable?.id);
+      const removeByItem = Number.isFinite(id) && id > 0 && !allowedById.has(id);
+      const removeByPriceTable =
+        allowedPtSet !== null && Number.isFinite(ptId) && ptId > 0 && !allowedPtSet.has(ptId);
+      return removeByItem || removeByPriceTable;
     });
 
-    if (missing.length > 0) {
-      const sample = missing
+    if (toRemove.length > 0) {
+      const sample = toRemove
         .slice(0, 8)
         .map((it) => String(it?.sku || it?.inventoryItem?.sku || it?.name || 'Item'))
         .join(', ');
       const msg =
-        `Ao alterar o Tipo de pedido, ${missing.length} item(ns) não ficarão disponíveis e serão removidos do pedido.\n\n` +
-        `Ex.: ${sample}${missing.length > 8 ? '...' : ''}\n\n` +
+        `Ao alterar o Tipo de pedido, ${toRemove.length} item(ns) não ficarão disponíveis e serão removidos do pedido.\n\n` +
+        `Ex.: ${sample}${toRemove.length > 8 ? '...' : ''}\n\n` +
         `Deseja continuar?`;
       const confirmRemove = confirm(msg);
       if (!confirmRemove) return { ok: false };
     }
 
+    const toRemoveIds = new Set<number>(toRemove.map((x) => Number(x.id)).filter((n) => Number.isFinite(n)));
     const nextItems: OrderItem[] = items
       .filter((it) => {
+        if (toRemoveIds.has(Number(it.id))) return false;
         const id = Number(it?.inventoryItem?.id);
         return !Number.isFinite(id) || id <= 0 ? true : allowedById.has(id);
       })
