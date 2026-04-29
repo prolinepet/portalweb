@@ -274,20 +274,11 @@ export async function PATCH(request: Request, props: { params: Promise<{ doc: st
         },
       });
 
-      if (listProvided || singleProvided) {
-        const syncIds = listProvided ? paymentTermIds : (row.paymentTermId ? [row.paymentTermId] : []);
-        await tx.clientPaymentTerm.deleteMany({ where: { clientId: row.id } });
-        if (syncIds.length > 0) {
-          await tx.clientPaymentTerm.createMany({
-            data: syncIds.map((ptId, idx) => ({
-              clientId: row.id,
-              paymentTermId: ptId,
-              position: idx,
-            })),
-            skipDuplicates: true,
-          });
-        }
-      }
+      await Promise.all([
+        tx.userClientRep.deleteMany({ where: { clientId: row.id } }),
+        tx.clientPaymentTerm.deleteMany({ where: { clientId: row.id } }),
+        tx.clientPriceTable.deleteMany({ where: { clientId: row.id } }),
+      ]);
 
       return row;
     });
