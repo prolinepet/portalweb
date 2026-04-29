@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { SalesOrderItemCard, SalesOrderItemRow, supportsSheetDims, supportsCoreDims } from "../components/SalesOrderItemRow";
@@ -11,6 +11,7 @@ type InventoryItem = {
   unit?: string | null;
   commercialFamily?: { id: number; description?: string | null; name?: string | null; priceBy?: string | null } | null;
   unitPrice?: number | null;
+  unitWeightKg?: number | null;
   width?: number | null;
   length?: number | null;
   grammage?: number | null;
@@ -307,6 +308,8 @@ export default function SalesOrderMaintenancePage() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [linkedOrderTypes, setLinkedOrderTypes] = useState<OrderType[]>([]);
   const [linkedOrderTypesLoading, setLinkedOrderTypesLoading] = useState(false);
+  const [paymentTermsOptions, setPaymentTermsOptions] = useState<any[]>([]);
+  const [paymentTermsLoading, setPaymentTermsLoading] = useState(false);
 
   const canEditOrder = isEditableStatus(order?.status);
   const effectiveOrderTypeId =
@@ -363,6 +366,45 @@ export default function SalesOrderMaintenancePage() {
   useEffect(() => {
     loadLinkedOrderTypesForClient(hdrCustomerId);
   }, [hdrCustomerId]);
+
+  const paymentTermLabel = useCallback((pt: any): string => {
+    const code = pt?.code;
+    const desc = pt?.description;
+    if (code == null && desc == null) return '';
+    if (code == null) return String(desc || '').trim();
+    return `[${code}] ${String(desc || '').trim()}`.trim();
+  }, []);
+
+  const loadPaymentTermsForClient = useCallback(async (clientId: number | null) => {
+    if (!clientId || !Number.isFinite(clientId) || clientId <= 0) {
+      setPaymentTermsOptions([]);
+      setHdrDraft((d) => ({ ...d, paymentTerms: '' }));
+      return;
+    }
+    setPaymentTermsLoading(true);
+    try {
+      const res = await fetch(`/api/base/payment-terms?clientId=${clientId}`, { cache: 'no-store' });
+      const data = await res.json().catch(() => []);
+      const list = Array.isArray(data) ? data : [];
+      setPaymentTermsOptions(list);
+      const labels = list.map(paymentTermLabel).filter(Boolean);
+      setHdrDraft((d) => {
+        const current = String(d.paymentTerms || '');
+        const stillValid = current && labels.includes(current);
+        if (stillValid) return d;
+        return { ...d, paymentTerms: labels[0] || '' };
+      });
+    } catch {
+      setPaymentTermsOptions([]);
+      setHdrDraft((d) => ({ ...d, paymentTerms: '' }));
+    } finally {
+      setPaymentTermsLoading(false);
+    }
+  }, [paymentTermLabel]);
+
+  useEffect(() => {
+    loadPaymentTermsForClient(hdrCustomerId);
+  }, [hdrCustomerId, loadPaymentTermsForClient]);
 
   const loadInvoices = async () => {
     const oid = order?.id ?? numericId;
@@ -585,6 +627,11 @@ export default function SalesOrderMaintenancePage() {
   const fmtInt = (n: number | undefined) => Math.round(n ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 
   const computeWeightKg = (it: OrderItem): number => {
+    const unitWeight = Number((it as any)?.inventoryItem?.unitWeightKg ?? 0);
+    const qty = it.quantity ?? 0;
+    if (Number.isFinite(unitWeight) && unitWeight > 0 && Number.isFinite(qty) && qty > 0) {
+      return unitWeight * qty;
+    }
     // Aplicar fórmula para itens que têm medidas de chapa
     const hasDims = supportsSheetDims(it);
     if (hasDims) {
@@ -1008,20 +1055,10 @@ export default function SalesOrderMaintenancePage() {
                         value={hdrDraft.customerName ?? ''}
                         onChange={(val) => setHdrDraft((d) => ({ ...d, customerName: val }))}
                         onSelectObj={(item) => {
-                           setHdrDraft((d) => ({ ...d, customerName: item.name, customerDoc: item.doc, orderTypeId: null }));
-                           setHdrCustomerId(Number(item.id));
-                           (async () => {
-                             try {
-                               const ptRes = await fetch(`/api/base/payment-terms?clientId=${Number(item.id)}`);
-                               const ptData = await ptRes.json();
-                               const list = Array.isArray(ptData) ? ptData : [];
-                               const first = list[0];
-                               if (first?.description) {
-                                 const newVal = first.code != null ? `[${first.code}] ${first.description}` : String(first.description);
-                                 setHdrDraft((d) => ({ ...d, paymentTerms: newVal }));
-                               }
-                             } catch {}
-                           })();
+                           const cid = Number(item.id);
+                           setHdrDraft((d) => ({ ...d, customerName: item.name, customerDoc: item.doc, orderTypeId: null, paymentTerms: '' }));
+                           setHdrCustomerId(Number.isFinite(cid) && cid > 0 ? cid : null);
+                           if (Number.isFinite(cid) && cid > 0) loadPaymentTermsForClient(cid);
                         }}
                         fetchUrl={(q) => `/api/base/clients?q=${q}`}
                         placeholder="Pesquise por nome ou documento"
@@ -1065,24 +1102,32 @@ export default function SalesOrderMaintenancePage() {
                     </select>
                   </div>
                   <div className={`md:col-span-6 ${!isHeaderEditing ? "opacity-75 pointer-events-none" : ""}`}>
-                    <AsyncSelect
-                      label="Condição de pagamento"
+                    <span className="text-gray-600">Condição de pagamento</span>
+                    <select
+                      className="mt-1 w-full px-2 py-1 border rounded"
                       value={hdrDraft.paymentTerms ?? ''}
-                      onChange={(val) => setHdrDraft((d) => ({ ...d, paymentTerms: val }))}
-                      onSelectObj={(item) => {
-                         const newVal = `[${item.code}] ${item.description}`;
-                         setHdrDraft((d) => ({ ...d, paymentTerms: newVal }));
-                      }}
-                      fetchUrl={(q) => `/api/base/payment-terms?clientId=${hdrCustomerId ? String(hdrCustomerId) : '0'}&q=${q}`}
-                      placeholder="Digite código ou descrição"
-                      getLabel={(item) => `[${item.code}] ${item.description}`}
-                      renderOption={(item) => (
-                        <div>
-                          <div className="font-medium">{item.description}</div>
-                          <div className="text-xs text-gray-500">Código: {item.code} | Parcelas: {item.installments}</div>
-                        </div>
-                      )}
-                    />
+                      onChange={(e) => setHdrDraft((d) => ({ ...d, paymentTerms: e.target.value }))}
+                      disabled={!isHeaderEditing || !hdrCustomerId || paymentTermsLoading || paymentTermsOptions.length === 0}
+                    >
+                      <option value="">
+                        {!hdrCustomerId
+                          ? 'Selecione um cliente'
+                          : paymentTermsLoading
+                          ? 'Carregando...'
+                          : paymentTermsOptions.length === 0
+                          ? 'Nenhuma condição vinculada'
+                          : 'Selecione...'}
+                      </option>
+                      {paymentTermsOptions.map((pt) => {
+                        const label = paymentTermLabel(pt);
+                        if (!label) return null;
+                        return (
+                          <option key={String(pt?.code ?? label)} value={label}>
+                            {label}
+                          </option>
+                        );
+                      })}
+                    </select>
                   </div>
                   <div className="md:col-span-6 min-w-0">
                     <span className="text-gray-600">Entrega</span>
@@ -1357,7 +1402,6 @@ export default function SalesOrderMaintenancePage() {
           </div>
           {groups.map(([fam, list]) => (
             <div key={fam} className="border rounded bg-white">
-              <div className="p-2 text-xs text-gray-600">{fam}</div>
               <div className="sm:hidden divide-y">
                 {list.map((it) => {
                   const hasSheet = list.some(supportsSheetDims);

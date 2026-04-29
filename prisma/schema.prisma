@@ -78,6 +78,7 @@ model InventoryItem {
   quantity           Int               @default(0)
   unit               String?
   minStock           Int               @default(0)
+  unitWeightKg       Float?
   width              Int?
   length             Int?
   grammage           Int?
