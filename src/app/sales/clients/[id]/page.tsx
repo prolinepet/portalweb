@@ -136,10 +136,8 @@ export default function ClientDetailsPage() {
   const [linkedOrderTypes, setLinkedOrderTypes] = useState<OrderType[]>([]);
   const [orderTypesLoading, setOrderTypesLoading] = useState(false);
   const [orderTypeToLink, setOrderTypeToLink] = useState<string>("");
-  const [priceTables, setPriceTables] = useState<PriceTable[]>([]);
   const [linkedPriceTables, setLinkedPriceTables] = useState<PriceTable[]>([]);
   const [priceTablesLoading, setPriceTablesLoading] = useState(false);
-  const [priceTableToLink, setPriceTableToLink] = useState<string>("");
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -192,18 +190,10 @@ export default function ClientDetailsPage() {
     if (!Number.isFinite(id) || id <= 0) return;
     setPriceTablesLoading(true);
     try {
-      const [allRes, linkedRes] = await Promise.all([
-        fetch(`/api/base/price-tables`, { cache: "no-store" }),
-        fetch(`/api/base/clients/${encodeURIComponent(String(id))}/price-tables`, { cache: "no-store" }),
-      ]);
-
-      const all = allRes.ok ? await allRes.json() : [];
+      const linkedRes = await fetch(`/api/base/clients/${encodeURIComponent(String(id))}/price-tables`, { cache: "no-store" });
       const linked = linkedRes.ok ? await linkedRes.json() : [];
-
-      setPriceTables(Array.isArray(all) ? all : []);
       setLinkedPriceTables(Array.isArray(linked) ? linked : []);
     } catch {
-      setPriceTables([]);
       setLinkedPriceTables([]);
     } finally {
       setPriceTablesLoading(false);
@@ -994,51 +984,6 @@ export default function ClientDetailsPage() {
               </div>
             </div>
 
-            <div className="px-3 py-2 border-b flex flex-wrap items-end gap-3">
-              <div className="min-w-[260px]">
-                <div className="text-gray-600 text-sm">Vincular Tabela de Preço</div>
-                <select
-                  className="mt-1 w-full px-2 py-1 border rounded text-sm"
-                  value={priceTableToLink}
-                  onChange={(e) => setPriceTableToLink(e.target.value)}
-                  disabled={priceTablesLoading}
-                >
-                  <option value="">Selecione...</option>
-                  {priceTables
-                    .filter((pt) => pt && pt.situacao === 1)
-                    .filter((pt) => !linkedPriceTables.some((l) => Number(l.id) === Number(pt.id)))
-                    .sort((a, b) => String(a.descricao || "").localeCompare(String(b.descricao || ""), "pt-BR"))
-                    .map((pt) => (
-                      <option key={pt.id} value={String(pt.id)}>
-                        {pt.nrtabpre} - {pt.descricao}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <button
-                className="px-3 py-2 text-xs border rounded bg-white hover:bg-gray-100 disabled:opacity-50"
-                disabled={!priceTableToLink || priceTablesLoading}
-                onClick={async () => {
-                  try {
-                    const res = await fetch(`/api/base/clients/${encodeURIComponent(String(id))}/price-tables`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ priceTableId: Number(priceTableToLink) }),
-                    });
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
-                    setPriceTableToLink("");
-                    await refreshPriceTables();
-                  } catch (e: any) {
-                    alert(e?.message || String(e));
-                  }
-                }}
-              >
-                Vincular
-              </button>
-            </div>
-
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -1046,13 +991,12 @@ export default function ClientDetailsPage() {
                     <th className="p-2 text-left">Número</th>
                     <th className="p-2 text-left">Descrição</th>
                     <th className="p-2 text-left">Situação</th>
-                    <th className="p-2 text-left">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {!priceTablesLoading && linkedPriceTables.length === 0 && (
                     <tr>
-                      <td className="p-3 text-gray-500" colSpan={4}>
+                      <td className="p-3 text-gray-500" colSpan={3}>
                         Sem vínculos
                       </td>
                     </tr>
@@ -1062,27 +1006,6 @@ export default function ClientDetailsPage() {
                       <td className="p-2 font-mono">{pt.nrtabpre}</td>
                       <td className="p-2">{pt.descricao}</td>
                       <td className="p-2">{pt.situacao === 1 ? "Ativo" : "Inativo"}</td>
-                      <td className="p-2">
-                        <button
-                          className="px-3 py-1.5 text-xs border rounded hover:bg-gray-100"
-                          onClick={async () => {
-                            if (!confirm("Desvincular esta tabela de preço do cliente?")) return;
-                            try {
-                              const res = await fetch(
-                                `/api/base/clients/${encodeURIComponent(String(id))}/price-tables/${encodeURIComponent(String(pt.id))}`,
-                                { method: "DELETE" }
-                              );
-                              const data = await res.json().catch(() => ({}));
-                              if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
-                              await refreshPriceTables();
-                            } catch (e: any) {
-                              alert(e?.message || String(e));
-                            }
-                          }}
-                        >
-                          Desvincular
-                        </button>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1096,27 +1019,6 @@ export default function ClientDetailsPage() {
                     {pt.nrtabpre} - {pt.descricao}
                   </div>
                   <div className="mt-1 text-xs text-gray-600">Situação: {pt.situacao === 1 ? "Ativo" : "Inativo"}</div>
-                  <div className="mt-2">
-                    <button
-                      className="px-3 py-2 text-xs border rounded"
-                      onClick={async () => {
-                        if (!confirm("Desvincular esta tabela de preço do cliente?")) return;
-                        try {
-                          const res = await fetch(
-                            `/api/base/clients/${encodeURIComponent(String(id))}/price-tables/${encodeURIComponent(String(pt.id))}`,
-                            { method: "DELETE" }
-                          );
-                          const data = await res.json().catch(() => ({}));
-                          if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
-                          await refreshPriceTables();
-                        } catch (e: any) {
-                          alert(e?.message || String(e));
-                        }
-                      }}
-                    >
-                      Desvincular
-                    </button>
-                  </div>
                 </div>
               ))}
               {!priceTablesLoading && linkedPriceTables.length === 0 && <div className="p-3 text-gray-500 text-sm">Sem vínculos</div>}
