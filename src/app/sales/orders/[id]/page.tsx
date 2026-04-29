@@ -764,17 +764,38 @@ export default function SalesOrderMaintenancePage() {
           params.set('clientId', String(effectiveClientId));
           params.set('orderTypeId', String(Math.trunc(nextOrderTypeId)));
           params.set('ids', invIds.join(','));
-          const allowedRes = await fetch(`/api/items?${params.toString()}`, { cache: 'no-store' });
+          const [allowedRes, ptRes] = await Promise.all([
+            fetch(`/api/items?${params.toString()}`, { cache: 'no-store' }),
+            fetch(`/api/base/order-types/${encodeURIComponent(String(Math.trunc(nextOrderTypeId)))}/price-tables`, { cache: 'no-store' })
+              .catch(() => null as any),
+          ]);
           const allowedArr = await allowedRes.json().catch(() => []);
           const allowedSet = new Set<number>(
             (Array.isArray(allowedArr) ? allowedArr : [])
               .map((x: any) => Number(x?.id))
               .filter((n: any) => Number.isFinite(n) && n > 0)
           );
+          let allowedPtSet: Set<number> | null = null;
+          try {
+            if (ptRes && ptRes.ok) {
+              const ptArr = await ptRes.json().catch(() => []);
+              allowedPtSet = new Set<number>(
+                (Array.isArray(ptArr) ? ptArr : [])
+                  .map((x: any) => Number(x?.priceTableId))
+                  .filter((n: any) => Number.isFinite(n) && n > 0)
+              );
+            }
+          } catch {
+            allowedPtSet = null;
+          }
 
           const toRemove = orderItems.filter((it) => {
             const invId = Number((it as any)?.inventoryItemId ?? it?.inventoryItem?.id);
-            return Number.isFinite(invId) && invId > 0 && !allowedSet.has(invId);
+            const ptId = Number((it as any)?.inventoryItem?.priceTable?.id);
+            const removeByItem = Number.isFinite(invId) && invId > 0 && !allowedSet.has(invId);
+            const removeByPriceTable =
+              allowedPtSet !== null && Number.isFinite(ptId) && ptId > 0 && !allowedPtSet.has(ptId);
+            return removeByItem || removeByPriceTable;
           });
 
           if (toRemove.length > 0) {
