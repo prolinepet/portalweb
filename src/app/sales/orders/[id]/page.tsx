@@ -309,6 +309,18 @@ export default function SalesOrderMaintenancePage() {
   const [linkedOrderTypesLoading, setLinkedOrderTypesLoading] = useState(false);
 
   const canEditOrder = isEditableStatus(order?.status);
+  const effectiveOrderTypeId =
+    hdrDraft.orderTypeId != null
+      ? Number(hdrDraft.orderTypeId)
+      : (order as any)?.orderTypeId != null
+      ? Number((order as any).orderTypeId)
+      : null;
+  const hasSelectedOrderType = !!(
+    effectiveOrderTypeId &&
+    Number.isFinite(effectiveOrderTypeId) &&
+    effectiveOrderTypeId > 0
+  );
+  const isOrderTypeRequired = linkedOrderTypes.length > 0;
 
   // Billing History
   const [showBilling, setShowBilling] = useState(false);
@@ -404,14 +416,24 @@ export default function SalesOrderMaintenancePage() {
   };
 
   const searchClientItems = async (term: string) => {
+    if (isOrderTypeRequired && !hasSelectedOrderType) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
     setSearchLoading(true);
     try {
       const params = new URLSearchParams();
       params.set('q', term);
-      if (order?.customerDoc) {
+      if (hdrCustomerId) {
+        params.set('clientId', String(hdrCustomerId));
+      } else if (order?.customerDoc) {
         params.set('customerDoc', order.customerDoc);
       } else if (order?.customerName) {
         params.set('customerName', order.customerName);
+      }
+      if (hasSelectedOrderType && effectiveOrderTypeId) {
+        params.set('orderTypeId', String(Math.trunc(effectiveOrderTypeId)));
       }
       
       const res = await fetch(`/api/items?${params.toString()}`);
@@ -613,6 +635,70 @@ export default function SalesOrderMaintenancePage() {
     }
 
     try {
+      const nextOrderTypeId =
+        partial.orderTypeId !== undefined
+          ? partial.orderTypeId
+          : (order as any)?.orderTypeId != null
+          ? Number((order as any).orderTypeId)
+          : null;
+      const prevOrderTypeId = (order as any)?.orderTypeId != null ? Number((order as any).orderTypeId) : null;
+      const effectiveClientId = typeof partial.clientId === 'number' ? partial.clientId : hdrCustomerId;
+
+      if (
+        effectiveClientId &&
+        nextOrderTypeId &&
+        Number.isFinite(nextOrderTypeId) &&
+        nextOrderTypeId > 0 &&
+        nextOrderTypeId !== prevOrderTypeId &&
+        orderItems.length > 0
+      ) {
+        const invIds = Array.from(
+          new Set(
+            orderItems
+              .map((it) => Number((it as any)?.inventoryItemId ?? it?.inventoryItem?.id))
+              .filter((n) => Number.isFinite(n) && n > 0)
+          )
+        );
+
+        if (invIds.length > 0) {
+          const params = new URLSearchParams();
+          params.set('clientId', String(effectiveClientId));
+          params.set('orderTypeId', String(Math.trunc(nextOrderTypeId)));
+          params.set('ids', invIds.join(','));
+          const allowedRes = await fetch(`/api/items?${params.toString()}`, { cache: 'no-store' });
+          const allowedArr = await allowedRes.json().catch(() => []);
+          const allowedSet = new Set<number>(
+            (Array.isArray(allowedArr) ? allowedArr : [])
+              .map((x: any) => Number(x?.id))
+              .filter((n: any) => Number.isFinite(n) && n > 0)
+          );
+
+          const toRemove = orderItems.filter((it) => {
+            const invId = Number((it as any)?.inventoryItemId ?? it?.inventoryItem?.id);
+            return Number.isFinite(invId) && invId > 0 && !allowedSet.has(invId);
+          });
+
+          if (toRemove.length > 0) {
+            const sample = toRemove
+              .slice(0, 8)
+              .map((it) => String(it?.sku || it?.inventoryItem?.sku || it?.name || 'Item'))
+              .join(', ');
+            const msg =
+              `Ao alterar o Tipo de pedido, ${toRemove.length} item(ns) não ficarão disponíveis e serão removidos do pedido.\n\n` +
+              `Ex.: ${sample}${toRemove.length > 8 ? '...' : ''}\n\n` +
+              `Deseja continuar?`;
+            if (!confirm(msg)) return;
+
+            for (const it of toRemove) {
+              const itemId = Number(it.id);
+              if (!Number.isFinite(itemId) || itemId <= 0) continue;
+              await fetch(`/api/sales/orders/items/${encodeURIComponent(String(itemId))}`, { method: 'DELETE' }).catch(() => {});
+            }
+            await refreshOrder();
+          }
+        }
+      }
+
       const res = await fetch(`/api/sales/orders/${order.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(partial) });
       if (!res.ok) throw new Error('Falha ao salvar cabeçalho');
       const updated: SalesOrder = await res.json();
@@ -1220,8 +1306,15 @@ export default function SalesOrderMaintenancePage() {
             <div className="px-3 py-2 border-b flex items-center gap-2">
               <span className="text-sm text-gray-700">Itens</span>
               <button 
-                className={`ml-auto px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 ${!isHeaderEditing && !canEditOrder ? 'opacity-50 cursor-not-allowed' : ''}`} 
-                disabled={!isHeaderEditing && !canEditOrder} 
+                className={`ml-auto px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 ${(!isHeaderEditing && !canEditOrder) || (isOrderTypeRequired && !hasSelectedOrderType) ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                disabled={(!isHeaderEditing && !canEditOrder) || (isOrderTypeRequired && !hasSelectedOrderType)} 
+                title={
+                  isOrderTypeRequired && !hasSelectedOrderType
+                    ? 'Selecione o tipo de pedido primeiro'
+                    : !isHeaderEditing && !canEditOrder
+                    ? 'Pedido não pode ser alterado'
+                    : ''
+                }
                 onClick={() => { 
                   if (!isHeaderEditing) setIsHeaderEditing(true);
                   setAddingItems(true);
@@ -1240,7 +1333,13 @@ export default function SalesOrderMaintenancePage() {
                 </div>
                 <div className="mt-2">
                   {searchLoading && <div className="text-xs text-gray-500">Buscando…</div>}
-                  {!searchLoading && searchResults.length === 0 && <div className="text-xs text-gray-500">Nenhum item vinculado ao cliente encontrado.</div>}
+                  {!searchLoading && searchResults.length === 0 && (
+                    <div className="text-xs text-gray-500">
+                      {isOrderTypeRequired && !hasSelectedOrderType
+                        ? 'Selecione o tipo de pedido primeiro.'
+                        : 'Nenhum item vinculado ao cliente encontrado.'}
+                    </div>
+                  )}
                   <ul className="divide-y max-h-60 overflow-auto">
                     {searchResults.map((it) => (
                       <li key={it.id} className="py-2 flex items-center gap-3 cursor-pointer hover:bg-gray-50 px-2 rounded" onClick={() => addItemToOrder(it)}>

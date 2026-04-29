@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useState, Suspense } from "react";
+import React, { useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type InventoryItem = {
@@ -194,6 +194,11 @@ function NewSalesOrderContent() {
   const [simulating, setSimulating] = useState(false);
   const [linkedOrderTypes, setLinkedOrderTypes] = useState<OrderType[]>([]);
   const [linkedOrderTypesLoading, setLinkedOrderTypesLoading] = useState(false);
+  const lastOrderTypeIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    lastOrderTypeIdRef.current = order.orderTypeId != null ? Number(order.orderTypeId) : null;
+  }, [order.orderTypeId]);
 
   const loadFirstPaymentTermForClient = async (clientId: number) => {
     if (!Number.isFinite(clientId) || clientId <= 0) return;
@@ -225,7 +230,9 @@ function NewSalesOrderContent() {
       setOrder((prev) => {
         const current = prev.orderTypeId ?? null;
         const stillValid = current && active.some((ot) => Number(ot.id) === Number(current));
-        return stillValid ? prev : { ...prev, orderTypeId: null };
+        if (stillValid) return prev;
+        if (!current && active.length === 1) return { ...prev, orderTypeId: Number(active[0].id) };
+        return { ...prev, orderTypeId: null };
       });
     } catch {
       setLinkedOrderTypes([]);
@@ -233,6 +240,69 @@ function NewSalesOrderContent() {
     } finally {
       setLinkedOrderTypesLoading(false);
     }
+  };
+
+  const ensureItemsCompatibilityForOrderType = async (nextOrderTypeId: number | null): Promise<{ ok: boolean; nextItems?: OrderItem[] }> => {
+    if (!order.customerId) return { ok: true };
+    const items = order.items || [];
+    if (items.length === 0) return { ok: true };
+    if (!nextOrderTypeId) return { ok: true };
+
+    const invIds = Array.from(
+      new Set(
+        items
+          .map((it) => Number(it?.inventoryItem?.id))
+          .filter((n) => Number.isFinite(n) && n > 0)
+      )
+    );
+    if (invIds.length === 0) return { ok: true };
+
+    const params = new URLSearchParams();
+    params.set('clientId', String(order.customerId));
+    params.set('orderTypeId', String(nextOrderTypeId));
+    params.set('ids', invIds.join(','));
+    const res = await fetch(`/api/items?${params.toString()}`, { cache: 'no-store' });
+    const arr = await res.json().catch(() => []);
+    const allowedList = Array.isArray(arr) ? arr : [];
+    const allowedById = new Map<number, any>();
+    for (const it of allowedList) {
+      const id = Number(it?.id);
+      if (!Number.isFinite(id) || id <= 0) continue;
+      allowedById.set(id, it);
+    }
+
+    const missing = items.filter((it) => {
+      const id = Number(it?.inventoryItem?.id);
+      return Number.isFinite(id) && id > 0 && !allowedById.has(id);
+    });
+
+    if (missing.length > 0) {
+      const sample = missing
+        .slice(0, 8)
+        .map((it) => String(it?.sku || it?.inventoryItem?.sku || it?.name || 'Item'))
+        .join(', ');
+      const msg =
+        `Ao alterar o Tipo de pedido, ${missing.length} item(ns) não ficarão disponíveis e serão removidos do pedido.\n\n` +
+        `Ex.: ${sample}${missing.length > 8 ? '...' : ''}\n\n` +
+        `Deseja continuar?`;
+      const confirmRemove = confirm(msg);
+      if (!confirmRemove) return { ok: false };
+    }
+
+    const nextItems: OrderItem[] = items
+      .filter((it) => {
+        const id = Number(it?.inventoryItem?.id);
+        return !Number.isFinite(id) || id <= 0 ? true : allowedById.has(id);
+      })
+      .map((it) => {
+        const id = Number(it?.inventoryItem?.id);
+        if (!Number.isFinite(id) || id <= 0) return it;
+        const allowed = allowedById.get(id);
+        const nextUnitPrice = allowed?.unitPrice != null ? Number(allowed.unitPrice) : it.unitPrice;
+        return { ...it, unitPrice: nextUnitPrice };
+      });
+
+    return { ok: true, nextItems };
   };
   
   useEffect(() => {
@@ -266,6 +336,7 @@ function NewSalesOrderContent() {
         const src = await res.json();
 
         const clientId = Number((src as any)?.clientId ?? (src as any)?.customerId ?? 0);
+        const srcOrderTypeId = Number((src as any)?.orderTypeId ?? 0);
         const srcItems = Array.isArray((src as any)?.items) ? (src as any).items : [];
 
         const invIds = Array.from(
@@ -280,6 +351,9 @@ function NewSalesOrderContent() {
         if (Number.isFinite(clientId) && clientId > 0 && invIds.length > 0) {
           const params = new URLSearchParams();
           params.set('clientId', String(clientId));
+          if (Number.isFinite(srcOrderTypeId) && srcOrderTypeId > 0) {
+            params.set('orderTypeId', String(Math.trunc(srcOrderTypeId)));
+          }
           params.set('ids', invIds.join(','));
           const itemsRes = await fetch(`/api/items?${params.toString()}`, { cache: 'no-store' });
           if (itemsRes.ok) {
@@ -337,7 +411,7 @@ function NewSalesOrderContent() {
           customerId: Number.isFinite(clientId) && clientId > 0 ? clientId : undefined,
           paymentTerms: (src as any)?.paymentTerms ?? '',
           deliveryDate: (src as any)?.deliveryDate ? new Date((src as any).deliveryDate).toISOString().slice(0, 10) : '',
-          orderTypeId: typeof (src as any)?.orderTypeId === 'number' ? Number((src as any).orderTypeId) : null,
+          orderTypeId: Number.isFinite(srcOrderTypeId) && srcOrderTypeId > 0 ? Math.trunc(srcOrderTypeId) : null,
           triangularCustomerName: (src as any)?.triangularCustomerName ?? '',
           triangularCustomerDoc: (src as any)?.triangularCustomerDoc ?? '',
           items: copiedItems,
@@ -382,9 +456,13 @@ function NewSalesOrderContent() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [totalWithTax, setTotalWithTax] = useState(0);
 
-    const searchClientItems = async (term: string) => {
+  const searchClientItems = async (term: string) => {
     if (!order.customerId) {
       // If no customer selected, do not search
+      setSearchResults([]);
+      return;
+    }
+    if (linkedOrderTypes.length > 0 && !order.orderTypeId) {
       setSearchResults([]);
       return;
     }
@@ -395,6 +473,9 @@ function NewSalesOrderContent() {
       params.set('q', term);
       if (order.customerId) {
         params.set('clientId', String(order.customerId));
+      }
+      if (order.orderTypeId) {
+        params.set('orderTypeId', String(order.orderTypeId));
       }
       
       const res = await fetch(`/api/items?${params.toString()}`);
@@ -696,7 +777,16 @@ function NewSalesOrderContent() {
                   value={order.orderTypeId != null ? String(order.orderTypeId) : ''}
                   onChange={(e) => {
                     const v = e.target.value;
-                    setOrder((prev) => ({ ...prev, orderTypeId: v ? Number(v) : null }));
+                    const next = v ? Number(v) : null;
+                    (async () => {
+                      const prev = lastOrderTypeIdRef.current;
+                      const check = await ensureItemsCompatibilityForOrderType(next);
+                      if (!check.ok) {
+                        setOrder((p) => ({ ...p, orderTypeId: prev }));
+                        return;
+                      }
+                      setOrder((p) => ({ ...p, orderTypeId: next, items: check.nextItems ?? p.items }));
+                    })();
                   }}
                   disabled={!order.customerId || linkedOrderTypesLoading || linkedOrderTypes.length === 0}
                 >
@@ -792,9 +882,15 @@ function NewSalesOrderContent() {
           <div className="px-3 py-2 border-b flex items-center gap-2">
             <span className="text-sm text-gray-700">Itens</span>
             <button 
-              className={`ml-auto px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 ${!order.customerId ? 'opacity-50 cursor-not-allowed' : ''}`}
-              disabled={!order.customerId}
-              title={!order.customerId ? "Selecione um cliente primeiro" : ""}
+              className={`ml-auto px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 ${(!order.customerId || (linkedOrderTypes.length > 0 && !order.orderTypeId)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={!order.customerId || (linkedOrderTypes.length > 0 && !order.orderTypeId)}
+              title={
+                !order.customerId
+                  ? "Selecione um cliente primeiro"
+                  : linkedOrderTypes.length > 0 && !order.orderTypeId
+                  ? "Selecione o tipo de pedido primeiro"
+                  : ""
+              }
               onClick={() => { setAddingItems(true); setSearchTerm(''); searchClientItems(''); }}
             >
               Adicionar itens
