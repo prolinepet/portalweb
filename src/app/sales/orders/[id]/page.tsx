@@ -1404,7 +1404,6 @@ export default function SalesOrderMaintenancePage() {
             <div key={fam} className="border rounded bg-white">
               <div className="sm:hidden divide-y">
                 {list.map((it) => {
-                  const hasSheet = list.some(supportsSheetDims);
                   const hasCore = list.some(supportsCoreDims);
                   const isFeatures = showFeaturesFor === it.id;
 
@@ -1447,7 +1446,6 @@ export default function SalesOrderMaintenancePage() {
                       toggleFeatures={() => setShowFeaturesFor(isFeatures ? null : it.id)}
                       computeWeightKg={computeWeightKg}
                       fmtInt={fmtInt}
-                      hasSheetCol={hasSheet}
                       hasCoreCol={hasCore}
                       onSaveSuccess={refreshOrder}
                     />
@@ -1461,7 +1459,6 @@ export default function SalesOrderMaintenancePage() {
                       <th className="p-2 text-left">Item</th>
                       <th className="p-2 text-left">SKU</th>
                       <th className="p-2 text-left">UM</th>
-                      {(() => { const hasSheet = list.some(supportsSheetDims); return hasSheet ? (<><th className="p-2 text-left">Larg.</th><th className="p-2 text-left">Compr.</th><th className="p-2 text-left">Gram.</th></>) : null; })()}
                       {(() => { const hasCore = list.some(supportsCoreDims); return hasCore ? (<><th className="p-2 text-left">Diâmetro</th><th className="p-2 text-left">Tubete</th></>) : null; })()}
                       <th className="p-2 text-left">Qtd</th>
                       <th className="p-2 text-left">Peso (KG)</th>
@@ -1472,7 +1469,6 @@ export default function SalesOrderMaintenancePage() {
                   </thead>
                   <tbody>
                     {list.map((it) => {
-                      const hasSheet = list.some(supportsSheetDims);
                       const hasCore = list.some(supportsCoreDims);
                       const isFeatures = showFeaturesFor === it.id;
 
@@ -1509,8 +1505,6 @@ export default function SalesOrderMaintenancePage() {
                            toggleFeatures={() => setShowFeaturesFor(isFeatures ? null : it.id)}
                            computeWeightKg={computeWeightKg}
                            fmtInt={fmtInt}
-                           // Extra props for column visibility
-                           hasSheetCol={hasSheet}
                            hasCoreCol={hasCore}
                         />
                       );

@@ -120,7 +120,6 @@ interface SalesOrderItemRowProps {
   toggleFeatures: () => void;
   computeWeightKg: (it: OrderItem) => number;
   fmtInt: (n?: number) => string;
-  hasSheetCol: boolean;
   hasCoreCol: boolean;
   canDelete: boolean;
 }
@@ -132,11 +131,8 @@ export const SalesOrderItemRow = ({
   onSaveSuccess,
   onAutoSave,
   onDelete,
-  showFeatures,
-  toggleFeatures,
   computeWeightKg,
   fmtInt,
-  hasSheetCol,
   hasCoreCol,
   canDelete
 }: SalesOrderItemRowProps) => {
@@ -199,7 +195,6 @@ export const SalesOrderItemRow = ({
     handleChange('discountPct', validNum);
   };
 
-  const showWidthLengthGram = supportsSheetDims(localItem);
   const showDiameterTube = supportsCoreDims(localItem);
   const canEdit = isOrderEditable && !isRowLocked;
   const disabledClass = "bg-gray-100 text-gray-500";
@@ -218,35 +213,6 @@ export const SalesOrderItemRow = ({
         <td className="p-2">{localItem.sku || '-'}</td>
         <td className="p-2">{localItem.unit || '-'}</td>
         
-        {hasSheetCol && (
-            <>
-                <td className="p-2">{showWidthLengthGram ? (
-                    <FormattedIntInput 
-                        className={`w-24 px-2 py-1 border rounded ${!canEdit ? disabledClass : ''}`}
-                        disabled={!canEdit}
-                        value={localItem.width} 
-                        onChange={(val) => handleChange('width', val)} 
-                    />
-                ) : '-'}</td>
-                <td className="p-2">{showWidthLengthGram ? (
-                    <FormattedIntInput 
-                        className={`w-24 px-2 py-1 border rounded ${!canEdit ? disabledClass : ''}`}
-                        disabled={!canEdit}
-                        value={localItem.length} 
-                        onChange={(val) => handleChange('length', val)} 
-                    />
-                ) : '-'}</td>
-                <td className="p-2">{showWidthLengthGram ? (
-                    <FormattedIntInput 
-                        className={`w-24 px-2 py-1 border rounded ${disabledClass}`}
-                        disabled
-                        value={localItem.grammage} 
-                        onChange={(val) => handleChange('grammage', val)} 
-                    />
-                ) : '-'}</td>
-            </>
-        )}
-
         {hasCoreCol && (
             <>
                 <td className="p-2">{showDiameterTube ? (
@@ -322,102 +288,12 @@ export const SalesOrderItemRow = ({
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17Z"/></svg>
                   )}
                 </button>
-                <button 
-                className="inline-flex items-center justify-center w-8 h-8 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 text-gray-700" 
-                title="Características/Detalhes" 
-                onClick={toggleFeatures}
-                >
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 0 0 1-2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"></path></svg>
-                </button>
                 <button className={`inline-flex items-center justify-center w-8 h-8 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 text-gray-700 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`} title="Excluir" disabled={!canDelete} style={{ opacity: !canDelete ? 0.5 : 1, pointerEvents: !canDelete ? 'none' : 'auto' }} onClick={onDelete}>
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                 </button>
             </div>
         </td>
       </tr>
-      {showFeatures && (
-        <tr className="bg-gray-50 border-t-0 border-b">
-        <td colSpan={20} className="p-4">
-            <div className="space-y-4">
-            <h4 className="font-semibold text-sm">Características</h4>
-            <div className="flex flex-wrap items-end gap-6">
-                <div className="space-y-1">
-                <label className="text-xs text-gray-600 block">Vincos</label>
-                <div className="grid grid-cols-4 gap-2">
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-                    <div key={n} className="flex items-center gap-1">
-                        <span className="text-xs text-gray-500 w-3">{n}</span>
-                        <FormattedIntInput 
-                            className={`w-16 px-2 py-1 border rounded text-sm ${!canEdit ? disabledClass : ''}`}
-                            placeholder="0" 
-                            disabled={!canEdit}
-                            value={localItem.creases?.[n]}
-                            onChange={(val) => {
-                                const newCreases = { ...(localItem.creases || {}), [n]: val === null ? 0 : val };
-                                handleChange('creases', newCreases);
-                            }}
-                        />
-                    </div>
-                    ))}
-                </div>
-                </div>
-                <div className="space-y-1">
-                <label className="text-xs text-gray-600 block">Número Ordem Compra</label>
-                <input 
-                    type="text" 
-                    className={`w-48 px-2 py-1 border rounded text-sm ${!canEdit ? disabledClass : ''}`}
-                    disabled={!canEdit}
-                    value={localItem.clientOrderNumber ?? ''}
-                    onChange={(e) => handleChange('clientOrderNumber', e.target.value)}
-                />
-                </div>
-                <div className="space-y-1">
-                <label className="text-xs text-gray-600 block">Seq Item Ordem</label>
-                <input 
-                    type="number" 
-                    className={`w-24 px-2 py-1 border rounded text-sm ${!canEdit ? disabledClass : ''}`}
-                    disabled={!canEdit}
-                    value={localItem.clientOrderItemNumber ?? ''}
-                    onChange={(e) => handleChange('clientOrderItemNumber', e.target.value ? Number(e.target.value) : null)}
-                />
-                </div>
-                <div className="space-y-1">
-                <label className="text-xs text-gray-600 block">Data Entrega</label>
-                <input 
-                    type="date" 
-                    className={`w-32 px-2 py-1 border rounded text-sm ${!canEdit ? disabledClass : ''}`}
-                    disabled={!canEdit}
-                    value={localItem.itemDeliveryDate ? new Date(localItem.itemDeliveryDate).toISOString().split('T')[0] : ''}
-                    onChange={(e) => handleChange('itemDeliveryDate', e.target.value ? new Date(e.target.value) : null)}
-                />
-                </div>
-                <div className="flex items-center gap-2 pb-2">
-                <input 
-                    type="checkbox" 
-                    id={`res-in-${localItem.id}`} 
-                    className="rounded border-gray-300 disabled:bg-gray-100" 
-                    disabled={!canEdit}
-                    checked={localItem.internalResin ?? false}
-                    onChange={(e) => handleChange('internalResin', e.target.checked)}
-                />
-                <label htmlFor={`res-in-${localItem.id}`} className={`text-sm ${!canEdit ? 'text-gray-500' : 'text-gray-700'}`}>Resina interna</label>
-                </div>
-                <div className="flex items-center gap-2 pb-2">
-                <input 
-                    type="checkbox" 
-                    id={`res-out-${localItem.id}`} 
-                    className="rounded border-gray-300 disabled:bg-gray-100" 
-                    disabled={!canEdit}
-                    checked={localItem.externalResin ?? false}
-                    onChange={(e) => handleChange('externalResin', e.target.checked)}
-                />
-                <label htmlFor={`res-out-${localItem.id}`} className={`text-sm ${!canEdit ? 'text-gray-500' : 'text-gray-700'}`}>Resina externa</label>
-                </div>
-            </div>
-            </div>
-        </td>
-        </tr>
-      )}
     </>
   );
 };
@@ -429,11 +305,8 @@ export const SalesOrderItemCard = ({
   onSaveSuccess,
   onAutoSave,
   onDelete,
-  showFeatures,
-  toggleFeatures,
   computeWeightKg,
   fmtInt,
-  hasSheetCol,
   hasCoreCol,
   canDelete
 }: SalesOrderItemRowProps) => {
@@ -493,7 +366,6 @@ export const SalesOrderItemCard = ({
     handleChange('discountPct', validNum);
   };
 
-  const showWidthLengthGram = supportsSheetDims(localItem);
   const showDiameterTube = supportsCoreDims(localItem);
   const canEdit = isOrderEditable && !isRowLocked;
   const disabledClass = "bg-gray-100 text-gray-500";
@@ -525,14 +397,6 @@ export const SalesOrderItemCard = ({
             ) : (
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17Z"/></svg>
             )}
-          </button>
-          <button
-            className="inline-flex items-center justify-center w-8 h-8 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 text-gray-700"
-            title="Características/Detalhes"
-            aria-label="Características/Detalhes"
-            onClick={toggleFeatures}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 0 0 1-2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"></path></svg>
           </button>
           <button
             className={`inline-flex items-center justify-center w-8 h-8 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 text-gray-700 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -585,37 +449,6 @@ export const SalesOrderItemCard = ({
             onChange={(e) => handleDiscountChange(e.target.value)}
           />
         </div>
-        {hasSheetCol && showWidthLengthGram && (
-          <>
-            <div>
-              <div className="text-[11px] text-gray-600">Larg.</div>
-              <FormattedIntInput 
-                className={`w-full px-2 py-1 border rounded text-sm ${!canEdit ? disabledClass : ''}`}
-                disabled={!canEdit}
-                value={localItem.width} 
-                onChange={(val) => handleChange('width', val)} 
-              />
-            </div>
-            <div>
-              <div className="text-[11px] text-gray-600">Compr.</div>
-              <FormattedIntInput 
-                className={`w-full px-2 py-1 border rounded text-sm ${!canEdit ? disabledClass : ''}`}
-                disabled={!canEdit}
-                value={localItem.length} 
-                onChange={(val) => handleChange('length', val)} 
-              />
-            </div>
-            <div className="col-span-2">
-              <div className="text-[11px] text-gray-600">Gram.</div>
-              <FormattedIntInput 
-                className={`w-full px-2 py-1 border rounded text-sm ${disabledClass}`}
-                disabled
-                value={localItem.grammage} 
-                onChange={(val) => handleChange('grammage', val)} 
-              />
-            </div>
-          </>
-        )}
         {hasCoreCol && showDiameterTube && (
           <>
             <div>
@@ -642,93 +475,6 @@ export const SalesOrderItemCard = ({
         )}
       </div>
 
-      {showFeatures && (
-        <div className="mt-3 bg-gray-50 border rounded p-3">
-          <div className="space-y-4">
-            <h4 className="font-semibold text-sm">Características</h4>
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-xs text-gray-600 block">Vincos</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-                    <div key={n} className="flex items-center gap-1">
-                      <span className="text-xs text-gray-500 w-3">{n}</span>
-                      <FormattedIntInput 
-                        className={`w-16 px-2 py-1 border rounded text-sm ${!canEdit ? disabledClass : ''}`}
-                        placeholder="0" 
-                        disabled={!canEdit}
-                        value={localItem.creases?.[n]}
-                        onChange={(val) => {
-                            const newCreases = { ...(localItem.creases || {}), [n]: val === null ? 0 : val };
-                            handleChange('creases', newCreases);
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="grid grid-cols-1 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-600 block">Número Ordem Compra</label>
-                  <input 
-                    type="text" 
-                    className={`w-full px-2 py-1 border rounded text-sm ${!canEdit ? disabledClass : ''}`}
-                    disabled={!canEdit}
-                    value={localItem.clientOrderNumber ?? ''}
-                    onChange={(e) => handleChange('clientOrderNumber', e.target.value)}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs text-gray-600 block">Seq Item Ordem</label>
-                    <input 
-                      type="number" 
-                      className={`w-full px-2 py-1 border rounded text-sm ${!canEdit ? disabledClass : ''}`}
-                      disabled={!canEdit}
-                      value={localItem.clientOrderItemNumber ?? ''}
-                      onChange={(e) => handleChange('clientOrderItemNumber', e.target.value ? Number(e.target.value) : null)}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-gray-600 block">Data Entrega</label>
-                    <input 
-                      type="date" 
-                      className={`w-full px-2 py-1 border rounded text-sm ${!canEdit ? disabledClass : ''}`}
-                      disabled={!canEdit}
-                      value={localItem.itemDeliveryDate ? new Date(localItem.itemDeliveryDate).toISOString().split('T')[0] : ''}
-                      onChange={(e) => handleChange('itemDeliveryDate', e.target.value ? new Date(e.target.value) : null)}
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="checkbox" 
-                      id={`res-in-${localItem.id}`} 
-                      className="rounded border-gray-300 disabled:bg-gray-100" 
-                      disabled={!canEdit}
-                      checked={localItem.internalResin ?? false}
-                      onChange={(e) => handleChange('internalResin', e.target.checked)}
-                    />
-                    <label htmlFor={`res-in-${localItem.id}`} className={`text-sm ${!canEdit ? 'text-gray-500' : 'text-gray-700'}`}>Resina interna</label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="checkbox" 
-                      id={`res-out-${localItem.id}`} 
-                      className="rounded border-gray-300 disabled:bg-gray-100" 
-                      disabled={!canEdit}
-                      checked={localItem.externalResin ?? false}
-                      onChange={(e) => handleChange('externalResin', e.target.checked)}
-                    />
-                    <label htmlFor={`res-out-${localItem.id}`} className={`text-sm ${!canEdit ? 'text-gray-500' : 'text-gray-700'}`}>Resina externa</label>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
