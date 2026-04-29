@@ -194,17 +194,40 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         : orderExists.orderTypeId;
 
     if (effectiveClientId) {
-      const linkedOrderTypesCount = await prisma.clientOrderType.count({ where: { clientId: effectiveClientId } });
-      const hasLinkedOrderTypes = linkedOrderTypesCount > 0;
-      if (hasLinkedOrderTypes && !effectiveOrderTypeId) {
+      const availableOrderTypesCount = await prisma.orderType.count({
+        where: {
+          priceTables: {
+            some: {
+              priceTable: {
+                clients: { some: { clientId: effectiveClientId } },
+                situacao: 1,
+              },
+            },
+          },
+          situacao: 1,
+        },
+      });
+      const hasAvailableOrderTypes = availableOrderTypesCount > 0;
+      if (hasAvailableOrderTypes && !effectiveOrderTypeId) {
         return NextResponse.json({ error: 'Tipo de pedido é obrigatório para este cliente' }, { status: 400 });
       }
-      if (hasLinkedOrderTypes && effectiveOrderTypeId) {
-        const allowedLink = await prisma.clientOrderType.findUnique({
-          where: { clientId_orderTypeId: { clientId: effectiveClientId, orderTypeId: effectiveOrderTypeId } },
+      if (hasAvailableOrderTypes && effectiveOrderTypeId) {
+        const allowed = await prisma.orderType.findFirst({
+          where: {
+            id: effectiveOrderTypeId,
+            situacao: 1,
+            priceTables: {
+              some: {
+                priceTable: {
+                  clients: { some: { clientId: effectiveClientId } },
+                  situacao: 1,
+                },
+              },
+            },
+          },
           select: { id: true },
         });
-        if (!allowedLink?.id) {
+        if (!allowed?.id) {
           return NextResponse.json({ error: 'Tipo de pedido não permitido para este cliente' }, { status: 400 });
         }
       }

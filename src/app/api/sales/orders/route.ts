@@ -340,14 +340,37 @@ export async function POST(request: Request) {
         }
       }
 
-      const linkedOrderTypesCount = await prisma.clientOrderType.count({ where: { clientId } });
-      const hasLinkedOrderTypes = linkedOrderTypesCount > 0;
-      if (hasLinkedOrderTypes && !orderTypeId) {
+      const availableOrderTypesCount = await prisma.orderType.count({
+        where: {
+          priceTables: {
+            some: {
+              priceTable: {
+                clients: { some: { clientId } },
+                situacao: 1,
+              },
+            },
+          },
+          situacao: 1,
+        },
+      });
+      const hasAvailableOrderTypes = availableOrderTypesCount > 0;
+      if (hasAvailableOrderTypes && !orderTypeId) {
         return NextResponse.json({ error: 'Tipo de pedido é obrigatório para este cliente' }, { status: 400 });
       }
-      if (hasLinkedOrderTypes && orderTypeId) {
-        const allowed = await prisma.clientOrderType.findUnique({
-          where: { clientId_orderTypeId: { clientId, orderTypeId } },
+      if (hasAvailableOrderTypes && orderTypeId) {
+        const allowed = await prisma.orderType.findFirst({
+          where: {
+            id: orderTypeId,
+            situacao: 1,
+            priceTables: {
+              some: {
+                priceTable: {
+                  clients: { some: { clientId } },
+                  situacao: 1,
+                },
+              },
+            },
+          },
           select: { id: true },
         });
         if (!allowed?.id) {

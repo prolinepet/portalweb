@@ -13,23 +13,15 @@ export async function GET(_: Request, props: { params: Promise<{ id: string }> }
     const clientId = parseId(params.id);
     if (!clientId) return NextResponse.json({ error: "id inválido" }, { status: 400 });
 
-    const rows = await prisma.orderType.findMany({
-      where: {
-        priceTables: {
-          some: {
-            priceTable: {
-              clients: { some: { clientId } },
-              situacao: 1,
-            },
-          },
-        },
-        situacao: 1,
+    const links = await prisma.clientPriceTable.findMany({
+      where: { clientId },
+      orderBy: [{ priceTable: { descricao: "asc" } }, { priceTable: { nrtabpre: "asc" } }],
+      select: {
+        priceTable: { select: { id: true, nrtabpre: true, descricao: true, situacao: true } },
       },
-      orderBy: [{ descricao: "asc" }, { codtipoped: "asc" }],
-      select: { id: true, codtipoped: true, descricao: true, situacao: true },
     });
 
-    return NextResponse.json(Array.isArray(rows) ? rows : []);
+    return NextResponse.json(links.map((l) => l.priceTable));
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
@@ -42,28 +34,29 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     if (!clientId) return NextResponse.json({ error: "id inválido" }, { status: 400 });
 
     const body = await request.json().catch(() => ({}));
-    const orderTypeId = parseId(body?.orderTypeId);
-    const codtipoped = parseId(body?.codtipoped);
+    const priceTableId = parseId(body?.priceTableId);
+    const nrtabpre = typeof body?.nrtabpre === "string" ? String(body.nrtabpre).trim() : "";
 
-    const orderType =
-      orderTypeId
-        ? await prisma.orderType.findUnique({ where: { id: orderTypeId }, select: { id: true } })
-        : codtipoped
-          ? await prisma.orderType.findFirst({ where: { codtipoped }, select: { id: true } })
+    const priceTable =
+      priceTableId
+        ? await prisma.priceTable.findUnique({ where: { id: priceTableId }, select: { id: true } })
+        : nrtabpre
+          ? await prisma.priceTable.findFirst({ where: { nrtabpre }, select: { id: true } })
           : null;
 
-    if (!orderType?.id) return NextResponse.json({ error: "Tipo de pedido inválido" }, { status: 400 });
+    if (!priceTable?.id) return NextResponse.json({ error: "Tabela de preço inválida" }, { status: 400 });
 
-    const existing = await prisma.clientOrderType.findUnique({
-      where: { clientId_orderTypeId: { clientId, orderTypeId: orderType.id } },
+    const existing = await prisma.clientPriceTable.findUnique({
+      where: { clientId_priceTableId: { clientId, priceTableId: priceTable.id } },
       select: { id: true },
     });
     if (existing?.id) return NextResponse.json({ ok: true });
 
-    await prisma.clientOrderType.create({
-      data: { clientId, orderTypeId: orderType.id },
+    await prisma.clientPriceTable.create({
+      data: { clientId, priceTableId: priceTable.id },
       select: { id: true },
     });
+
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (err: any) {
     const msg = String(err?.message || err);
