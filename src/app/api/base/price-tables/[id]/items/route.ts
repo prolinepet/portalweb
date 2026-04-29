@@ -63,33 +63,73 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== "object") return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
-    const inventoryItemIdRaw = Number(body?.inventoryItemId);
-    let inventoryItemId = Number.isFinite(inventoryItemIdRaw) ? Math.trunc(inventoryItemIdRaw) : NaN;
-    if (!Number.isFinite(inventoryItemId) || inventoryItemId <= 0) {
-      const sku = String(body?.sku ?? "").trim();
+
+    const isArrayPayload = Array.isArray(body);
+    const items = isArrayPayload ? body : [body];
+    if (!Array.isArray(items) || items.length === 0) return NextResponse.json({ error: "Itens inválidos" }, { status: 400 });
+
+    const withId: Array<{ inventoryItemId: number; unitPrice: number }> = [];
+    const withSku: Array<{ sku: string; unitPrice: number }> = [];
+
+    for (const it of items) {
+      if (!it || typeof it !== "object") return NextResponse.json({ error: "Item inválido" }, { status: 400 });
+      const invIdRaw = Number((it as any)?.inventoryItemId);
+      const invId = Number.isFinite(invIdRaw) ? Math.trunc(invIdRaw) : NaN;
+      const sku = String((it as any)?.sku ?? (it as any)?.itemCode ?? "").trim();
+      const unitPriceRaw = parsePrice((it as any)?.unitPrice);
+      const unitPrice = unitPriceRaw !== null ? unitPriceRaw : NaN;
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) return NextResponse.json({ error: "Preço unitário inválido" }, { status: 400 });
+
+      if (Number.isFinite(invId) && invId > 0) {
+        withId.push({ inventoryItemId: invId, unitPrice });
+        continue;
+      }
       if (!sku) return NextResponse.json({ error: "Item inválido" }, { status: 400 });
-      const item = await prisma.inventoryItem.findUnique({ where: { sku }, select: { id: true } });
-      if (!item) return NextResponse.json({ error: "Item não encontrado" }, { status: 404 });
-      inventoryItemId = item.id;
+      withSku.push({ sku, unitPrice });
     }
-    const unitPriceRaw = parsePrice(body?.unitPrice);
-    const unitPrice = unitPriceRaw !== null ? unitPriceRaw : NaN;
 
-    if (!Number.isFinite(unitPrice) || unitPrice < 0) return NextResponse.json({ error: "Preço unitário inválido" }, { status: 400 });
+    const skuList = Array.from(new Set(withSku.map((x) => x.sku)));
+    const skuMap = new Map<string, number>();
+    if (skuList.length) {
+      const found = await prisma.inventoryItem.findMany({
+        where: { sku: { in: skuList } },
+        select: { id: true, sku: true },
+      });
+      for (const r of found) {
+        const s = String((r as any)?.sku || "").trim();
+        const id = Number((r as any)?.id);
+        if (!s || !Number.isFinite(id) || id <= 0) continue;
+        skuMap.set(s, Math.trunc(id));
+      }
+      const missing = skuList.filter((s) => !skuMap.has(s));
+      if (missing.length) return NextResponse.json({ error: "Item não encontrado", missingSkus: missing }, { status: 404 });
+    }
 
-    const upserted = await prisma.priceTableItem.upsert({
-      where: {
-        priceTableId_inventoryItemId: {
-          priceTableId: Math.trunc(priceTableId),
-          inventoryItemId,
-        },
-      },
-      update: { unitPrice },
-      create: { priceTableId: Math.trunc(priceTableId), inventoryItemId, unitPrice },
-      select: { inventoryItemId: true, unitPrice: true },
+    const rowsToUpsert: Array<{ inventoryItemId: number; unitPrice: number }> = [
+      ...withId,
+      ...withSku.map((x) => ({ inventoryItemId: skuMap.get(x.sku) as number, unitPrice: x.unitPrice })),
+    ].filter((x) => Number.isFinite(x.inventoryItemId) && x.inventoryItemId > 0);
+
+    const upserted = await prisma.$transaction(async (tx) => {
+      const out: any[] = [];
+      for (const row of rowsToUpsert) {
+        const u = await tx.priceTableItem.upsert({
+          where: {
+            priceTableId_inventoryItemId: {
+              priceTableId: Math.trunc(priceTableId),
+              inventoryItemId: row.inventoryItemId,
+            },
+          },
+          update: { unitPrice: row.unitPrice },
+          create: { priceTableId: Math.trunc(priceTableId), inventoryItemId: row.inventoryItemId, unitPrice: row.unitPrice },
+          select: { inventoryItemId: true, unitPrice: true },
+        });
+        out.push(u);
+      }
+      return out;
     });
 
-    return NextResponse.json(upserted);
+    return NextResponse.json(isArrayPayload ? upserted : upserted[0]);
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
