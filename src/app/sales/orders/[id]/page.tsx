@@ -11,6 +11,7 @@ type InventoryItem = {
   unit?: string | null;
   commercialFamily?: { id: number; description?: string | null; name?: string | null; priceBy?: string | null } | null;
   unitPrice?: number | null;
+  priceTable?: { id: number; nrtabpre: string; descricao: string } | null;
   unitWeightKg?: number | null;
   width?: number | null;
   length?: number | null;
@@ -576,8 +577,59 @@ export default function SalesOrderMaintenancePage() {
         }
 
         const data: SalesOrder = await res.json();
+        let nextItems: OrderItem[] = data.items || [];
+        const clientIdForPricing = (data as any)?.clientId != null ? Number((data as any).clientId) : null;
+        const orderTypeIdForPricing = (data as any)?.orderTypeId != null ? Number((data as any).orderTypeId) : null;
+        if (
+          clientIdForPricing &&
+          Number.isFinite(clientIdForPricing) &&
+          clientIdForPricing > 0 &&
+          orderTypeIdForPricing &&
+          Number.isFinite(orderTypeIdForPricing) &&
+          orderTypeIdForPricing > 0 &&
+          nextItems.length > 0
+        ) {
+          try {
+            const invIds = Array.from(
+              new Set(
+                nextItems
+                  .map((it: any) => Number(it?.inventoryItemId ?? it?.inventoryItem?.id))
+                  .filter((n: any) => Number.isFinite(n) && n > 0)
+              )
+            );
+            if (invIds.length > 0) {
+              const params = new URLSearchParams();
+              params.set('clientId', String(Math.trunc(clientIdForPricing)));
+              params.set('orderTypeId', String(Math.trunc(orderTypeIdForPricing)));
+              params.set('ids', invIds.join(','));
+              const pRes = await fetch(`/api/items?${params.toString()}`, { cache: 'no-store', signal: controller.signal });
+              if (pRes.ok) {
+                const pArr = await pRes.json().catch(() => []);
+                const map = new Map<number, any>();
+                for (const it of Array.isArray(pArr) ? pArr : []) {
+                  const id = Number((it as any)?.id);
+                  if (!Number.isFinite(id) || id <= 0) continue;
+                  map.set(id, it);
+                }
+                nextItems = nextItems.map((it: any) => {
+                  const invId = Number(it?.inventoryItemId ?? it?.inventoryItem?.id);
+                  if (!Number.isFinite(invId) || invId <= 0) return it;
+                  const allowed = map.get(invId);
+                  if (!allowed) return it;
+                  const mergedInv: InventoryItem | null = ({ ...(it.inventoryItem || {}), ...(allowed as any) } as InventoryItem);
+                  const nextUnitPrice =
+                    !Number.isFinite(Number(it.unitPrice)) || Number(it.unitPrice) === 0
+                      ? Number((allowed as any)?.unitPrice ?? it.unitPrice ?? 0)
+                      : it.unitPrice;
+                  return { ...it, unitPrice: nextUnitPrice, inventoryItem: mergedInv };
+                });
+              }
+            }
+          } catch {
+          }
+        }
         setOrder(data);
-        setOrderItems(data.items || []);
+        setOrderItems(nextItems);
         setHdrCustomerId((data as any)?.clientId != null ? Number((data as any).clientId) : null);
         setHdrDraft({
           paymentTerms: data.paymentTerms || '',
@@ -769,8 +821,59 @@ export default function SalesOrderMaintenancePage() {
     if (!oid) return;
     const r = await fetch(`/api/sales/orders/${oid}`, { cache: 'no-store' });
     const data = await r.json();
+    let nextItems: OrderItem[] = data.items || [];
+    const clientIdForPricing = (data as any)?.clientId != null ? Number((data as any).clientId) : null;
+    const orderTypeIdForPricing = (data as any)?.orderTypeId != null ? Number((data as any).orderTypeId) : null;
+    if (
+      clientIdForPricing &&
+      Number.isFinite(clientIdForPricing) &&
+      clientIdForPricing > 0 &&
+      orderTypeIdForPricing &&
+      Number.isFinite(orderTypeIdForPricing) &&
+      orderTypeIdForPricing > 0 &&
+      nextItems.length > 0
+    ) {
+      try {
+        const invIds = Array.from(
+          new Set(
+            nextItems
+              .map((it: any) => Number(it?.inventoryItemId ?? it?.inventoryItem?.id))
+              .filter((n: any) => Number.isFinite(n) && n > 0)
+          )
+        );
+        if (invIds.length > 0) {
+          const params = new URLSearchParams();
+          params.set('clientId', String(Math.trunc(clientIdForPricing)));
+          params.set('orderTypeId', String(Math.trunc(orderTypeIdForPricing)));
+          params.set('ids', invIds.join(','));
+          const pRes = await fetch(`/api/items?${params.toString()}`, { cache: 'no-store' });
+          if (pRes.ok) {
+            const pArr = await pRes.json().catch(() => []);
+            const map = new Map<number, any>();
+            for (const it of Array.isArray(pArr) ? pArr : []) {
+              const id = Number((it as any)?.id);
+              if (!Number.isFinite(id) || id <= 0) continue;
+              map.set(id, it);
+            }
+            nextItems = nextItems.map((it: any) => {
+              const invId = Number(it?.inventoryItemId ?? it?.inventoryItem?.id);
+              if (!Number.isFinite(invId) || invId <= 0) return it;
+              const allowed = map.get(invId);
+              if (!allowed) return it;
+              const mergedInv: InventoryItem | null = ({ ...(it.inventoryItem || {}), ...(allowed as any) } as InventoryItem);
+              const nextUnitPrice =
+                !Number.isFinite(Number(it.unitPrice)) || Number(it.unitPrice) === 0
+                  ? Number((allowed as any)?.unitPrice ?? it.unitPrice ?? 0)
+                  : it.unitPrice;
+              return { ...it, unitPrice: nextUnitPrice, inventoryItem: mergedInv };
+            });
+          }
+        }
+      } catch {
+      }
+    }
     setOrder(data);
-    setOrderItems(data.items || []);
+    setOrderItems(nextItems);
   };
 
   const globalItems = orderItems;
@@ -1459,6 +1562,7 @@ export default function SalesOrderMaintenancePage() {
                       <th className="p-2 text-left">Item</th>
                       <th className="p-2 text-left">SKU</th>
                       <th className="p-2 text-left">UM</th>
+                      <th className="p-2 text-left">Tab. Preço</th>
                       {(() => { const hasCore = list.some(supportsCoreDims); return hasCore ? (<><th className="p-2 text-left">Diâmetro</th><th className="p-2 text-left">Tubete</th></>) : null; })()}
                       <th className="p-2 text-left">Qtd</th>
                       <th className="p-2 text-left">Peso (KG)</th>
