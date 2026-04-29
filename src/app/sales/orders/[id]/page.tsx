@@ -16,6 +16,8 @@ type InventoryItem = {
   grammage?: number | null;
 };
 
+type OrderType = { id: number; codtipoped: number; descricao: string; situacao: number };
+
 type OrderItem = {
   id: number;
   name: string;
@@ -46,6 +48,7 @@ type SalesOrder = {
   customerName: string;
   customerDoc?: string | null;
   clientId?: number | null;
+  orderTypeId?: number | null;
   paymentTerms?: string | null;
   deliveryDate?: string | null;
   notes?: string | null;
@@ -289,7 +292,7 @@ export default function SalesOrderMaintenancePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showFeaturesFor, setShowFeaturesFor] = useState<number | null>(null);
-  const [hdrDraft, setHdrDraft] = useState<{ paymentTerms?: string; deliveryDate?: string; customerName?: string; customerDoc?: string; triangularCustomerName?: string; triangularCustomerDoc?: string }>({});
+  const [hdrDraft, setHdrDraft] = useState<{ paymentTerms?: string; deliveryDate?: string; customerName?: string; customerDoc?: string; triangularCustomerName?: string; triangularCustomerDoc?: string; orderTypeId?: number | null }>({});
   const [deliveryDateBr, setDeliveryDateBr] = useState('');
   const [hdrCustomerId, setHdrCustomerId] = useState<number | null>(null);
   const [isHeaderEditing, setIsHeaderEditing] = useState(false);
@@ -302,6 +305,8 @@ export default function SalesOrderMaintenancePage() {
   const [integrating, setIntegrating] = useState(false);
   const [checkingEdit, setCheckingEdit] = useState(false);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [linkedOrderTypes, setLinkedOrderTypes] = useState<OrderType[]>([]);
+  const [linkedOrderTypesLoading, setLinkedOrderTypesLoading] = useState(false);
 
   const canEditOrder = isEditableStatus(order?.status);
 
@@ -313,6 +318,39 @@ export default function SalesOrderMaintenancePage() {
   useEffect(() => {
     setDeliveryDateBr(isoToBrDate(hdrDraft.deliveryDate ?? ''));
   }, [hdrDraft.deliveryDate]);
+
+  const loadLinkedOrderTypesForClient = async (clientId: number | null) => {
+    if (!clientId || !Number.isFinite(clientId) || clientId <= 0) {
+      setLinkedOrderTypes([]);
+      setHdrDraft((d) => ({ ...d, orderTypeId: null }));
+      return;
+    }
+    setLinkedOrderTypesLoading(true);
+    try {
+      const res = await fetch(`/api/base/clients/${encodeURIComponent(String(clientId))}/order-types`, { cache: 'no-store' });
+      const data = await res.json().catch(() => []);
+      const list = Array.isArray(data) ? (data as OrderType[]) : [];
+      const active = list.filter((ot) => ot && ot.situacao === 1);
+      setLinkedOrderTypes(active);
+      setHdrDraft((d) => {
+        if (active.length === 0) return d;
+        const current = d.orderTypeId ?? null;
+        const stillValid = current && active.some((ot) => Number(ot.id) === Number(current));
+        if (stillValid) return d;
+        if (!current && active.length === 1) return { ...d, orderTypeId: Number(active[0].id) };
+        return { ...d, orderTypeId: null };
+      });
+    } catch {
+      setLinkedOrderTypes([]);
+      setHdrDraft((d) => ({ ...d, orderTypeId: null }));
+    } finally {
+      setLinkedOrderTypesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadLinkedOrderTypesForClient(hdrCustomerId);
+  }, [hdrCustomerId]);
 
   const loadInvoices = async () => {
     const oid = order?.id ?? numericId;
@@ -482,6 +520,7 @@ export default function SalesOrderMaintenancePage() {
           deliveryDate: data.deliveryDate ? new Date(data.deliveryDate).toISOString().slice(0, 10) : '',
           customerName: data.customerName || '',
           customerDoc: data.customerDoc || '',
+          orderTypeId: (data as any)?.orderTypeId != null ? Number((data as any).orderTypeId) : null,
           triangularCustomerName: data.triangularCustomerName || '',
           triangularCustomerDoc: data.triangularCustomerDoc || ''
         });
@@ -552,7 +591,7 @@ export default function SalesOrderMaintenancePage() {
     return qty * price;
   };
 
-  const saveHeader = async (partial: { paymentTerms?: string; deliveryDate?: string; customerName?: string; customerDoc?: string; triangularCustomerName?: string; triangularCustomerDoc?: string; clientId?: number | null }) => {
+  const saveHeader = async (partial: { paymentTerms?: string; deliveryDate?: string; customerName?: string; customerDoc?: string; triangularCustomerName?: string; triangularCustomerDoc?: string; clientId?: number | null; orderTypeId?: number | null }) => {
     if (!order) return;
 
     // Validate items: Sum of creases vs Width
@@ -584,6 +623,7 @@ export default function SalesOrderMaintenancePage() {
         deliveryDate: updated.deliveryDate ? new Date(updated.deliveryDate).toISOString().slice(0,10) : '',
         customerName: updated.customerName || '',
         customerDoc: updated.customerDoc || '',
+        orderTypeId: (updated as any)?.orderTypeId != null ? Number((updated as any).orderTypeId) : null,
         triangularCustomerName: updated.triangularCustomerName || '',
         triangularCustomerDoc: updated.triangularCustomerDoc || ''
       });
@@ -742,14 +782,14 @@ export default function SalesOrderMaintenancePage() {
                           alert('Entrega inválida. Use DD/MM/AAAA.');
                           return;
                         }
-                        saveHeader({ paymentTerms: hdrDraft.paymentTerms, deliveryDate: iso, customerName: hdrDraft.customerName, customerDoc: hdrDraft.customerDoc, triangularCustomerName: hdrDraft.triangularCustomerName, triangularCustomerDoc: hdrDraft.triangularCustomerDoc, clientId: hdrCustomerId });
+                        saveHeader({ paymentTerms: hdrDraft.paymentTerms, deliveryDate: iso, customerName: hdrDraft.customerName, customerDoc: hdrDraft.customerDoc, orderTypeId: linkedOrderTypes.length > 0 ? (hdrDraft.orderTypeId ?? null) : undefined, triangularCustomerName: hdrDraft.triangularCustomerName, triangularCustomerDoc: hdrDraft.triangularCustomerDoc, clientId: hdrCustomerId });
                         return;
                       }
-                      saveHeader({ paymentTerms: hdrDraft.paymentTerms, deliveryDate: '', customerName: hdrDraft.customerName, customerDoc: hdrDraft.customerDoc, triangularCustomerName: hdrDraft.triangularCustomerName, triangularCustomerDoc: hdrDraft.triangularCustomerDoc, clientId: hdrCustomerId });
+                      saveHeader({ paymentTerms: hdrDraft.paymentTerms, deliveryDate: '', customerName: hdrDraft.customerName, customerDoc: hdrDraft.customerDoc, orderTypeId: linkedOrderTypes.length > 0 ? (hdrDraft.orderTypeId ?? null) : undefined, triangularCustomerName: hdrDraft.triangularCustomerName, triangularCustomerDoc: hdrDraft.triangularCustomerDoc, clientId: hdrCustomerId });
                     }}>
                       <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17Z"/></svg>
                     </button>
-                    <button className="inline-flex items-center justify-center w-8 h-8 bg-red-50 border border-red-200 rounded shadow-sm hover:bg-red-100 text-red-600" title="Cancelar" aria-label="Cancelar" onClick={() => { setIsHeaderEditing(false); setHdrCustomerId((order as any)?.clientId != null ? Number((order as any).clientId) : hdrCustomerId); setHdrDraft({ paymentTerms: order.paymentTerms || '', deliveryDate: order.deliveryDate ? new Date(order.deliveryDate).toISOString().slice(0,10) : '', customerName: order.customerName || '', customerDoc: order.customerDoc || '', triangularCustomerName: order.triangularCustomerName || '', triangularCustomerDoc: order.triangularCustomerDoc || '' }); }}>
+                    <button className="inline-flex items-center justify-center w-8 h-8 bg-red-50 border border-red-200 rounded shadow-sm hover:bg-red-100 text-red-600" title="Cancelar" aria-label="Cancelar" onClick={() => { setIsHeaderEditing(false); setHdrCustomerId((order as any)?.clientId != null ? Number((order as any).clientId) : hdrCustomerId); setHdrDraft({ paymentTerms: order.paymentTerms || '', deliveryDate: order.deliveryDate ? new Date(order.deliveryDate).toISOString().slice(0,10) : '', customerName: order.customerName || '', customerDoc: order.customerDoc || '', orderTypeId: (order as any)?.orderTypeId != null ? Number((order as any).orderTypeId) : null, triangularCustomerName: order.triangularCustomerName || '', triangularCustomerDoc: order.triangularCustomerDoc || '' }); }}>
                       <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.41 4.29 19.71 2.88 18.3 9.17 12 2.88 5.71 4.29 4.29 10.59 10.59 16.89 4.29l1.41 1.42Z"/></svg>
                     </button>
                       </>
@@ -874,7 +914,7 @@ export default function SalesOrderMaintenancePage() {
                   )}
                 </div>
 
-                {/* Linha de Inputs: Cliente, Pagamento, Entrega */}
+                {/* Linha de Inputs: Cliente, Tipo, Pagamento, Entrega */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mt-2 min-w-0">
                   <div className={`md:col-span-6 ${!isHeaderEditing || (order.items && order.items.length > 0) || !['OPEN', 'Orçamento'].includes(order.status || '') ? "opacity-75 pointer-events-none" : ""}`}>
                      <AsyncSelect
@@ -882,7 +922,7 @@ export default function SalesOrderMaintenancePage() {
                         value={hdrDraft.customerName ?? ''}
                         onChange={(val) => setHdrDraft((d) => ({ ...d, customerName: val }))}
                         onSelectObj={(item) => {
-                           setHdrDraft((d) => ({ ...d, customerName: item.name, customerDoc: item.doc }));
+                           setHdrDraft((d) => ({ ...d, customerName: item.name, customerDoc: item.doc, orderTypeId: null }));
                            setHdrCustomerId(Number(item.id));
                            (async () => {
                              try {
@@ -908,7 +948,37 @@ export default function SalesOrderMaintenancePage() {
                         )}
                       />
                   </div>
-                  <div className={`md:col-span-3 ${!isHeaderEditing ? "opacity-75 pointer-events-none" : ""}`}>
+                  <div className={`md:col-span-6 ${!isHeaderEditing ? "opacity-75 pointer-events-none" : ""}`}>
+                    <span className="text-gray-600">Tipo de pedido</span>
+                    <select
+                      className="mt-1 w-full px-2 py-1 border rounded"
+                      value={hdrDraft.orderTypeId != null ? String(hdrDraft.orderTypeId) : ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setHdrDraft((d) => ({ ...d, orderTypeId: v ? Number(v) : null }));
+                      }}
+                      disabled={!isHeaderEditing || !hdrCustomerId || linkedOrderTypesLoading || linkedOrderTypes.length === 0}
+                    >
+                      <option value="">
+                        {!hdrCustomerId
+                          ? 'Selecione um cliente'
+                          : linkedOrderTypesLoading
+                          ? 'Carregando...'
+                          : linkedOrderTypes.length === 0
+                          ? 'Nenhum tipo vinculado'
+                          : 'Selecione...'}
+                      </option>
+                      {linkedOrderTypes
+                        .slice()
+                        .sort((a, b) => String(a.descricao || '').localeCompare(String(b.descricao || ''), 'pt-BR'))
+                        .map((ot) => (
+                          <option key={ot.id} value={String(ot.id)}>
+                            {ot.codtipoped} - {ot.descricao}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div className={`md:col-span-6 ${!isHeaderEditing ? "opacity-75 pointer-events-none" : ""}`}>
                     <AsyncSelect
                       label="Condição de pagamento"
                       value={hdrDraft.paymentTerms ?? ''}
@@ -928,7 +998,7 @@ export default function SalesOrderMaintenancePage() {
                       )}
                     />
                   </div>
-                  <div className="md:col-span-3 min-w-0">
+                  <div className="md:col-span-6 min-w-0">
                     <span className="text-gray-600">Entrega</span>
                     <input type="text" inputMode="numeric" placeholder="DD/MM/AAAA" className="mt-1 block w-full min-w-0 max-w-full px-2 py-1 border rounded sm:hidden" value={deliveryDateBr} onChange={(e) => {
                       const digits = e.target.value.replace(/\D/g, '').slice(0, 8);

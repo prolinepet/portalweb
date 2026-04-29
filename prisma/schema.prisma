@@ -277,6 +277,7 @@ model SalesOrder {
   orderDate              DateTime                  @default(now())
   customerName           String
   customerDoc            String?
+  orderTypeId            Int?
   paymentTerms           String?
   carrier                String?
   deliveryDate           DateTime?
@@ -294,6 +295,7 @@ model SalesOrder {
   statusHistory          SalesOrderStatusHistory[]
   clientId               Int?
   client                 Client?                   @relation(fields: [clientId], references: [id])
+  orderType              OrderType?                @relation(fields: [orderTypeId], references: [id])
   lastTaxSimulation      DateTime?
   totalWithTax           Float                     @default(0)
   totalInvoiced          Float                     @default(0)
@@ -403,6 +405,7 @@ model Client {
   items     ClientItem[]
   cartItems ClientCartItem[]
   orders    SalesOrder[]
+  orderTypes ClientOrderType[]
 
   @@index([name])
   @@index([cidade, estado])
@@ -464,6 +467,8 @@ model OrderType {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   priceTables OrderTypePriceTable[]
+  clients    ClientOrderType[]
+  orders     SalesOrder[]
 
   @@index([descricao])
   @@map("tipopedido")
@@ -481,6 +486,21 @@ model OrderTypePriceTable {
   @@unique([orderTypeId, priceTableId])
   @@index([priceTableId])
   @@map("tipopedidotabelapreco")
+}
+
+model ClientOrderType {
+  id          Int       @id @default(autoincrement())
+  clientId    Int
+  orderTypeId Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  orderType   OrderType @relation(fields: [orderTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, orderTypeId])
+  @@index([clientId])
+  @@index([orderTypeId])
+  @@map("clienttipopedido")
 }
 
 model ClientPaymentTerm {
