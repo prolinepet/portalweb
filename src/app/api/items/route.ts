@@ -7,12 +7,16 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const clientIdParam = url.searchParams.get('clientId');
+    const orderTypeIdParam = url.searchParams.get('orderTypeId');
     const customerDocParam = url.searchParams.get('customerDoc');
     const customerNameParam = url.searchParams.get('customerName');
     const qParam = url.searchParams.get('q');
     const idsParam = url.searchParams.get('ids');
 
     let filterClientId: number | null = null;
+    const filterOrderTypeIdRaw = orderTypeIdParam ? Number(orderTypeIdParam) : null;
+    const filterOrderTypeId =
+      filterOrderTypeIdRaw && Number.isFinite(filterOrderTypeIdRaw) && filterOrderTypeIdRaw > 0 ? Math.trunc(filterOrderTypeIdRaw) : null;
     const filterIds: number[] = (idsParam || '')
       .split(',')
       .map((s) => Number(String(s).trim()))
@@ -40,6 +44,62 @@ export async function GET(request: Request) {
     }
 
     if (filterClientId) {
+      if (filterOrderTypeId) {
+        const [clientLinks, typeLinks] = await Promise.all([
+          prisma.clientPriceTable.findMany({
+            where: { clientId: filterClientId },
+            select: { priceTableId: true },
+          }),
+          prisma.orderTypePriceTable.findMany({
+            where: { orderTypeId: filterOrderTypeId },
+            select: { priceTableId: true },
+          }),
+        ]);
+
+        const clientPtIds = new Set(clientLinks.map((l) => Number(l.priceTableId)));
+        const allowedPtIds = Array.from(
+          new Set(typeLinks.map((l) => Number(l.priceTableId)).filter((id) => clientPtIds.has(id)))
+        ).filter((n) => Number.isFinite(n) && n > 0);
+
+        if (allowedPtIds.length === 0) return NextResponse.json([]);
+
+        const rows = await prisma.priceTableItem.findMany({
+          where: {
+            priceTableId: { in: allowedPtIds },
+            ...(filterIds.length ? { inventoryItemId: { in: Array.from(new Set(filterIds)) } } : {}),
+          },
+          select: {
+            inventoryItemId: true,
+            unitPrice: true,
+            inventoryItem: { include: { commercialFamily: true } },
+          },
+        });
+
+        const byInvId = new Map<number, { item: any; unitPrice: number }>();
+        for (const r of rows) {
+          const invId = Number(r.inventoryItemId);
+          if (!Number.isFinite(invId) || invId <= 0) continue;
+          const unitPrice = Number(r.unitPrice ?? 0);
+          const existing = byInvId.get(invId);
+          if (!existing || unitPrice < existing.unitPrice) {
+            byInvId.set(invId, { item: r.inventoryItem, unitPrice });
+          }
+        }
+
+        let items = Array.from(byInvId.values())
+          .filter((x) => x.item)
+          .map((x) => ({ ...x.item, unitPrice: x.unitPrice }));
+
+        if (qParam) {
+          const lower = qParam.toLowerCase();
+          items = items.filter((it: any) =>
+            String(it?.name || '').toLowerCase().includes(lower) || String(it?.sku || '').toLowerCase().includes(lower)
+          );
+        }
+
+        return NextResponse.json(items);
+      }
+
       const links = await prisma.clientItem.findMany({
         where: {
           clientId: filterClientId,
