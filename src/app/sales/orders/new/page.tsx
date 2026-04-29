@@ -988,7 +988,6 @@ function NewSalesOrderContent() {
                   toggleFeatures={() => setShowFeaturesFor(showFeaturesFor === it.id ? null : it.id)}
                   computeWeightKg={computeWeightKg}
                   fmtInt={fmtInt}
-                  hasSheetCol={list.some(supportsSheetDims)}
                   hasCoreCol={list.some(supportsCoreDims)}
                 />
               ))}
@@ -1000,7 +999,6 @@ function NewSalesOrderContent() {
                     <th className="p-2 text-left">Item</th>
                     <th className="p-2 text-left">SKU</th>
                     <th className="p-2 text-left">UM</th>
-                    {(() => { const hasSheet = list.some(supportsSheetDims); return hasSheet ? (<><th className="p-2 text-left">Larg.</th><th className="p-2 text-left">Compr.</th><th className="p-2 text-left">Gram.</th></>) : null; })()}
                     {(() => { const hasCore = list.some(supportsCoreDims); return hasCore ? (<><th className="p-2 text-left">Diâmetro</th><th className="p-2 text-left">Tubete</th></>) : null; })()}
                     <th className="p-2 text-left">Qtd</th>
                     <th className="p-2 text-left">Peso (KG)</th>
@@ -1022,7 +1020,6 @@ function NewSalesOrderContent() {
                       toggleFeatures={() => setShowFeaturesFor(showFeaturesFor === it.id ? null : it.id)}
                       computeWeightKg={computeWeightKg}
                       fmtInt={fmtInt}
-                      hasSheetCol={list.some(supportsSheetDims)}
                       hasCoreCol={list.some(supportsCoreDims)}
                     />
                   ))}
