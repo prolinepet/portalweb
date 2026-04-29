@@ -406,6 +406,7 @@ model Client {
   cartItems ClientCartItem[]
   orders    SalesOrder[]
   orderTypes ClientOrderType[]
+  priceTables ClientPriceTable[]
 
   @@index([name])
   @@index([cidade, estado])
@@ -439,6 +440,7 @@ model PriceTable {
   updatedAt DateTime @updatedAt
   items PriceTableItem[]
   orderTypeLinks OrderTypePriceTable[]
+  clients ClientPriceTable[]
 
   @@index([descricao])
   @@map("tabelapreco")
@@ -501,6 +503,21 @@ model ClientOrderType {
   @@index([clientId])
   @@index([orderTypeId])
   @@map("clienttipopedido")
+}
+
+model ClientPriceTable {
+  id          Int       @id @default(autoincrement())
+  clientId    Int
+  priceTableId Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  priceTable  PriceTable @relation(fields: [priceTableId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, priceTableId])
+  @@index([clientId])
+  @@index([priceTableId])
+  @@map("clienttabelapreco")
 }
 
 model ClientPaymentTerm {
