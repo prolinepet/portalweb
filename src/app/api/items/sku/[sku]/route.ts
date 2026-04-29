@@ -28,6 +28,11 @@ export async function PATCH(request: Request, props: { params: Promise<{ sku: st
     if (body.name !== undefined) data.name = String(body.name || '').trim();
     if (body.sku !== undefined) data.sku = String(body.sku || '').trim();
     if (body.unit !== undefined) data.unit = String(body.unit || '').trim();
+    if (body.unitWeightKg !== undefined) {
+      const rawWeight = String(body.unitWeightKg ?? '').trim();
+      const n = rawWeight === '' ? NaN : Number(rawWeight.replace(',', '.'));
+      data.unitWeightKg = Number.isFinite(n) ? n : null;
+    }
     if (body.width !== undefined) data.width = Number(body.width);
     if (body.length !== undefined) data.length = Number(body.length);
     if (body.grammage !== undefined) data.grammage = Number(body.grammage);
