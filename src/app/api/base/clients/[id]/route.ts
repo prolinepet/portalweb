@@ -109,6 +109,22 @@ function extractPaymentTermList(body: any): any[] | null {
   return null;
 }
 
+function extractPriceTableList(body: any): any[] | null {
+  const candidates = [
+    body?.priceTableIds,
+    body?.priceTablesIds,
+    body?.priceTablesList,
+    body?.priceTables,
+    body?.tabPrecos,
+    body?.tabPrecoList,
+    body?.nrtabpreList,
+  ];
+  for (const c of candidates) {
+    if (Array.isArray(c)) return c;
+  }
+  return null;
+}
+
 async function resolvePaymentTermIdFromAny(v: any): Promise<number | null> {
   if (v === null || v === undefined) return null;
   if (typeof v === 'object') return resolvePaymentTermId(v);
@@ -144,6 +160,72 @@ async function resolvePaymentTermIds(body: any): Promise<number[] | null> {
   const seen = new Set<number>();
   for (const it of list) {
     const id = await resolvePaymentTermIdFromAny(it);
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  return out;
+}
+
+async function ensurePriceTableByNr(nrtabpreRaw: string): Promise<number | null> {
+  const nrtabpre = String(nrtabpreRaw || '').trim();
+  if (!nrtabpre) return null;
+  const row = await prisma.priceTable
+    .upsert({
+      where: { nrtabpre },
+      update: {},
+      create: { nrtabpre, descricao: `Tabela ${nrtabpre}`, situacao: 1 },
+      select: { id: true },
+    })
+    .catch(() => null);
+  return row?.id ? Number(row.id) : null;
+}
+
+async function resolvePriceTableIdFromAny(v: any): Promise<number | null> {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'object') {
+    const anyV: any = v;
+    const rawId =
+      anyV?.priceTableId ??
+      anyV?.priceTableID ??
+      anyV?.id ??
+      null;
+    const idNum = Number(rawId);
+    if (Number.isFinite(idNum) && idNum > 0) return Math.trunc(idNum);
+
+    const nr =
+      anyV?.nrtabpre ??
+      anyV?.nrTabpre ??
+      anyV?.nr_tabpre ??
+      anyV?.nr_tab_pre ??
+      null;
+    if (nr != null) return await ensurePriceTableByNr(String(nr));
+    return null;
+  }
+
+  const s = String(v).trim();
+  if (!s) return null;
+
+  const byNr = await prisma.priceTable.findFirst({ where: { nrtabpre: s }, select: { id: true } }).catch(() => null);
+  if (byNr?.id) return Number(byNr.id);
+  const createdId = await ensurePriceTableByNr(s);
+  if (createdId) return createdId;
+
+  const digits = s.replace(/\D/g, '');
+  const n = Number(digits);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const byId = await prisma.priceTable.findUnique({ where: { id: Math.trunc(n) }, select: { id: true } }).catch(() => null);
+  return byId?.id ? Number(byId.id) : null;
+}
+
+async function resolvePriceTableIds(body: any): Promise<number[] | null> {
+  const list = extractPriceTableList(body);
+  if (!list) return null;
+  const out: number[] = [];
+  const seen = new Set<number>();
+  for (const it of list) {
+    const id = await resolvePriceTableIdFromAny(it);
     if (id && !seen.has(id)) {
       seen.add(id);
       out.push(id);
@@ -211,6 +293,8 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     const paymentTermIds = await resolvePaymentTermIds(body);
     const listProvided = paymentTermIds !== null;
     const singleProvided = !listProvided && (body.paymentTermId !== undefined || body.paymentTermCode !== undefined || body.condPagto !== undefined || body.condPagtoCode !== undefined);
+    const priceTableIds = await resolvePriceTableIds(body);
+    const priceListProvided = priceTableIds !== null;
     if (listProvided && paymentTermIds.length === 0) {
       const rawList = extractPaymentTermList(body) ?? [];
       const hasMeaningful = rawList.some((it) => {
@@ -283,6 +367,19 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
               clientId: row.id,
               paymentTermId: ptId,
               position: idx,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      }
+
+      if (priceListProvided) {
+        await tx.clientPriceTable.deleteMany({ where: { clientId: row.id } });
+        if (priceTableIds.length > 0) {
+          await tx.clientPriceTable.createMany({
+            data: priceTableIds.map((ptId) => ({
+              clientId: row.id,
+              priceTableId: ptId,
             })),
             skipDuplicates: true,
           });
