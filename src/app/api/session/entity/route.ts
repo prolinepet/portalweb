@@ -16,6 +16,15 @@ export async function GET() {
     });
 
     if (!user?.lastEntityId) {
+      const links = await prisma.userEntity.findMany({
+        where: { userId: uid },
+        take: 2,
+        include: { entity: { select: { id: true, name: true, cnpj: true } } },
+      });
+      if (links.length === 1 && links[0]?.entity?.id) {
+        await prisma.user.update({ where: { id: uid }, data: { lastEntityId: links[0].entity.id } });
+        return NextResponse.json({ entity: links[0].entity });
+      }
       return NextResponse.json({ entity: null });
     }
 

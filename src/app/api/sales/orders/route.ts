@@ -228,6 +228,17 @@ export async function POST(request: Request) {
       const u = await prisma.user.findUnique({ where: { id: createdById }, select: { lastEntityId: true } });
       if (u?.lastEntityId) entityId = u.lastEntityId;
     }
+    if (!entityId && createdById) {
+      const links = await prisma.userEntity.findMany({
+        where: { userId: createdById },
+        select: { entityId: true },
+        take: 2,
+      });
+      if (links.length === 1 && links[0]?.entityId) {
+        entityId = links[0].entityId;
+        await prisma.user.update({ where: { id: createdById }, data: { lastEntityId: entityId } }).catch(() => {});
+      }
+    }
     const rawItems = Array.isArray(items) ? items : [];
     const invIds = rawItems
       .map((it: any) => Number(it?.inventoryItemId))

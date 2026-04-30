@@ -62,15 +62,41 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       const customerDocRaw = order.client?.doc || order.customerDoc || '';
 
       let entityDoc = (order.entity?.cnpj || '').replace(/\D/g, '');
-      if (!entityDoc && userId) {
-          const user = await prisma.user.findUnique({
+      let effectiveEntityId: number | null = (order as any)?.entityId != null ? Number((order as any).entityId) : null;
+      const sessionEntityIdRaw = (session as any)?.entityId ?? (session as any)?.activeEntityId ?? null;
+      const sessionEntityId = sessionEntityIdRaw ? Number(sessionEntityIdRaw) : null;
+      if ((!entityDoc || !effectiveEntityId) && sessionEntityId && Number.isFinite(sessionEntityId) && sessionEntityId > 0) {
+          const entity = await prisma.entity.findUnique({ where: { id: Math.trunc(sessionEntityId) } });
+          if (entity) {
+            entityDoc = (entity.cnpj || '').replace(/\D/g, '');
+            effectiveEntityId = entity.id;
+          }
+      }
+      if ((!entityDoc || !effectiveEntityId) && userId) {
+          const userLast = await prisma.user.findUnique({
               where: { id: userId },
               select: { lastEntityId: true }
           });
-          if (user?.lastEntityId) {
-               const entity = await prisma.entity.findUnique({ where: { id: user.lastEntityId } });
-               if (entity) entityDoc = (entity.cnpj || '').replace(/\D/g, '');
+          if (userLast?.lastEntityId) {
+               const entity = await prisma.entity.findUnique({ where: { id: userLast.lastEntityId } });
+               if (entity) {
+                 entityDoc = (entity.cnpj || '').replace(/\D/g, '');
+                 effectiveEntityId = entity.id;
+               }
+          } else {
+               const links = await prisma.userEntity.findMany({ where: { userId }, select: { entityId: true }, take: 2 });
+               if (links.length === 1 && links[0]?.entityId) {
+                 const entity = await prisma.entity.findUnique({ where: { id: links[0].entityId } });
+                 if (entity) {
+                   entityDoc = (entity.cnpj || '').replace(/\D/g, '');
+                   effectiveEntityId = entity.id;
+                   await prisma.user.update({ where: { id: userId }, data: { lastEntityId: entity.id } }).catch(() => {});
+                 }
+               }
           }
+      }
+      if (effectiveEntityId && (!order.entityId || !Number.isFinite(Number(order.entityId)))) {
+        await prisma.salesOrder.update({ where: { id: order.id }, data: { entityId: Math.trunc(effectiveEntityId) } }).catch(() => {});
       }
 
       if (!customerDocRaw) return NextResponse.json({ error: 'CNPJ do cliente não encontrado.' }, { status: 400 });
