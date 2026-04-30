@@ -956,9 +956,9 @@ export default function SalesOrderMaintenancePage() {
                 <div className="flex flex-col items-stretch sm:items-end gap-2">
                   <div className="flex sm:justify-end">
                     <button 
-                      className={`flex items-center gap-1 px-3 py-1 text-sm bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 text-gray-700 ${!isEditableStatus(order?.status) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      className="flex items-center gap-1 px-3 py-1 text-sm bg-white border border-gray-300 rounded shadow-sm text-gray-700 opacity-50 cursor-not-allowed"
                       onClick={handleSimulateTaxes}
-                      disabled={simulating || !isEditableStatus(order?.status)}
+                      disabled
                     >
                       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                       {simulating ? 'Simulando...' : 'Simular Impostos'}
