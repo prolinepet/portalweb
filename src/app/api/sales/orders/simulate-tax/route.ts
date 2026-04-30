@@ -45,6 +45,22 @@ export async function POST(request: Request) {
             select: { cnpj: true }
         });
         entityDoc = (entity?.cnpj || '').replace(/\D/g, '');
+    } else {
+        const links = await prisma.userEntity.findMany({
+          where: { userId },
+          select: { entityId: true },
+          take: 2
+        });
+        if (links.length === 1 && links[0]?.entityId) {
+          const entity = await prisma.entity.findUnique({
+            where: { id: links[0].entityId },
+            select: { id: true, cnpj: true }
+          });
+          if (entity?.cnpj) {
+            entityDoc = String(entity.cnpj || '').replace(/\D/g, '');
+            await prisma.user.update({ where: { id: userId }, data: { lastEntityId: entity.id } }).catch(() => {});
+          }
+        }
     }
 
     // Extract Payment Terms Code
