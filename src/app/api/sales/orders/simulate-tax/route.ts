@@ -87,6 +87,15 @@ export async function POST(request: Request) {
 
     const clientId = body?.customerId != null ? Number(body.customerId) : body?.clientId != null ? Number(body.clientId) : null;
     const orderTypeId = body?.orderTypeId != null ? Number(body.orderTypeId) : null;
+    let salesChannel = 1;
+    if (orderTypeId && Number.isFinite(orderTypeId) && orderTypeId > 0) {
+      const ot = await prisma.orderType.findUnique({
+        where: { id: Math.trunc(orderTypeId) },
+        select: { codtipoped: true },
+      });
+      const ch = Number((ot as any)?.codtipoped);
+      if (Number.isFinite(ch) && ch > 0) salesChannel = Math.trunc(ch);
+    }
     const invIds = Array.from(
       new Set(
         (items || [])
@@ -148,7 +157,7 @@ export async function POST(request: Request) {
       method: "POST",
       params: {
         order: {
-          salesChannel: 1,
+          salesChannel: salesChannel,
           paymentTermsErp: paymentTermsErp,
           branchId: "01",
           id: 0, // No ID yet

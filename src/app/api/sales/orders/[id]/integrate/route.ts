@@ -111,6 +111,15 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       );
       const clientId = (order as any)?.clientId != null ? Number((order as any).clientId) : (order as any)?.client?.id != null ? Number((order as any).client?.id) : null;
       const orderTypeId = (order as any)?.orderTypeId != null ? Number((order as any).orderTypeId) : null;
+      let salesChannel = 1;
+      if (orderTypeId && Number.isFinite(orderTypeId) && orderTypeId > 0) {
+        const ot = await prisma.orderType.findUnique({
+          where: { id: Math.trunc(orderTypeId) },
+          select: { codtipoped: true },
+        });
+        const ch = Number((ot as any)?.codtipoped);
+        if (Number.isFinite(ch) && ch > 0) salesChannel = Math.trunc(ch);
+      }
       const priceTableByInvId = new Map<number, { id: number; nrtabpre: string; descricao: string }>();
       if (clientId && Number.isFinite(clientId) && clientId > 0 && orderTypeId && Number.isFinite(orderTypeId) && orderTypeId > 0 && invIds.length > 0) {
         const [clientLinks, typeLinks] = await Promise.all([
@@ -175,7 +184,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         method: "POST",
         params: {
           order: {
-            salesChannel: 1,
+            salesChannel: salesChannel,
             paymentTermsErp: paymentTermsErp,
             branchId: "01",
             id: order.id,
