@@ -107,6 +107,8 @@ export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
     const userId = session?.user ? Number((session.user as any).id) : null;
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const sessionEntityIdRaw = (session as any)?.entityId ?? (session as any)?.activeEntityId ?? null;
+    const sessionEntityId = sessionEntityIdRaw != null ? toInt(sessionEntityIdRaw) : null;
 
     const url = new URL(request.url);
     const yearRaw = toInt(url.searchParams.get('year')) ?? new Date().getFullYear();
@@ -119,6 +121,9 @@ export async function GET(request: Request) {
       select: { id: true },
     });
     const allowedEntityIds = entities.map((e) => e.id);
+    if (allowedEntityIds.length === 0 && sessionEntityId && Number.isFinite(sessionEntityId) && sessionEntityId > 0) {
+      allowedEntityIds.push(sessionEntityId);
+    }
     if (allowedEntityIds.length === 0) {
       return NextResponse.json({
         year,
