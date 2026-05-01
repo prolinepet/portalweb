@@ -34,14 +34,6 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    const requiredToken = (process.env.DASHBOARD_IMPORT_TOKEN || '').trim();
-    if (requiredToken) {
-      const headerToken = (request.headers.get('x-dashboard-import-token') || '').trim();
-      if (headerToken !== requiredToken) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
-    }
-
     const body = await request.json().catch(() => null as any);
     if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Body inválido' }, { status: 400 });
 
@@ -76,4 +68,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
 }
-
