@@ -10,7 +10,38 @@ type UserEntry = { id: number; name: string; salesRepAdmin?: boolean };
 
 type MultiOpt = { value: string; label: string };
 
-function GroupGrid({ firstColLabel }: { firstColLabel: string }) {
+type Metric = {
+  metaPrevista: number;
+  carregado: number;
+  devolucao: number;
+  realizadoLiq: number;
+  atingimento: number;
+  emCarteira: number;
+};
+
+type GroupRow = { key: string; label: string; peso: Metric; valor: Metric };
+
+type DashboardData = {
+  year: number;
+  month: string;
+  entityId: number | null;
+  summary: { peso: Metric; valor: Metric };
+  groups: { FAMILY: GroupRow[]; CUSTOMER: GroupRow[]; REP: GroupRow[]; REGION: GroupRow[] };
+};
+
+function GroupGrid({
+  firstColLabel,
+  rows,
+  fmtInt,
+  fmtDec,
+  metricType,
+}: {
+  firstColLabel: string;
+  rows: GroupRow[];
+  fmtInt: (v: number) => string;
+  fmtDec: (v: number) => string;
+  metricType: 'peso' | 'valor';
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full text-sm border border-gray-200 bg-white">
@@ -26,9 +57,28 @@ function GroupGrid({ firstColLabel }: { firstColLabel: string }) {
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td className="p-2 text-center text-gray-500" colSpan={7}>Sem dados</td>
-          </tr>
+          {rows.length === 0 ? (
+            <tr>
+              <td className="p-2 text-center text-gray-500" colSpan={7}>
+                Sem dados
+              </td>
+            </tr>
+          ) : (
+            rows.map((r) => {
+              const m = metricType === 'peso' ? r.peso : r.valor;
+              return (
+                <tr key={r.key} className="border-t">
+                  <td className="p-1 border-r border-r-gray-100">{r.label}</td>
+                  <td className="p-1 text-right border-r border-r-gray-100">{fmtInt(m.metaPrevista)}</td>
+                  <td className="p-1 text-right border-r border-r-gray-100">{fmtInt(m.carregado)}</td>
+                  <td className="p-1 text-right border-r border-r-gray-100">{fmtInt(m.devolucao)}</td>
+                  <td className="p-1 text-right border-r border-r-gray-100">{fmtInt(m.realizadoLiq)}</td>
+                  <td className="p-1 text-right border-r border-r-gray-100">{fmtDec(m.atingimento)}</td>
+                  <td className="p-1 text-right">{fmtInt(m.emCarteira)}</td>
+                </tr>
+              );
+            })
+          )}
         </tbody>
       </table>
     </div>
@@ -120,6 +170,8 @@ function MultiSelectDropdown({
 
 export default function SalesDashboard() {
   const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState<string>('');
   const [entityId, setEntityId] = useState<string>('');
@@ -128,6 +180,7 @@ export default function SalesDashboard() {
   const [selectedReps, setSelectedReps] = useState<string[]>([]);
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
   const [activeGroupTab, setActiveGroupTab] = useState<'FAMILY' | 'CUSTOMER' | 'REP' | 'REGION'>('FAMILY');
+  const [data, setData] = useState<DashboardData | null>(null);
 
   const months = [
     { value: '1', label: 'Janeiro' },
@@ -197,10 +250,50 @@ export default function SalesDashboard() {
   const fmtInt = (v: number) => v.toLocaleString('pt-BR');
   const fmtDec = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const summary = {
-    peso: { metaPrevista: 0, carregado: 0, devolucao: 0, realizadoLiq: 0, atingimento: 0, emCarteira: 0 },
-    valor: { metaPrevista: 0, carregado: 0, devolucao: 0, realizadoLiq: 0, atingimento: 0, emCarteira: 0 },
-  };
+  useEffect(() => {
+    const load = async () => {
+      setDataLoading(true);
+      setDataError(null);
+      try {
+        const params = new URLSearchParams();
+        params.set('year', String(year));
+        if (month) params.set('month', month);
+        if (entityId) params.set('entityId', entityId);
+
+        const res = await fetch(`/api/sales/dashboard/vendas?${params.toString()}`, { cache: 'no-store' });
+        if (!res.ok) {
+          const j = await res.json().catch(() => null as any);
+          throw new Error(String(j?.error || `Falha ao carregar (HTTP ${res.status})`));
+        }
+        const j = (await res.json().catch(() => null)) as DashboardData | null;
+        setData(j);
+      } catch (e: any) {
+        setData(null);
+        setDataError(String(e?.message || e));
+      } finally {
+        setDataLoading(false);
+      }
+    };
+
+    load();
+  }, [year, month, entityId]);
+
+  const summary =
+    data?.summary ?? {
+      peso: { metaPrevista: 0, carregado: 0, devolucao: 0, realizadoLiq: 0, atingimento: 0, emCarteira: 0 },
+      valor: { metaPrevista: 0, carregado: 0, devolucao: 0, realizadoLiq: 0, atingimento: 0, emCarteira: 0 },
+    };
+
+  const currentRows = useMemo(() => {
+    const g = data?.groups;
+    if (!g) return [];
+    const rows = g[activeGroupTab] || [];
+    if (activeGroupTab === 'REGION' && selectedRegions.length > 0) {
+      const set = new Set(selectedRegions);
+      return rows.filter((r) => set.has(String(r.key || '').toUpperCase()));
+    }
+    return rows;
+  }, [data, activeGroupTab, selectedRegions]);
 
   return (
     <div className="space-y-3 animate-in fade-in duration-500">
@@ -262,6 +355,7 @@ export default function SalesDashboard() {
       </div>
 
       <div className="bg-white p-2 rounded shadow-sm border border-gray-200">
+        {dataError && <div className="text-sm text-red-600 mb-2">{dataError}</div>}
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -299,6 +393,7 @@ export default function SalesDashboard() {
         </div>
 
         <div className="mt-2">
+          {dataLoading && <div className="text-xs text-gray-500 mb-2">Carregando dados...</div>}
           <div className="flex flex-wrap gap-3 border-b">
             <button
               type="button"
@@ -331,10 +426,18 @@ export default function SalesDashboard() {
           </div>
 
           <div className="mt-2">
-            {activeGroupTab === 'FAMILY' && <GroupGrid firstColLabel="Descrição Família" />}
-            {activeGroupTab === 'CUSTOMER' && <GroupGrid firstColLabel="Descrição Cliente" />}
-            {activeGroupTab === 'REP' && <GroupGrid firstColLabel="Descrição Representante" />}
-            {activeGroupTab === 'REGION' && <GroupGrid firstColLabel="Descrição Região" />}
+            {activeGroupTab === 'FAMILY' && (
+              <GroupGrid firstColLabel="Descrição Família" rows={currentRows} fmtInt={fmtInt} fmtDec={fmtDec} metricType="valor" />
+            )}
+            {activeGroupTab === 'CUSTOMER' && (
+              <GroupGrid firstColLabel="Descrição Cliente" rows={currentRows} fmtInt={fmtInt} fmtDec={fmtDec} metricType="valor" />
+            )}
+            {activeGroupTab === 'REP' && (
+              <GroupGrid firstColLabel="Descrição Representante" rows={currentRows} fmtInt={fmtInt} fmtDec={fmtDec} metricType="valor" />
+            )}
+            {activeGroupTab === 'REGION' && (
+              <GroupGrid firstColLabel="Descrição Região" rows={currentRows} fmtInt={fmtInt} fmtDec={fmtDec} metricType="valor" />
+            )}
           </div>
         </div>
       </div>
