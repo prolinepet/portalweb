@@ -50,12 +50,14 @@ async function createThumbnailFromFile(
 
   const w = img.naturalWidth || img.width || 1;
   const h = img.naturalHeight || img.height || 1;
-  const scale = Math.max(size / w, size / h);
-  const dw = Math.round(w * scale);
-  const dh = Math.round(h * scale);
+  const scale = Math.min(size / w, size / h);
+  const dw = Math.max(1, Math.round(w * scale));
+  const dh = Math.max(1, Math.round(h * scale));
   const dx = Math.round((size - dw) / 2);
   const dy = Math.round((size - dh) / 2);
   ctx.clearRect(0, 0, size, size);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, size, size);
   ctx.drawImage(img, dx, dy, dw, dh);
 
   const blob = await new Promise<Blob>((resolve, reject) => {
