@@ -1158,7 +1158,6 @@ export default function SalesOrderMaintenancePage() {
                 </div>
               </div>
 
-              {!headerCollapsed && (
               <div className="order-2 sm:order-1 flex flex-col gap-3 flex-1 min-w-0">
                 {/* Linha Superior: Número, Data, Entidade, Última Simulação */}
                 <div className="flex flex-wrap items-center gap-8">
@@ -1190,7 +1189,7 @@ export default function SalesOrderMaintenancePage() {
                   )}
                 </div>
 
-                {/* Linha de Inputs: Cliente, Tipo, Pagamento, Entrega */}
+                {/* Linha de Inputs: Cliente, Tipo */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mt-2 min-w-0">
                   <div className={`md:col-span-6 ${!isHeaderEditing || (order.items && order.items.length > 0) || !['OPEN', 'Orçamento'].includes(order.status || '') ? "opacity-75 pointer-events-none" : ""}`}>
                      <AsyncSelect
@@ -1244,6 +1243,12 @@ export default function SalesOrderMaintenancePage() {
                         ))}
                     </select>
                   </div>
+                </div>
+
+                {!headerCollapsed && (
+                <>
+                {/* Linha de Inputs: Pagamento, Entrega, Triangular */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mt-2 min-w-0">
                   <div className={`md:col-span-6 ${!isHeaderEditing ? "opacity-75 pointer-events-none" : ""}`}>
                     <span className="text-gray-600">Condição de pagamento</span>
                     <select
@@ -1333,8 +1338,9 @@ export default function SalesOrderMaintenancePage() {
                     <div className="mt-1 w-full px-2 py-1 border rounded bg-blue-50 text-gray-800 font-medium" title="Atualizado via ERP">{fmtCurrency(order.totalInvoiced ?? 0)}</div>
                   </div>
                 </div>
+                </>
+                )}
               </div>
-              )}
             </div>
           </div>
 

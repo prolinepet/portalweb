@@ -795,7 +795,6 @@ function NewSalesOrderContent() {
               </div>
             </div>
 
-            {!headerCollapsed && (
             <div className="order-2 sm:order-1 grid grid-cols-1 md:grid-cols-12 gap-3 flex-1">
               <div className="md:col-span-12 flex flex-wrap items-center gap-8">
                 <div>
@@ -870,6 +869,8 @@ function NewSalesOrderContent() {
                 </select>
               </div>
 
+              {!headerCollapsed && (
+              <>
               <div className="md:col-span-6">
                 <span className="text-gray-600">Condição de pagamento</span>
                 <select
@@ -941,8 +942,9 @@ function NewSalesOrderContent() {
                   <div className="mt-1 w-full px-2 py-1 border rounded bg-gray-50 text-gray-800">{fmtInt(globalWeight)}</div>
                 </div>
               </div>
+              </>
+              )}
             </div>
-            )}
           </div>
           <button
             type="button"
