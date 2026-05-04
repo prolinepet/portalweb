@@ -611,6 +611,7 @@ export default function BaseItemMaintenancePage() {
               <thead>
                 <tr className="bg-gray-50 text-left">
                   <th className="p-2 border-b w-10"><input type="checkbox" checked={allVisibleSelected} onChange={(e)=>toggleSelectAllVisible(e.target.checked)} /></th>
+                  <th className="p-2 border-b w-14">Foto</th>
                   <th className="p-2 border-b">ID</th>
                   <th className="p-2 border-b">Código</th>
                   <th className="p-2 border-b">Descrição</th>
@@ -622,6 +623,21 @@ export default function BaseItemMaintenancePage() {
                 {filtered.map((it) => (
                   <tr key={it.id} className="border-b">
                     <td className="p-2"><input type="checkbox" checked={selectedIds.includes(it.id)} onChange={(e)=>toggleRow(it.id, e.target.checked)} /></td>
+                    <td className="p-2">
+                      <div className="w-10 h-10 border rounded bg-white overflow-hidden flex items-center justify-center">
+                        {it.sku ? (
+                          <img
+                            src={`/api/items/sku/${encodeURIComponent(String(it.sku))}/thumbnail`}
+                            alt=""
+                            className="w-10 h-10 object-contain"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        ) : null}
+                      </div>
+                    </td>
                     <td className="p-2">{it.id}</td>
                     <td className="p-2">{it.sku || ""}</td>
                     <td className="p-2">{it.name || ""}</td>
@@ -634,10 +650,10 @@ export default function BaseItemMaintenancePage() {
                   </tr>
                 ))}
                 {loading && (
-                  <tr><td colSpan={5} className="p-2 text-gray-500">Carregando...</td></tr>
+                  <tr><td colSpan={7} className="p-2 text-gray-500">Carregando...</td></tr>
                 )}
                 {!loading && filtered.length === 0 && (
-                  <tr><td colSpan={5} className="p-2 text-gray-500">Nenhum item encontrado</td></tr>
+                  <tr><td colSpan={7} className="p-2 text-gray-500">Nenhum item encontrado</td></tr>
                 )}
               </tbody>
             </table>
