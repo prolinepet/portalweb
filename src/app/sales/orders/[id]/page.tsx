@@ -294,6 +294,7 @@ export default function SalesOrderMaintenancePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showFeaturesFor, setShowFeaturesFor] = useState<number | null>(null);
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [hdrDraft, setHdrDraft] = useState<{ paymentTerms?: string; deliveryDate?: string; customerName?: string; customerDoc?: string; triangularCustomerName?: string; triangularCustomerDoc?: string; orderTypeId?: number | null }>({});
   const [deliveryDateBr, setDeliveryDateBr] = useState('');
   const [hdrCustomerId, setHdrCustomerId] = useState<number | null>(null);
@@ -950,7 +951,24 @@ export default function SalesOrderMaintenancePage() {
       {order && (
         <div className="space-y-3">
           {/* Header do pedido com ícones à direita */}
-          <div className="border rounded bg-white p-2 text-sm overflow-x-hidden">
+          <div className="border rounded bg-white p-2 text-sm overflow-x-hidden relative">
+            <button
+              type="button"
+              className="absolute bottom-2 right-2 inline-flex items-center justify-center w-8 h-8 border rounded bg-white hover:bg-gray-50 text-gray-700"
+              title={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
+              aria-label={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
+              onClick={() => setHeaderCollapsed((v) => !v)}
+            >
+              {headerCollapsed ? (
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41Z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6 1.41 1.41Z" />
+                </svg>
+              )}
+            </button>
             <div className="flex flex-col sm:flex-row sm:items-start gap-3 min-w-0">
               <div className="order-1 sm:order-2 w-full sm:w-auto sm:ml-auto">
                 <div className="flex flex-col items-stretch sm:items-end gap-2">
@@ -1140,6 +1158,7 @@ export default function SalesOrderMaintenancePage() {
                 </div>
               </div>
 
+              {!headerCollapsed && (
               <div className="order-2 sm:order-1 flex flex-col gap-3 flex-1 min-w-0">
                 {/* Linha Superior: Número, Data, Entidade, Última Simulação */}
                 <div className="flex flex-wrap items-center gap-8">
@@ -1315,6 +1334,7 @@ export default function SalesOrderMaintenancePage() {
                   </div>
                 </div>
               </div>
+              )}
             </div>
           </div>
 
@@ -1486,6 +1506,9 @@ export default function SalesOrderMaintenancePage() {
                 }
                 onClick={() => { 
                   if (!isHeaderEditing) setIsHeaderEditing(true);
+                  if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 767px)').matches) {
+                    setHeaderCollapsed(true);
+                  }
                   setAddingItems(true);
                   setSearchTerm('');
                   searchClientItems('');

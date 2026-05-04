@@ -501,6 +501,7 @@ function NewSalesOrderContent() {
   }, []);
   
   const [showFeaturesFor, setShowFeaturesFor] = useState<number | null>(null);
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
 
   // Item search
   const [addingItems, setAddingItems] = useState(false);
@@ -764,7 +765,7 @@ function NewSalesOrderContent() {
       
       <div className="space-y-3">
         {/* Header */}
-        <div className="border rounded bg-white p-2 text-sm">
+        <div className="border rounded bg-white p-2 text-sm relative">
           <div className="flex flex-col sm:flex-row sm:items-start gap-3">
             <div className="order-1 sm:order-2 w-full sm:w-auto sm:ml-auto">
               <div className="flex flex-col items-stretch sm:items-end gap-2">
@@ -794,6 +795,7 @@ function NewSalesOrderContent() {
               </div>
             </div>
 
+            {!headerCollapsed && (
             <div className="order-2 sm:order-1 grid grid-cols-1 md:grid-cols-12 gap-3 flex-1">
               <div className="md:col-span-12 flex flex-wrap items-center gap-8">
                 <div>
@@ -940,7 +942,25 @@ function NewSalesOrderContent() {
                 </div>
               </div>
             </div>
+            )}
           </div>
+          <button
+            type="button"
+            className="absolute bottom-2 right-2 inline-flex items-center justify-center w-8 h-8 border rounded bg-white hover:bg-gray-50 text-gray-700"
+            title={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
+            aria-label={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
+            onClick={() => setHeaderCollapsed((v) => !v)}
+          >
+            {headerCollapsed ? (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41Z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6 1.41 1.41Z" />
+              </svg>
+            )}
+          </button>
         </div>
 
         {/* Itens */}
@@ -957,7 +977,14 @@ function NewSalesOrderContent() {
                   ? "Selecione o tipo de pedido primeiro"
                   : ""
               }
-              onClick={() => { setAddingItems(true); setSearchTerm(''); searchClientItems(''); }}
+              onClick={() => {
+                if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 767px)').matches) {
+                  setHeaderCollapsed(true);
+                }
+                setAddingItems(true);
+                setSearchTerm('');
+                searchClientItems('');
+              }}
             >
               Adicionar itens
             </button>
