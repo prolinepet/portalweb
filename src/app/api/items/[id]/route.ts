@@ -26,6 +26,17 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       const n = raw === '' ? NaN : Number(raw.replace(',', '.'));
       data.unitWeightKg = Number.isFinite(n) ? n : null;
     }
+    if (body.thumbnailBase64 !== undefined || body.thumbnailMime !== undefined) {
+      const mime = body.thumbnailMime == null ? null : String(body.thumbnailMime || '').trim();
+      const b64 = body.thumbnailBase64 == null ? null : String(body.thumbnailBase64 || '').trim();
+      if (!mime || !b64) {
+        data.thumbnailMime = null;
+        data.thumbnailBase64 = null;
+      } else {
+        data.thumbnailMime = mime;
+        data.thumbnailBase64 = b64;
+      }
+    }
     if (body.commercialFamilyId !== undefined) {
       const cfid = Number(body.commercialFamilyId);
       if (Number.isFinite(cfid) && cfid > 0) {

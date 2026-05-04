@@ -79,6 +79,8 @@ model InventoryItem {
   unit               String?
   minStock           Int               @default(0)
   unitWeightKg       Float?
+  thumbnailMime      String?
+  thumbnailBase64    String?           @db.LongText
   width              Int?
   length             Int?
   grammage           Int?

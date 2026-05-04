@@ -73,7 +73,21 @@ export async function GET(request: Request) {
             priceTableId: true,
             unitPrice: true,
             priceTable: { select: { id: true, nrtabpre: true, descricao: true } },
-            inventoryItem: { include: { commercialFamily: true } },
+            inventoryItem: {
+              select: {
+                id: true,
+                name: true,
+                sku: true,
+                unit: true,
+                unitWeightKg: true,
+                width: true,
+                length: true,
+                grammage: true,
+                commercialFamilyId: true,
+                thumbnailMime: true,
+                commercialFamily: { select: { id: true, description: true } },
+              },
+            },
           },
         });
 
@@ -117,11 +131,24 @@ export async function GET(request: Request) {
           allowed: true,
           ...(filterIds.length ? { inventoryItemId: { in: Array.from(new Set(filterIds)) } } : {}),
         },
-        include: { 
+        select: {
+          unitPrice: true,
           inventoryItem: {
-            include: { commercialFamily: true }
-          } 
-        }
+            select: {
+              id: true,
+              name: true,
+              sku: true,
+              unit: true,
+              unitWeightKg: true,
+              width: true,
+              length: true,
+              grammage: true,
+              commercialFamilyId: true,
+              thumbnailMime: true,
+              commercialFamily: { select: { id: true, description: true } },
+            },
+          },
+        },
       });
       
       let items = links.map(l => ({
@@ -166,7 +193,19 @@ export async function GET(request: Request) {
 
       const items = await prisma.inventoryItem.findMany({
         where: { id: { in: itemIds } },
-        include: { commercialFamily: true },
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          unit: true,
+          unitWeightKg: true,
+          width: true,
+          length: true,
+          grammage: true,
+          commercialFamilyId: true,
+          thumbnailMime: true,
+          commercialFamily: { select: { id: true, description: true } },
+        },
       });
       return NextResponse.json(items);
     }
@@ -178,9 +217,21 @@ export async function GET(request: Request) {
         { sku: { contains: qParam } }
       ];
     }
-    const items = await prisma.inventoryItem.findMany({ 
+    const items = await prisma.inventoryItem.findMany({
       where,
-      include: { commercialFamily: true } 
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        unit: true,
+        unitWeightKg: true,
+        width: true,
+        length: true,
+        grammage: true,
+        commercialFamilyId: true,
+        thumbnailMime: true,
+        commercialFamily: { select: { id: true, description: true } },
+      },
     });
     return NextResponse.json(items);
   } catch (err: any) {
