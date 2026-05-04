@@ -2,7 +2,8 @@ module.exports = {
   apps: [
     {
       name: 'portal-web',
-      script: 'server.js',
+      script: 'npm',
+      args: 'start',
       cwd: __dirname,
       instances: 1,
       exec_mode: 'fork',
