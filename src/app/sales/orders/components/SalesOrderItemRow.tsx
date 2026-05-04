@@ -24,6 +24,23 @@ export type OrderItem = {
   externalResin?: boolean;
 };
 
+const ItemThumb = ({ sku }: { sku?: string | null }) => {
+  const s = String(sku || '').trim();
+  const [failed, setFailed] = useState(false);
+  if (!s || failed) {
+    return <div className="w-10 h-10 border rounded bg-white" />;
+  }
+  return (
+    <img
+      src={`/api/items/sku/${encodeURIComponent(s)}/thumbnail`}
+      alt=""
+      className="w-10 h-10 border rounded bg-white object-contain"
+      onError={() => setFailed(true)}
+      loading="lazy"
+    />
+  );
+};
+
 function useDebouncedCallback<T extends (...args: any[]) => any>(callback: T, delay: number) {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const callbackRef = useRef(callback);
@@ -210,14 +227,18 @@ export const SalesOrderItemRow = ({
   const disabledClass = "bg-gray-100 text-gray-500";
   const lockToggleDisabled = !isOrderEditable || isSaving;
   const isEffectivelyLocked = !isOrderEditable || isRowLocked;
+  const thumbSku = localItem.sku || localItem.inventoryItem?.sku;
 
   return (
     <>
       <tr className={`border-t ${isSaving ? 'bg-blue-50' : ''}`}>
         <td className="p-2">
-            <div className="flex flex-col">
-                <span>{localItem.name}</span>
+            <div className="flex items-center gap-3">
+                <ItemThumb sku={thumbSku} />
+                <div className="flex flex-col min-w-0">
+                <span className="truncate">{localItem.name}</span>
                 {isSaving && <span className="text-[10px] text-blue-600 animate-pulse">Salvando...</span>}
+                </div>
             </div>
         </td>
         <td className="p-2">{localItem.sku || '-'}</td>
@@ -398,11 +419,14 @@ export const SalesOrderItemCard = ({
   const disabledClass = "bg-gray-100 text-gray-500";
   const lockToggleDisabled = !isOrderEditable || isSaving;
   const isEffectivelyLocked = !isOrderEditable || isRowLocked;
+  const thumbSku = localItem.sku || localItem.inventoryItem?.sku;
 
   return (
     <div className={`p-3 ${isSaving ? 'bg-blue-50' : ''}`}>
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 flex items-start gap-3">
+          <ItemThumb sku={thumbSku} />
+          <div className="min-w-0">
           <div className="text-sm font-medium text-gray-900 truncate">{localItem.name}</div>
           <div className="text-xs text-gray-600 truncate">
             {localItem.sku || '-'} • {localItem.unit || '-'}{priceTableLabel ? ' • ' : ''}
@@ -418,6 +442,7 @@ export const SalesOrderItemCard = ({
             )}
           </div>
           {isSaving && <div className="text-[10px] text-blue-600 animate-pulse">Salvando...</div>}
+          </div>
         </div>
         <div className="shrink-0 flex items-center gap-2">
           <button

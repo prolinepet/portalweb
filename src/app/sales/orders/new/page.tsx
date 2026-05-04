@@ -984,6 +984,19 @@ function NewSalesOrderContent() {
                 <ul className="divide-y max-h-60 overflow-auto">
                   {searchResults.map((it) => (
                     <li key={it.id} className="py-2 flex items-center gap-3 cursor-pointer hover:bg-gray-50 px-2 rounded" onClick={() => addItemToOrder(it)}>
+                      <div className="w-10 h-10 border rounded bg-white overflow-hidden flex items-center justify-center shrink-0">
+                        {it.sku ? (
+                          <img
+                            src={`/api/items/sku/${encodeURIComponent(String(it.sku))}/thumbnail`}
+                            alt=""
+                            className="w-10 h-10 object-contain"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        ) : null}
+                      </div>
                       <div className="flex-1">
                         <div className="text-sm font-medium">{it.name}</div>
                         <div className="text-xs text-gray-600">
