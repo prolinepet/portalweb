@@ -509,8 +509,12 @@ function NewSalesOrderContent() {
   const [searchResults, setSearchResults] = useState<InventoryItem[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [totalWithTax, setTotalWithTax] = useState(0);
+  const searchTermRef = useRef('');
+  useEffect(() => {
+    searchTermRef.current = searchTerm;
+  }, [searchTerm]);
 
-  const searchClientItems = async (term: string) => {
+  const searchClientItems = useCallback(async (term: string) => {
     if (!order.customerId) {
       // If no customer selected, do not search
       setSearchResults([]);
@@ -543,7 +547,12 @@ function NewSalesOrderContent() {
     } finally {
       setSearchLoading(false);
     }
-  };
+  }, [linkedOrderTypes.length, order.customerId, order.orderTypeId]);
+
+  useEffect(() => {
+    if (!addingItems) return;
+    searchClientItems(searchTermRef.current);
+  }, [addingItems, order.customerId, order.orderTypeId, searchClientItems]);
 
   const addItemToOrder = (invItem: InventoryItem) => {
     const newItem: OrderItem = {

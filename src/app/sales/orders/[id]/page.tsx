@@ -1,5 +1,5 @@
 "use client";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { SalesOrderItemCard, SalesOrderItemRow, supportsSheetDims, supportsCoreDims } from "../components/SalesOrderItemRow";
@@ -303,6 +303,10 @@ export default function SalesOrderMaintenancePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<InventoryItem[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const searchTermRef = useRef('');
+  useEffect(() => {
+    searchTermRef.current = searchTerm;
+  }, [searchTerm]);
   const [showHistory, setShowHistory] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [integrating, setIntegrating] = useState(false);
@@ -459,7 +463,7 @@ export default function SalesOrderMaintenancePage() {
     }
   };
 
-  const searchClientItems = async (term: string) => {
+  const searchClientItems = useCallback(async (term: string) => {
     if (isOrderTypeRequired && !hasSelectedOrderType) {
       setSearchResults([]);
       setSearchLoading(false);
@@ -498,7 +502,19 @@ export default function SalesOrderMaintenancePage() {
     } finally {
       setSearchLoading(false);
     }
-  };
+  }, [
+    effectiveOrderTypeId,
+    hasSelectedOrderType,
+    hdrCustomerId,
+    isOrderTypeRequired,
+    order?.customerDoc,
+    order?.customerName,
+  ]);
+
+  useEffect(() => {
+    if (!addingItems) return;
+    searchClientItems(searchTermRef.current);
+  }, [addingItems, hdrCustomerId, effectiveOrderTypeId, hasSelectedOrderType, isOrderTypeRequired, searchClientItems]);
 
   const addItemToOrder = async (item: InventoryItem) => {
     if (!order) return;
