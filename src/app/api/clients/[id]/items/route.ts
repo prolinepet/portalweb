@@ -286,8 +286,50 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           results.push({ ...row, success: true });
         }
 
-        const del = keepIds.length
-          ? await tx.clientItem.deleteMany({ where: { clientId, inventoryItemId: { notIn: keepIds } } })
+        const existing = await tx.clientItem.findMany({
+          where: { clientId, allowed: true },
+          select: { inventoryItemId: true, unit: true, inventoryItem: { select: { unit: true } } },
+        });
+        const candidates = existing
+          .map((r) => ({
+            inventoryItemId: Number(r.inventoryItemId),
+            unit: String(r.unit ?? r.inventoryItem?.unit ?? '').trim(),
+          }))
+          .filter((r) => Number.isFinite(r.inventoryItemId) && r.inventoryItemId > 0 && r.unit.length > 0)
+          .filter((r) => !keepIds.includes(r.inventoryItemId));
+
+        const protectedInvIds = new Set<number>();
+        if (candidates.length > 0) {
+          const repLinks = await tx.userClientRep.findMany({
+            where: { clientId },
+            select: { userId: true },
+          });
+          const repUserIds = Array.from(new Set(repLinks.map((x) => Number(x.userId)).filter((x) => Number.isFinite(x) && x > 0)));
+
+          if (repUserIds.length > 0) {
+            const invIds = Array.from(new Set(candidates.map((c) => c.inventoryItemId)));
+            const baseRows = await tx.userInventoryItemPrice.findMany({
+              where: { userId: { in: repUserIds }, inventoryItemId: { in: invIds } },
+              select: { inventoryItemId: true, unit: true },
+            });
+            const baseKeys = new Set<string>();
+            for (const r of baseRows) {
+              const u = String(r.unit || '').trim();
+              if (!u) continue;
+              baseKeys.add(`${r.inventoryItemId}::${u}`);
+            }
+            for (const c of candidates) {
+              if (baseKeys.has(`${c.inventoryItemId}::${c.unit}`)) protectedInvIds.add(c.inventoryItemId);
+            }
+          }
+        }
+
+        const keepSet = new Set<number>(keepIds);
+        for (const id of Array.from(protectedInvIds.values())) keepSet.add(id);
+        const finalKeep = Array.from(keepSet.values());
+
+        const del = finalKeep.length
+          ? await tx.clientItem.deleteMany({ where: { clientId, inventoryItemId: { notIn: finalKeep } } })
           : await tx.clientItem.deleteMany({ where: { clientId } });
         return del.count;
       });
