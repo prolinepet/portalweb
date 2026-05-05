@@ -480,9 +480,16 @@ model PriceTableItem {
   @@map("tabelaprecoitem")
 }
 
+enum OrderTypeKind {
+  VENDA
+  BONIFICACAO
+  AMOSTRA
+}
+
 model OrderType {
   id         Int      @id @default(autoincrement())
   codtipoped Int      @unique
+  kind       OrderTypeKind @default(VENDA)
   descricao  String   @db.VarChar(40)
   situacao   Int      @default(1)
   createdAt  DateTime @default(now())

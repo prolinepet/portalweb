@@ -13,6 +13,7 @@ type PriceTableLinkRow = {
 type OrderTypeDetails = {
   id: number;
   codtipoped: number;
+  kind?: 'VENDA' | 'BONIFICACAO' | 'AMOSTRA' | null;
   descricao: string;
   situacao: number;
   priceTables: PriceTableLinkRow[];
@@ -59,12 +60,13 @@ export default function OrderTypeMaintenancePage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const [form, setForm] = useState<{ codtipoped: string; descricao: string; situacao: number }>({
+  const [form, setForm] = useState<{ codtipoped: string; kind: 'VENDA' | 'BONIFICACAO' | 'AMOSTRA'; descricao: string; situacao: number }>({
     codtipoped: "",
+    kind: "VENDA",
     descricao: "",
     situacao: 1,
   });
-  const originalRef = useRef<{ codtipoped: string; descricao: string; situacao: number } | null>(null);
+  const originalRef = useRef<{ codtipoped: string; kind: 'VENDA' | 'BONIFICACAO' | 'AMOSTRA'; descricao: string; situacao: number } | null>(null);
   const [priceTables, setPriceTables] = useState<PriceTableLinkRow[]>([]);
 
   const [ptQuery, setPtQuery] = useState("");
@@ -85,11 +87,13 @@ export default function OrderTypeMaintenancePage() {
       if (!res.ok) throw new Error((data as any)?.error || `Erro ${res.status}`);
       setForm({
         codtipoped: String(data.codtipoped ?? ""),
+        kind: (data.kind === 'BONIFICACAO' || data.kind === 'AMOSTRA' || data.kind === 'VENDA') ? data.kind : 'VENDA',
         descricao: String(data.descricao || ""),
         situacao: Number(data.situacao || 1),
       });
       originalRef.current = {
         codtipoped: String(data.codtipoped ?? ""),
+        kind: (data.kind === 'BONIFICACAO' || data.kind === 'AMOSTRA' || data.kind === 'VENDA') ? data.kind : 'VENDA',
         descricao: String(data.descricao || ""),
         situacao: Number(data.situacao || 1),
       };
@@ -111,7 +115,7 @@ export default function OrderTypeMaintenancePage() {
     }
     setMode("new");
     originalRef.current = null;
-    setForm({ codtipoped: "", descricao: "", situacao: 1 });
+    setForm({ codtipoped: "", kind: "VENDA", descricao: "", situacao: 1 });
     setPriceTables([]);
     setPtQuery("");
     setPtSug([]);
@@ -156,6 +160,7 @@ export default function OrderTypeMaintenancePage() {
       const codtipopedRaw = Number(form.codtipoped);
       const payload = {
         codtipoped: Number.isFinite(codtipopedRaw) ? Math.trunc(codtipopedRaw) : null,
+        kind: form.kind,
         descricao: form.descricao.trim(),
         situacao: Number(form.situacao),
       };
@@ -184,7 +189,7 @@ export default function OrderTypeMaintenancePage() {
       setMode("view");
       return;
     }
-    setForm({ codtipoped: "", descricao: "", situacao: 1 });
+    setForm({ codtipoped: "", kind: "VENDA", descricao: "", situacao: 1 });
     setMode("new");
     clearLinkForm();
   };
@@ -287,6 +292,19 @@ export default function OrderTypeMaintenancePage() {
             >
               <option value="1">1 - Ativo</option>
               <option value="2">2 - Inativo</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-600">Tipo</label>
+            <select
+              value={form.kind}
+              onChange={(e) => setForm((f) => ({ ...f, kind: e.target.value as any }))}
+              disabled={!canEditHeader}
+              className={`w-full border rounded px-2 py-1 text-sm ${canEditHeader ? "" : "bg-gray-50"}`}
+            >
+              <option value="VENDA">Venda</option>
+              <option value="BONIFICACAO">Bonificação</option>
+              <option value="AMOSTRA">Amostra</option>
             </select>
           </div>
           <div className="md:col-span-2 flex items-end justify-end">

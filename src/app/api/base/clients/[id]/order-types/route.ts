@@ -26,7 +26,7 @@ export async function GET(_: Request, props: { params: Promise<{ id: string }> }
         situacao: 1,
       },
       orderBy: [{ descricao: "asc" }, { codtipoped: "asc" }],
-      select: { id: true, codtipoped: true, descricao: true, situacao: true },
+      select: { id: true, codtipoped: true, kind: true, descricao: true, situacao: true },
     });
 
     return NextResponse.json(Array.isArray(rows) ? rows : []);

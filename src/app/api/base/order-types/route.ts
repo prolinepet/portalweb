@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 
+function parseKind(raw: unknown): "VENDA" | "BONIFICACAO" | "AMOSTRA" | undefined {
+  const s = String(raw ?? "").trim().toUpperCase();
+  if (!s) return undefined;
+  if (s === "VENDA") return "VENDA";
+  if (s === "BONIFICAÇÃO" || s === "BONIFICACAO" || s === "BONIFICACAO ") return "BONIFICACAO";
+  if (s === "AMOSTRA") return "AMOSTRA";
+  return undefined;
+}
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -16,7 +25,7 @@ export async function GET(request: Request) {
           }
         : undefined,
       orderBy: [{ descricao: "asc" }, { codtipoped: "asc" }],
-      select: { id: true, codtipoped: true, descricao: true, situacao: true },
+      select: { id: true, codtipoped: true, kind: true, descricao: true, situacao: true },
     });
 
     return NextResponse.json(rows);
@@ -30,6 +39,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const codtipopedRaw = Number(body?.codtipoped);
     const codtipoped = Number.isFinite(codtipopedRaw) ? Math.trunc(codtipopedRaw) : NaN;
+    const kind = parseKind(body?.kind);
     const descricao = String(body?.descricao || "").trim();
     const situacaoRaw = Number(body?.situacao);
     const situacao = Number.isFinite(situacaoRaw) ? Math.trunc(situacaoRaw) : 1;
@@ -41,8 +51,8 @@ export async function POST(request: Request) {
     if (![1, 2].includes(situacao)) return NextResponse.json({ error: "Situação inválida" }, { status: 400 });
 
     const created = await prisma.orderType.create({
-      data: { codtipoped, descricao, situacao },
-      select: { id: true, codtipoped: true, descricao: true, situacao: true },
+      data: { codtipoped, kind: kind ?? undefined, descricao, situacao },
+      select: { id: true, codtipoped: true, kind: true, descricao: true, situacao: true },
     });
     return NextResponse.json(created, { status: 201 });
   } catch (err: any) {
@@ -51,4 +61,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: isUnique ? "Cód Tipo Ped já existe" : msg }, { status: isUnique ? 409 : 500 });
   }
 }
-

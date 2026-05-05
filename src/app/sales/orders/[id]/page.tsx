@@ -18,7 +18,7 @@ type InventoryItem = {
   grammage?: number | null;
 };
 
-type OrderType = { id: number; codtipoped: number; descricao: string; situacao: number };
+type OrderType = { id: number; codtipoped: number; kind?: 'VENDA' | 'BONIFICACAO' | 'AMOSTRA' | null; descricao: string; situacao: number };
 
 type OrderItem = {
   id: number;
@@ -331,6 +331,18 @@ export default function SalesOrderMaintenancePage() {
     effectiveOrderTypeId > 0
   );
   const isOrderTypeRequired = linkedOrderTypes.length > 0;
+  const selectedOrderType = useMemo(() => {
+    const oid = hasSelectedOrderType && effectiveOrderTypeId ? Number(effectiveOrderTypeId) : null;
+    if (!oid || !Number.isFinite(oid) || oid <= 0) return null;
+    return (linkedOrderTypes || []).find((ot) => Number(ot.id) === oid) || null;
+  }, [effectiveOrderTypeId, hasSelectedOrderType, linkedOrderTypes]);
+  const isFreePaymentTermsOrderType =
+    selectedOrderType?.kind === 'BONIFICACAO' || selectedOrderType?.kind === 'AMOSTRA';
+
+  useEffect(() => {
+    if (!isFreePaymentTermsOrderType) return;
+    setHdrDraft((d) => ({ ...d, paymentTerms: '' }));
+  }, [isFreePaymentTermsOrderType]);
 
   // Billing History
   const [showBilling, setShowBilling] = useState(false);
@@ -1461,10 +1473,12 @@ export default function SalesOrderMaintenancePage() {
                       className="mt-1 w-full px-2 py-1 border rounded"
                       value={hdrDraft.paymentTerms ?? ''}
                       onChange={(e) => setHdrDraft((d) => ({ ...d, paymentTerms: e.target.value }))}
-                      disabled={!isHeaderEditing || !hdrCustomerId || paymentTermsLoading || paymentTermsOptions.length === 0}
+                      disabled={isFreePaymentTermsOrderType || !isHeaderEditing || !hdrCustomerId || paymentTermsLoading || paymentTermsOptions.length === 0}
                     >
                       <option value="">
-                        {!hdrCustomerId
+                        {isFreePaymentTermsOrderType
+                          ? 'Não se aplica'
+                          : !hdrCustomerId
                           ? 'Selecione um cliente'
                           : paymentTermsLoading
                           ? 'Carregando...'

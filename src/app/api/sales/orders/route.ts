@@ -116,6 +116,7 @@ export async function GET(request: Request) {
       where,
       include: {
         entity: { select: { name: true } },
+        orderType: { select: { id: true, codtipoped: true, kind: true, descricao: true } },
         items: {
           include: {
             inventoryItem: {
@@ -172,6 +173,15 @@ export async function POST(request: Request) {
       typeof orderTypeIdRaw === 'number' && Number.isFinite(orderTypeIdRaw) && orderTypeIdRaw > 0
         ? Math.trunc(orderTypeIdRaw)
         : null;
+    let isFreePaymentTermsOrderType = false;
+    if (orderTypeId && Number.isFinite(orderTypeId) && orderTypeId > 0) {
+      const ot = await prisma.orderType.findUnique({
+        where: { id: orderTypeId },
+        select: { kind: true },
+      });
+      const k = String((ot as any)?.kind || '').trim().toUpperCase();
+      isFreePaymentTermsOrderType = k === 'BONIFICACAO' || k === 'AMOSTRA';
+    }
 
     const parseDate = (value: any): Date | undefined => {
       if (!value) return undefined;
@@ -318,11 +328,11 @@ export async function POST(request: Request) {
       const linkedCount = await prisma.clientPaymentTerm.count({ where: { clientId } });
       const hasLinkedTerms = linkedCount > 0;
 
-      if (hasLinkedTerms && (!paymentTerms || !String(paymentTerms).trim())) {
+      if (!isFreePaymentTermsOrderType && hasLinkedTerms && (!paymentTerms || !String(paymentTerms).trim())) {
         return NextResponse.json({ error: 'Condição de pagamento é obrigatória para este cliente' }, { status: 400 });
       }
 
-      if (paymentTerms && String(paymentTerms).trim()) {
+      if (!isFreePaymentTermsOrderType && paymentTerms && String(paymentTerms).trim()) {
         const raw = String(paymentTerms).trim();
         const m = raw.match(/^\[(\d+)\]/);
 
@@ -398,7 +408,7 @@ export async function POST(request: Request) {
       clientId: clientId,
       triangularCustomerName: triangularCustomerName || undefined,
       triangularCustomerDoc: triangularCustomerDocNorm || undefined,
-      paymentTerms: paymentTerms !== undefined && paymentTerms !== null ? String(paymentTerms) : undefined,
+      paymentTerms: isFreePaymentTermsOrderType ? null : paymentTerms !== undefined && paymentTerms !== null ? String(paymentTerms) : undefined,
       carrier: carrier || undefined,
       deliveryDate: parseDate(deliveryDate),
       notes: notes || undefined,
@@ -444,7 +454,7 @@ export async function POST(request: Request) {
               clientId ?? null,
               triangularCustomerName || null,
               triangularCustomerDocNorm || null,
-              paymentTerms !== undefined && paymentTerms !== null ? String(paymentTerms) : null,
+              isFreePaymentTermsOrderType ? null : paymentTerms !== undefined && paymentTerms !== null ? String(paymentTerms) : null,
               carrier || null,
               parseDate(deliveryDate) ?? null,
               notes || null,

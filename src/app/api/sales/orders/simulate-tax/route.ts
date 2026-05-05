@@ -65,18 +65,22 @@ export async function POST(request: Request) {
 
     // Extract Payment Terms Code
     let paymentTermsErp = 30; // Default
-    if (!paymentTerms) {
-        return NextResponse.json({ error: 'Condição de Pagamento não informada. Por favor, selecione uma condição de pagamento.' }, { status: 400 });
-    }
-    if (paymentTerms) {
-        const match = paymentTerms.match(/^\[(\d+)\]/);
-        if (match && match[1]) {
-            paymentTermsErp = parseInt(match[1], 10);
-        } else {
-             const term = await prisma.paymentTerm.findFirst({
-                 where: { description: { equals: paymentTerms.trim() } }
-             });
-             if (term?.code) paymentTermsErp = term.code;
+    if (isFreePaymentTermsOrderType) {
+        paymentTermsErp = 0;
+    } else {
+        if (!paymentTerms) {
+            return NextResponse.json({ error: 'Condição de Pagamento não informada. Por favor, selecione uma condição de pagamento.' }, { status: 400 });
+        }
+        if (paymentTerms) {
+            const match = paymentTerms.match(/^\[(\d+)\]/);
+            if (match && match[1]) {
+                paymentTermsErp = parseInt(match[1], 10);
+            } else {
+                 const term = await prisma.paymentTerm.findFirst({
+                     where: { description: { equals: paymentTerms.trim() } }
+                 });
+                 if (term?.code) paymentTermsErp = term.code;
+            }
         }
     }
 
@@ -88,13 +92,16 @@ export async function POST(request: Request) {
     const clientId = body?.customerId != null ? Number(body.customerId) : body?.clientId != null ? Number(body.clientId) : null;
     const orderTypeId = body?.orderTypeId != null ? Number(body.orderTypeId) : null;
     let salesChannel = 1;
+    let isFreePaymentTermsOrderType = false;
     if (orderTypeId && Number.isFinite(orderTypeId) && orderTypeId > 0) {
       const ot = await prisma.orderType.findUnique({
         where: { id: Math.trunc(orderTypeId) },
-        select: { codtipoped: true },
+        select: { codtipoped: true, kind: true },
       });
       const ch = Number((ot as any)?.codtipoped);
       if (Number.isFinite(ch) && ch > 0) salesChannel = Math.trunc(ch);
+      const k = String((ot as any)?.kind || '').trim().toUpperCase();
+      isFreePaymentTermsOrderType = k === 'BONIFICACAO' || k === 'AMOSTRA';
     }
     const invIds = Array.from(
       new Set(

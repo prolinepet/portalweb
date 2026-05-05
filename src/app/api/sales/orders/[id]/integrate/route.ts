@@ -37,28 +37,6 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
       }
 
-      // Extract Payment Terms Code (assuming format "[code] description")
-      let paymentTermsErp = 30; // Default
-
-      if (!order.paymentTerms) {
-           return NextResponse.json({ error: 'Condição de Pagamento não informada. Por favor, selecione uma condição de pagamento.' }, { status: 400 });
-      }
-
-      if (order.paymentTerms) {
-          const match = order.paymentTerms.match(/^\[(\d+)\]/);
-          if (match && match[1]) {
-              paymentTermsErp = parseInt(match[1], 10);
-          } else {
-              // Fallback: try to find by exact description in PaymentTerm table
-              const term = await prisma.paymentTerm.findFirst({
-                  where: { description: { equals: order.paymentTerms.trim() } }
-              });
-              if (term?.code) {
-                  paymentTermsErp = term.code;
-              }
-          }
-      }
-
       const customerDocRaw = order.client?.doc || order.customerDoc || '';
 
       let entityDoc = (order.entity?.cnpj || '').replace(/\D/g, '');
@@ -112,13 +90,35 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       const clientId = (order as any)?.clientId != null ? Number((order as any).clientId) : (order as any)?.client?.id != null ? Number((order as any).client?.id) : null;
       const orderTypeId = (order as any)?.orderTypeId != null ? Number((order as any).orderTypeId) : null;
       let salesChannel = 1;
+      let isFreePaymentTermsOrderType = false;
       if (orderTypeId && Number.isFinite(orderTypeId) && orderTypeId > 0) {
         const ot = await prisma.orderType.findUnique({
           where: { id: Math.trunc(orderTypeId) },
-          select: { codtipoped: true },
+          select: { codtipoped: true, kind: true },
         });
         const ch = Number((ot as any)?.codtipoped);
         if (Number.isFinite(ch) && ch > 0) salesChannel = Math.trunc(ch);
+        const k = String((ot as any)?.kind || '').trim().toUpperCase();
+        isFreePaymentTermsOrderType = k === 'BONIFICACAO' || k === 'AMOSTRA';
+      }
+
+      // Extract Payment Terms Code (assuming format "[code] description")
+      let paymentTermsErp = 30; // Default
+      if (isFreePaymentTermsOrderType) {
+        paymentTermsErp = 0;
+      } else {
+        if (!order.paymentTerms) {
+          return NextResponse.json({ error: 'Condição de Pagamento não informada. Por favor, selecione uma condição de pagamento.' }, { status: 400 });
+        }
+        const match = String(order.paymentTerms || '').match(/^\[(\d+)\]/);
+        if (match && match[1]) {
+          paymentTermsErp = parseInt(match[1], 10);
+        } else {
+          const term = await prisma.paymentTerm.findFirst({
+            where: { description: { equals: String(order.paymentTerms || '').trim() } }
+          });
+          if (term?.code) paymentTermsErp = term.code;
+        }
       }
       const priceTableByInvId = new Map<number, { id: number; nrtabpre: string; descricao: string }>();
       if (clientId && Number.isFinite(clientId) && clientId > 0 && orderTypeId && Number.isFinite(orderTypeId) && orderTypeId > 0 && invIds.length > 0) {

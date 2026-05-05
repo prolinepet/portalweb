@@ -16,7 +16,7 @@ type InventoryItem = {
   grammage?: number | null;
 };
 
-type OrderType = { id: number; codtipoped: number; descricao: string; situacao: number };
+type OrderType = { id: number; codtipoped: number; kind?: 'VENDA' | 'BONIFICACAO' | 'AMOSTRA' | null; descricao: string; situacao: number };
 
 type OrderItem = {
   id: number;
@@ -200,6 +200,21 @@ function NewSalesOrderContent() {
   const [paymentTermsOptions, setPaymentTermsOptions] = useState<any[]>([]);
   const [paymentTermsLoading, setPaymentTermsLoading] = useState(false);
   const lastOrderTypeIdRef = useRef<number | null>(null);
+
+  const selectedOrderType = useMemo(() => {
+    const oid = order.orderTypeId != null ? Number(order.orderTypeId) : null;
+    if (!oid || !Number.isFinite(oid) || oid <= 0) return null;
+    return (linkedOrderTypes || []).find((ot) => Number(ot.id) === oid) || null;
+  }, [order.orderTypeId, linkedOrderTypes]);
+
+  const isFreePaymentTermsOrderType =
+    selectedOrderType?.kind === 'BONIFICACAO' || selectedOrderType?.kind === 'AMOSTRA';
+
+  useEffect(() => {
+    if (isFreePaymentTermsOrderType) {
+      setOrder((prev) => ({ ...prev, paymentTerms: '' }));
+    }
+  }, [isFreePaymentTermsOrderType]);
 
   useEffect(() => {
     lastOrderTypeIdRef.current = order.orderTypeId != null ? Number(order.orderTypeId) : null;
@@ -617,7 +632,7 @@ function NewSalesOrderContent() {
           triangularCustomerName: order.triangularCustomerName,
           triangularCustomerDoc: order.triangularCustomerDoc,
           entityCnpj: sessionEntity?.cnpj,
-          paymentTerms: order.paymentTerms,
+          paymentTerms: isFreePaymentTermsOrderType ? '' : order.paymentTerms,
 
           deliveryDate: order.deliveryDate,
           items: order.items?.map(it => ({
@@ -1079,10 +1094,12 @@ function NewSalesOrderContent() {
                   className="mt-1 w-full px-2 py-1 border rounded"
                   value={order.paymentTerms ?? ''}
                   onChange={(e) => setOrder((prev) => ({ ...prev, paymentTerms: e.target.value }))}
-                  disabled={!order.customerId || paymentTermsLoading || paymentTermsOptions.length === 0}
+                  disabled={isFreePaymentTermsOrderType || !order.customerId || paymentTermsLoading || paymentTermsOptions.length === 0}
                 >
                   <option value="">
-                    {!order.customerId
+                    {isFreePaymentTermsOrderType
+                      ? 'Não se aplica'
+                      : !order.customerId
                       ? 'Selecione um cliente'
                       : paymentTermsLoading
                       ? 'Carregando...'

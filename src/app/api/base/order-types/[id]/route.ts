@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
 
+function parseKind(raw: unknown): "VENDA" | "BONIFICACAO" | "AMOSTRA" | undefined {
+  const s = String(raw ?? "").trim().toUpperCase();
+  if (!s) return undefined;
+  if (s === "VENDA") return "VENDA";
+  if (s === "BONIFICAÇÃO" || s === "BONIFICACAO") return "BONIFICACAO";
+  if (s === "AMOSTRA") return "AMOSTRA";
+  return undefined;
+}
+
 export async function GET(_: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
@@ -12,6 +21,7 @@ export async function GET(_: Request, props: { params: Promise<{ id: string }> }
       select: {
         id: true,
         codtipoped: true,
+        kind: true,
         descricao: true,
         situacao: true,
         priceTables: {
@@ -29,6 +39,7 @@ export async function GET(_: Request, props: { params: Promise<{ id: string }> }
     return NextResponse.json({
       id: row.id,
       codtipoped: row.codtipoped,
+      kind: (row as any).kind,
       descricao: row.descricao,
       situacao: row.situacao,
       priceTables: (row.priceTables || []).map((l) => ({
@@ -60,6 +71,12 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       data.codtipoped = codtipoped;
     }
 
+    if (body?.kind !== undefined) {
+      const kind = parseKind(body?.kind);
+      if (!kind) return NextResponse.json({ error: "Tipo inválido" }, { status: 400 });
+      data.kind = kind;
+    }
+
     if (body?.descricao !== undefined) {
       const descricao = String(body?.descricao || "").trim();
       if (!descricao) return NextResponse.json({ error: "Descrição é obrigatória" }, { status: 400 });
@@ -77,7 +94,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     const updated = await prisma.orderType.update({
       where: { id: Math.trunc(id) },
       data,
-      select: { id: true, codtipoped: true, descricao: true, situacao: true },
+      select: { id: true, codtipoped: true, kind: true, descricao: true, situacao: true },
     });
     return NextResponse.json(updated);
   } catch (err: any) {
@@ -99,4 +116,3 @@ export async function DELETE(_: Request, props: { params: Promise<{ id: string }
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
 }
-
