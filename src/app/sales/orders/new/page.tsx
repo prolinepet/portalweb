@@ -194,6 +194,7 @@ function NewSalesOrderContent() {
 
   const [loading, setLoading] = useState(false);
   const [simulating, setSimulating] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const [linkedOrderTypes, setLinkedOrderTypes] = useState<OrderType[]>([]);
   const [linkedOrderTypesLoading, setLinkedOrderTypesLoading] = useState(false);
   const [paymentTermsOptions, setPaymentTermsOptions] = useState<any[]>([]);
@@ -695,6 +696,74 @@ function NewSalesOrderContent() {
     }
   };
 
+  const handleMirrorPdf = async () => {
+    if (!order.customerName) {
+      alert('Informe o nome do cliente');
+      return;
+    }
+    const items = order.items || [];
+    if (items.length === 0) {
+      alert('Adicione pelo menos um item para gerar o PDF.');
+      return;
+    }
+    setGeneratingPdf(true);
+    try {
+      const payload = {
+        id: order.id ?? null,
+        code: order.code ?? null,
+        orderDate: order.orderDate ?? new Date().toISOString(),
+        customerName: order.customerName || '',
+        customerDoc: order.customerDoc ?? null,
+        triangularCustomerName: order.triangularCustomerName ?? null,
+        triangularCustomerDoc: order.triangularCustomerDoc ?? null,
+        orderTypeId: order.orderTypeId ?? null,
+        paymentTerms: order.paymentTerms ?? null,
+        deliveryDate: order.deliveryDate ?? null,
+        notes: order.notes ?? null,
+        entity: sessionEntity ? { name: sessionEntity.name, cnpj: sessionEntity.cnpj } : null,
+        items: items.map((it) => ({
+          sku: it.sku ?? null,
+          name: it.name || '',
+          unit: it.unit ?? null,
+          quantity: Number(it.quantity || 0),
+          unitPrice: Number(it.unitPrice || 0),
+          discountPct: Number(it.discountPct || 0),
+          priceTable: it.inventoryItem?.priceTable
+            ? { nrtabpre: it.inventoryItem.priceTable.nrtabpre, descricao: it.inventoryItem.priceTable.descricao }
+            : null,
+        })),
+      };
+
+      const res = await fetch('/api/sales/orders/mirror-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || 'Falha ao gerar PDF');
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!win) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'espelho-pedido.pdf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e: any) {
+      alert(e?.message || String(e));
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
   const computeWeightKg = (it: OrderItem): number => {
     const unitWeight = Number((it as any)?.inventoryItem?.unitWeightKg ?? 0);
     const qty = it.quantity ?? 0;
@@ -791,6 +860,29 @@ function NewSalesOrderContent() {
                 </div>
 
                 <div className="flex items-center gap-2 sm:justify-end">
+                  <button
+                    className={`${ICON_BTN} ${generatingPdf ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title="Espelho do pedido (PDF)"
+                    aria-label="Espelho do pedido (PDF)"
+                    disabled={generatingPdf}
+                    style={{ opacity: generatingPdf ? 0.5 : 1, pointerEvents: generatingPdf ? 'none' : 'auto' }}
+                    onClick={handleMirrorPdf}
+                  >
+                    {generatingPdf ? (
+                      <svg className="animate-spin h-4 w-4 text-gray-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <path d="M14 2v6h6"></path>
+                        <path d="M16 13H8"></path>
+                        <path d="M16 17H8"></path>
+                        <path d="M10 9H8"></path>
+                      </svg>
+                    )}
+                  </button>
                   <button className={`${ICON_BTN} opacity-50 cursor-not-allowed`} title="Enviar para ERP (Desabilitado)" disabled>
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                   </button>
