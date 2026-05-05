@@ -487,7 +487,7 @@ export default function SalesOrderMaintenancePage() {
         notes: order.notes ?? null,
         entity: order.entity ? { name: order.entity.name, cnpj: order.entity.cnpj } : null,
         items: items.map((it) => ({
-          sku: it.sku ?? null,
+          sku: it.sku ?? it.inventoryItem?.sku ?? null,
           name: it.name || '',
           unit: it.unit ?? null,
           quantity: Number(it.quantity || 0),

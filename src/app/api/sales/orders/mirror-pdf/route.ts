@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { readFile } from 'fs/promises';
 import path from 'path';
 import { existsSync } from 'fs';
+import { Resvg } from '@resvg/resvg-js';
 
 const ItemSchema = z.object({
   sku: z.string().trim().optional().nullable(),
@@ -258,14 +259,25 @@ async function buildMirrorPdf(
   const headerH = 18;
 
   const drawTableHeader = () => {
-    ensureSpace(headerH + 8);
-    page.drawRectangle({ x: tableX, y: y - headerH + 4, width: tableW, height: headerH, color: rgb(0.96, 0.96, 0.96), borderColor: rgb(0.85, 0.85, 0.85), borderWidth: 1 });
+    ensureSpace(headerH + 10);
+    const headerTop = y;
+    const rectY = headerTop - headerH;
+    page.drawRectangle({
+      x: tableX,
+      y: rectY,
+      width: tableW,
+      height: headerH,
+      color: rgb(0.96, 0.96, 0.96),
+      borderColor: rgb(0.85, 0.85, 0.85),
+      borderWidth: 1,
+    });
+    const baselineY = headerTop - smallSize - 4;
     let x = tableX;
     for (const c of cols) {
-      drawText(c.label, x + 4, smallSize, true, { r: 0.2, g: 0.2, b: 0.2 });
+      drawTextAt(c.label, x + 4, baselineY, smallSize, true, { r: 0.2, g: 0.2, b: 0.2 });
       x += c.w;
     }
-    y -= headerH + 8;
+    y = rectY - 10;
   };
 
   drawTableHeader();
@@ -284,17 +296,19 @@ async function buildMirrorPdf(
     const lineTotal = lineBase - (lineBase * (discPct / 100));
 
     const nameLines = wrapText(font, name, smallSize, cols.find((c) => c.key === 'name')!.w - 8);
-    const rowH = Math.max(34, nameLines.length * (smallSize + 2) + 6);
+    const rowH = Math.max(34, nameLines.length * (smallSize + 2) + 10);
     ensureSpace(rowH + 6);
     if (y - rowH < margin) {
       newPage();
       drawTableHeader();
     }
 
-    page.drawRectangle({ x: tableX, y: y - rowH + 4, width: tableW, height: rowH, borderColor: rgb(0.9, 0.9, 0.9), borderWidth: 1 });
+    const rowTop = y;
+    const rowBottom = rowTop - rowH;
+    page.drawRectangle({ x: tableX, y: rowBottom, width: tableW, height: rowH, borderColor: rgb(0.9, 0.9, 0.9), borderWidth: 1 });
 
     let x = tableX;
-    const cellBaselineY = y - smallSize - 2;
+    const cellBaselineY = rowTop - smallSize - 4;
     const writeCell = (text: string, cW: number, align: 'left' | 'right') => {
       const t = String(text || '');
       const w = font.widthOfTextAtSize(t, smallSize);
@@ -313,7 +327,6 @@ async function buildMirrorPdf(
       const innerW = cols[0].w - 8;
       const innerH = rowH - 8;
       const fitted = fitToBox(img.width, img.height, innerW, innerH);
-      const rowBottom = y - rowH + 4;
       const imgX = x + 4 + (innerW - fitted.width) / 2;
       const imgY = rowBottom + (rowH - fitted.height) / 2;
       page.drawImage(img, { x: imgX, y: imgY, width: fitted.width, height: fitted.height });
@@ -325,7 +338,7 @@ async function buildMirrorPdf(
 
     for (let i = 0; i < nameLines.length; i++) {
       const ln = nameLines[i];
-      const baseY = y - smallSize - 2 - (smallSize + 2) * i;
+      const baseY = rowTop - smallSize - 4 - (smallSize + 2) * i;
       drawTextAt(ln, x + 4, baseY, smallSize);
     }
     x += cols[2].w;
@@ -347,7 +360,7 @@ async function buildMirrorPdf(
 
     writeCell(fmtNumber(lineTotal), cols[8].w, cols[8].align);
 
-    y -= rowH + 6;
+    y = rowBottom - 6;
   }
 
   ensureSpace(70);
@@ -418,21 +431,14 @@ export async function POST(request: Request) {
     }
 
     let logo: ImageSource | null = null;
-    const logoCandidates = [
-      path.join(process.cwd(), 'public', 'icons', 'logo prolinepet.png'),
-      path.join(process.cwd(), 'public', 'icons', 'logo-prolinepet.png'),
-      path.join(process.cwd(), 'public', 'icons', 'logo-prolinepet.jpg'),
-      path.join(process.cwd(), 'public', 'icons', 'logo-prolinepet.jpeg'),
-    ];
-    for (const p of logoCandidates) {
-      if (!existsSync(p)) continue;
+    const logoSvgPath = path.join(process.cwd(), 'public', 'icons', 'logo-prolinepet.svg');
+    if (existsSync(logoSvgPath)) {
       try {
-        const bytes = await readFile(p);
-        const ext = path.extname(p).toLowerCase();
-        const mime = ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : '';
-        if (bytes.length > 0 && mime) {
-          logo = { mime, bytes };
-          break;
+        const svg = await readFile(logoSvgPath, 'utf8');
+        const resvg = new Resvg(svg, { fitTo: { mode: 'width', value: 600 } });
+        const png = resvg.render().asPng();
+        if (png && png.length > 0) {
+          logo = { mime: 'image/png', bytes: png };
         }
       } catch {}
     }
