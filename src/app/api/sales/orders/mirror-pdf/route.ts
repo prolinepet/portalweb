@@ -4,10 +4,6 @@ import { authOptions } from '../../../../../lib/auth';
 import { prisma } from '../../../../../lib/prisma';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { z } from 'zod';
-import { readFile } from 'fs/promises';
-import path from 'path';
-import { existsSync } from 'fs';
-import { Resvg } from '@resvg/resvg-js';
 
 const ItemSchema = z.object({
   sku: z.string().trim().optional().nullable(),
@@ -42,6 +38,23 @@ const MirrorOrderSchema = z.object({
       name: z.string().trim().optional().nullable(),
       cnpj: z.string().trim().optional().nullable(),
     })
+    .optional()
+    .nullable(),
+  logo: z
+    .object({
+      mime: z.string().trim(),
+      base64: z.string().trim(),
+    })
+    .optional()
+    .nullable(),
+  thumbs: z
+    .array(
+      z.object({
+        sku: z.string().trim(),
+        mime: z.string().trim(),
+        base64: z.string().trim(),
+      })
+    )
     .optional()
     .nullable(),
   items: z.array(ItemSchema).default([]),
@@ -274,7 +287,15 @@ async function buildMirrorPdf(
     const baselineY = headerTop - smallSize - 4;
     let x = tableX;
     for (const c of cols) {
-      drawTextAt(c.label, x + 4, baselineY, smallSize, true, { r: 0.2, g: 0.2, b: 0.2 });
+      const t = String(c.label || '');
+      const w = bold.widthOfTextAtSize(t, smallSize);
+      const dx =
+        c.key === 'photo'
+          ? Math.max(0, (c.w - w) / 2)
+          : c.align === 'right'
+          ? Math.max(0, c.w - 6 - w)
+          : 0;
+      drawTextAt(t, x + 4 + dx, baselineY, smallSize, true, { r: 0.2, g: 0.2, b: 0.2 });
       x += c.w;
     }
     y = rectY - 10;
@@ -408,39 +429,53 @@ export async function POST(request: Request) {
       else if (desc) orderTypeLabel = desc;
     }
 
-    const rawSkus = items.map((it) => String((it as any)?.sku || '').trim()).filter(Boolean);
-    const skuSet = Array.from(new Set(rawSkus));
     const thumbsBySku = new Map<string, ImageSource>();
-    if (skuSet.length > 0) {
-      const dbItems = await prisma.inventoryItem.findMany({
-        where: { sku: { in: skuSet } },
-        select: { sku: true, thumbnailMime: true, thumbnailBase64: true },
-      });
-      for (const row of dbItems as any[]) {
-        const sku = String(row?.sku || '').trim();
-        const mime = String(row?.thumbnailMime || '').trim().toLowerCase();
-        const b64 = String(row?.thumbnailBase64 || '').trim();
-        if (!sku || !mime || !b64) continue;
-        try {
-          const bytes = Buffer.from(b64, 'base64');
-          if (bytes.length > 0 && (mime.includes('png') || mime.includes('jpeg') || mime.includes('jpg'))) {
-            thumbsBySku.set(sku, { mime, bytes });
-          }
-        } catch {}
+    const incomingThumbs = Array.isArray((data as any)?.thumbs) ? ((data as any).thumbs as any[]) : [];
+    for (const t of incomingThumbs) {
+      const sku = String(t?.sku || '').trim();
+      const mime = String(t?.mime || '').trim().toLowerCase();
+      const b64 = String(t?.base64 || '').trim();
+      if (!sku || !mime || !b64) continue;
+      if (!(mime.includes('png') || mime.includes('jpeg') || mime.includes('jpg'))) continue;
+      try {
+        const bytes = Buffer.from(b64, 'base64');
+        if (bytes.length > 0) thumbsBySku.set(sku, { mime, bytes });
+      } catch {}
+    }
+
+    if (thumbsBySku.size === 0) {
+      const rawSkus = items.map((it) => String((it as any)?.sku || '').trim()).filter(Boolean);
+      const skuSet = Array.from(new Set(rawSkus));
+      if (skuSet.length > 0) {
+        const dbItems = await prisma.inventoryItem.findMany({
+          where: { sku: { in: skuSet } },
+          select: { sku: true, thumbnailMime: true, thumbnailBase64: true },
+        });
+        for (const row of dbItems as any[]) {
+          const sku = String(row?.sku || '').trim();
+          const mime = String(row?.thumbnailMime || '').trim().toLowerCase();
+          const b64 = String(row?.thumbnailBase64 || '').trim();
+          if (!sku || !mime || !b64) continue;
+          if (!(mime.includes('png') || mime.includes('jpeg') || mime.includes('jpg'))) continue;
+          try {
+            const bytes = Buffer.from(b64, 'base64');
+            if (bytes.length > 0) thumbsBySku.set(sku, { mime, bytes });
+          } catch {}
+        }
       }
     }
 
     let logo: ImageSource | null = null;
-    const logoSvgPath = path.join(process.cwd(), 'public', 'icons', 'logo-prolinepet.svg');
-    if (existsSync(logoSvgPath)) {
-      try {
-        const svg = await readFile(logoSvgPath, 'utf8');
-        const resvg = new Resvg(svg, { fitTo: { mode: 'width', value: 600 } });
-        const png = resvg.render().asPng();
-        if (png && png.length > 0) {
-          logo = { mime: 'image/png', bytes: png };
-        }
-      } catch {}
+    const rawLogoMime = (data as any)?.logo?.mime != null ? String((data as any).logo.mime || '').trim() : '';
+    const rawLogoB64 = (data as any)?.logo?.base64 != null ? String((data as any).logo.base64 || '').trim() : '';
+    if (rawLogoMime && rawLogoB64) {
+      const mime = rawLogoMime.toLowerCase();
+      if (mime.includes('png') || mime.includes('jpeg') || mime.includes('jpg')) {
+        try {
+          const bytes = Buffer.from(rawLogoB64, 'base64');
+          if (bytes.length > 0) logo = { mime, bytes };
+        } catch {}
+      }
     }
 
     const bytes = await buildMirrorPdf(data, { orderTypeLabel, logo, thumbsBySku });

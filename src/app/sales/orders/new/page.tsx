@@ -708,6 +708,105 @@ function NewSalesOrderContent() {
     }
     setGeneratingPdf(true);
     try {
+      const blobToBase64 = async (blob: Blob): Promise<string> => {
+        const ab = await blob.arrayBuffer();
+        const bytes = new Uint8Array(ab);
+        let bin = '';
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return btoa(bin);
+      };
+
+      const loadSvgAsPngBase64 = async (src: string, targetWidth: number): Promise<{ mime: string; base64: string } | null> => {
+        try {
+          const svgText = await fetch(src, { cache: 'no-store' }).then((r) => (r.ok ? r.text() : ''));
+          if (!svgText) return null;
+          const blob = new Blob([svgText], { type: 'image/svg+xml' });
+          const url = URL.createObjectURL(blob);
+          try {
+            const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+              const el = new Image();
+              el.onload = () => resolve(el);
+              el.onerror = () => reject(new Error('Falha ao carregar SVG'));
+              el.src = url;
+            });
+            const w = img.naturalWidth || img.width || 1;
+            const h = img.naturalHeight || img.height || 1;
+            const cw = Math.max(1, Math.round(targetWidth));
+            const ch = Math.max(1, Math.round((targetWidth * h) / w));
+            const canvas = document.createElement('canvas');
+            canvas.width = cw;
+            canvas.height = ch;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return null;
+            ctx.clearRect(0, 0, cw, ch);
+            ctx.drawImage(img, 0, 0, cw, ch);
+            const png = await new Promise<Blob>((resolve, reject) => {
+              canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Falha ao gerar PNG'))), 'image/png');
+            });
+            const base64 = await blobToBase64(png);
+            return { mime: 'image/png', base64 };
+          } finally {
+            URL.revokeObjectURL(url);
+          }
+        } catch {
+          return null;
+        }
+      };
+
+      const loadThumbAsJpegBase64 = async (sku: string, size: number): Promise<{ sku: string; mime: string; base64: string } | null> => {
+        const s = String(sku || '').trim();
+        if (!s) return null;
+        try {
+          const res = await fetch(`/api/items/sku/${encodeURIComponent(s)}/thumbnail`, { cache: 'no-store' });
+          if (!res.ok) return null;
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          try {
+            const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+              const el = new Image();
+              el.onload = () => resolve(el);
+              el.onerror = () => reject(new Error('Falha ao carregar imagem'));
+              el.src = url;
+            });
+            const w = img.naturalWidth || img.width || 1;
+            const h = img.naturalHeight || img.height || 1;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return null;
+            const scale = Math.min(size / w, size / h);
+            const dw = Math.max(1, Math.round(w * scale));
+            const dh = Math.max(1, Math.round(h * scale));
+            const dx = Math.round((size - dw) / 2);
+            const dy = Math.round((size - dh) / 2);
+            ctx.clearRect(0, 0, size, size);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, size, size);
+            ctx.drawImage(img, dx, dy, dw, dh);
+            const out = await new Promise<Blob>((resolve, reject) => {
+              canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Falha ao gerar JPEG'))), 'image/jpeg', 0.85);
+            });
+            const base64 = await blobToBase64(out);
+            return { sku: s, mime: 'image/jpeg', base64 };
+          } finally {
+            URL.revokeObjectURL(url);
+          }
+        } catch {
+          return null;
+        }
+      };
+
+      const logo = await loadSvgAsPngBase64('/icons/logo-prolinepet.svg', 520);
+      const skuList = Array.from(
+        new Set(
+          items
+            .map((it) => String((it.sku ?? it.inventoryItem?.sku) || '').trim())
+            .filter(Boolean)
+        )
+      );
+      const thumbs = (await Promise.all(skuList.map((sku) => loadThumbAsJpegBase64(sku, 96)))).filter(Boolean);
+
       const payload = {
         id: order.id ?? null,
         code: order.code ?? null,
@@ -721,6 +820,8 @@ function NewSalesOrderContent() {
         deliveryDate: order.deliveryDate ?? null,
         notes: order.notes ?? null,
         entity: sessionEntity ? { name: sessionEntity.name, cnpj: sessionEntity.cnpj } : null,
+        logo,
+        thumbs,
         items: items.map((it) => ({
           sku: it.sku ?? it.inventoryItem?.sku ?? null,
           name: it.name || '',
