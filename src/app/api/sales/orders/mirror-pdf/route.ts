@@ -4,6 +4,9 @@ import { authOptions } from '../../../../../lib/auth';
 import { prisma } from '../../../../../lib/prisma';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { z } from 'zod';
+import { readFile } from 'fs/promises';
+import path from 'path';
+import { existsSync } from 'fs';
 
 const ItemSchema = z.object({
   sku: z.string().trim().optional().nullable(),
@@ -92,7 +95,19 @@ function wrapText(font: any, text: string, size: number, maxWidth: number): stri
   return lines.length > 0 ? lines : [''];
 }
 
-async function buildMirrorPdf(input: z.infer<typeof MirrorOrderSchema>, orderTypeLabel?: string) {
+type ImageSource = { mime: string; bytes: Uint8Array };
+
+function fitToBox(imgW: number, imgH: number, boxW: number, boxH: number) {
+  const w = Number.isFinite(imgW) && imgW > 0 ? imgW : boxW;
+  const h = Number.isFinite(imgH) && imgH > 0 ? imgH : boxH;
+  const scale = Math.min(boxW / w, boxH / h);
+  return { width: w * scale, height: h * scale };
+}
+
+async function buildMirrorPdf(
+  input: z.infer<typeof MirrorOrderSchema>,
+  opts: { orderTypeLabel?: string; logo?: ImageSource | null; thumbsBySku?: Map<string, ImageSource> }
+) {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -131,85 +146,112 @@ async function buildMirrorPdf(input: z.infer<typeof MirrorOrderSchema>, orderTyp
     page.drawText(txt, { x, y: yy, size, font: isBold ? bold : font, color: color ? rgb(color.r, color.g, color.b) : rgb(0, 0, 0) });
   };
 
+  const drawKeyValue = (label: string, value: string) => {
+    const l = String(label || '').trim();
+    const v = String(value || '').trim();
+    if (!l && !v) return;
+    const labelX = margin;
+    const labelW = 88;
+    const valueX = labelX + labelW;
+    const maxValueW = pageWidth - margin - valueX;
+    ensureSpace(textSize + lineGap);
+    if (l) {
+      drawTextAt(l, labelX, y, textSize, true);
+    }
+    const lines = wrapText(font, v, textSize, maxValueW);
+    if (lines.length > 0) {
+      drawTextAt(lines[0], valueX, y, textSize);
+      y -= textSize + lineGap;
+      for (let i = 1; i < lines.length; i++) {
+        ensureSpace(textSize + lineGap);
+        drawTextAt(lines[i], valueX, y, textSize);
+        y -= textSize + lineGap;
+      }
+    } else {
+      y -= textSize + lineGap;
+    }
+  };
+
   const ensureSpace = (needed: number) => {
     if (y - needed < margin) newPage();
   };
 
-  const title = 'Espelho do Pedido';
-  drawText(title, margin, headerSize, true);
+  const embeddedLogo =
+    opts.logo && opts.logo.bytes && opts.logo.bytes.length > 0
+      ? opts.logo.mime.includes('png')
+        ? await pdf.embedPng(opts.logo.bytes)
+        : await pdf.embedJpg(opts.logo.bytes)
+      : null;
+
+  const headerTop = y;
+  let headerBlockH = 0;
+  if (embeddedLogo) {
+    const maxW = 180;
+    const maxH = 34;
+    const fitted = fitToBox(embeddedLogo.width, embeddedLogo.height, maxW, maxH);
+    page.drawImage(embeddedLogo, { x: margin, y: headerTop - fitted.height, width: fitted.width, height: fitted.height });
+    headerBlockH = Math.max(headerBlockH, fitted.height);
+  } else {
+    drawTextAt('Espelho do Pedido', margin, headerTop - headerSize, headerSize, true);
+    headerBlockH = Math.max(headerBlockH, headerSize);
+  }
 
   const orderIdPart = input.code ? `Pedido: ${input.code}` : input.id ? `Pedido: ${input.id}` : '';
   const orderDatePart = input.orderDate ? `Data: ${toDateBr(input.orderDate)}` : '';
-  const rightHeader = [orderIdPart, orderDatePart].filter(Boolean).join('  •  ');
-  if (rightHeader) {
-    const w = bold.widthOfTextAtSize(rightHeader, textSize);
-    drawText(rightHeader, pageWidth - margin - w, textSize, true);
+  const rightLines = [orderIdPart, orderDatePart].filter(Boolean);
+  if (rightLines.length > 0) {
+    const startY = headerTop - textSize;
+    for (let i = 0; i < rightLines.length; i++) {
+      const ln = rightLines[i];
+      const w = bold.widthOfTextAtSize(ln, textSize);
+      drawTextAt(ln, pageWidth - margin - w, startY - (textSize + 2) * i, textSize, true);
+      headerBlockH = Math.max(headerBlockH, (textSize + 2) * (i + 1));
+    }
   }
 
-  y -= headerSize + 10;
+  y = headerTop - headerBlockH - 10;
   page.drawLine({ start: { x: margin, y: y }, end: { x: pageWidth - margin, y: y }, thickness: 1, color: rgb(0.85, 0.85, 0.85) });
   y -= 12;
 
   const entityName = String(input.entity?.name || '').trim();
   const entityCnpj = String(input.entity?.cnpj || '').trim();
-  if (entityName || entityCnpj) {
-    const line = [entityName, entityCnpj ? `CNPJ: ${entityCnpj}` : ''].filter(Boolean).join('  •  ');
-    drawText(line, margin, textSize, true);
-    y -= textSize + lineGap;
-  }
+  if (entityName || entityCnpj) drawKeyValue('Empresa:', [entityName, entityCnpj ? `CNPJ: ${entityCnpj}` : ''].filter(Boolean).join('  •  '));
 
   const customerDoc = String(input.customerDoc || '').trim();
-  drawText(`Cliente: ${String(input.customerName || '').trim()}`, margin, textSize, true);
-  y -= textSize + lineGap;
-  if (customerDoc) {
-    drawText(`Documento: ${customerDoc}`, margin, textSize);
-    y -= textSize + lineGap;
-  }
+  drawKeyValue('Cliente:', String(input.customerName || '').trim());
+  if (customerDoc) drawKeyValue('Documento:', customerDoc);
 
   const triName = String(input.triangularCustomerName || '').trim();
   const triDoc = String(input.triangularCustomerDoc || '').trim();
   if (triName || triDoc) {
-    const triLine = [triName ? `Remessa Triangular: ${triName}` : '', triDoc ? `Documento: ${triDoc}` : ''].filter(Boolean).join('  •  ');
-    drawText(triLine, margin, textSize);
-    y -= textSize + lineGap;
+    drawKeyValue('Triangular:', [triName, triDoc ? `Doc.: ${triDoc}` : ''].filter(Boolean).join('  •  '));
   }
 
   const delivery = toDateBr(input.deliveryDate);
   const pt = String(input.paymentTerms || '').trim();
-  const ot = String(orderTypeLabel || '').trim();
-  const metaParts = [
-    ot ? `Tipo: ${ot}` : '',
-    pt ? `Cond. Pagto: ${pt}` : '',
-    delivery ? `Entrega: ${delivery}` : '',
-  ].filter(Boolean);
-  if (metaParts.length > 0) {
-    drawText(metaParts.join('  •  '), margin, textSize);
-    y -= textSize + lineGap;
-  }
+  const ot = String(opts.orderTypeLabel || '').trim();
+  if (ot) drawKeyValue('Tipo:', ot);
+  if (pt) drawKeyValue('Cond. Pagto:', pt);
+  if (delivery) drawKeyValue('Entrega:', delivery);
 
   const notes = String(input.notes || '').trim();
   if (notes) {
-    const maxW = pageWidth - margin * 2;
-    const lines = wrapText(font, `Obs.: ${notes}`, textSize, maxW);
-    for (const ln of lines) {
-      ensureSpace(textSize + lineGap);
-      drawText(ln, margin, textSize);
-      y -= textSize + lineGap;
-    }
+    drawKeyValue('Obs.:', notes);
   }
 
   y -= 6;
   ensureSpace(60);
 
   const cols = [
-    { key: 'sku', label: 'SKU', w: 60, align: 'left' as const },
-    { key: 'name', label: 'Descrição', w: 210, align: 'left' as const },
-    { key: 'unit', label: 'UM', w: 30, align: 'left' as const },
-    { key: 'pt', label: 'Tab.', w: 40, align: 'left' as const },
-    { key: 'qty', label: 'Qtd', w: 40, align: 'right' as const },
-    { key: 'unitPrice', label: 'Preço', w: 60, align: 'right' as const },
+    { key: 'photo', label: 'Foto', w: 32, align: 'left' as const },
+    { key: 'sku', label: 'SKU', w: 55, align: 'left' as const },
+    { key: 'name', label: 'Descrição', w: 180, align: 'left' as const },
+    { key: 'unit', label: 'UM', w: 28, align: 'left' as const },
+    { key: 'pt', label: 'Tab.', w: 42, align: 'left' as const },
+    { key: 'qty', label: 'Qtd', w: 35, align: 'right' as const },
+    { key: 'unitPrice', label: 'Preço', w: 55, align: 'right' as const },
     { key: 'disc', label: 'Desc%', w: 40, align: 'right' as const },
-    { key: 'total', label: 'Total', w: 60, align: 'right' as const },
+    { key: 'total', label: 'Total', w: 48, align: 'right' as const },
   ];
   const tableX = margin;
   const tableW = cols.reduce((s, c) => s + c.w, 0);
@@ -228,6 +270,8 @@ async function buildMirrorPdf(input: z.infer<typeof MirrorOrderSchema>, orderTyp
 
   drawTableHeader();
 
+  const embeddedThumbs = new Map<string, any>();
+
   for (const it of items) {
     const sku = String(it.sku || '').trim() || '-';
     const name = String(it.name || '').trim() || '-';
@@ -240,7 +284,7 @@ async function buildMirrorPdf(input: z.infer<typeof MirrorOrderSchema>, orderTyp
     const lineTotal = lineBase - (lineBase * (discPct / 100));
 
     const nameLines = wrapText(font, name, smallSize, cols.find((c) => c.key === 'name')!.w - 8);
-    const rowH = Math.max(14, nameLines.length * (smallSize + 2) + 4);
+    const rowH = Math.max(34, nameLines.length * (smallSize + 2) + 6);
     ensureSpace(rowH + 6);
     if (y - rowH < margin) {
       newPage();
@@ -258,32 +302,50 @@ async function buildMirrorPdf(input: z.infer<typeof MirrorOrderSchema>, orderTyp
       drawTextAt(t, x + 4 + dx, cellBaselineY, smallSize);
     };
 
-    writeCell(sku, cols[0].w, cols[0].align);
+    const rawSku = String(it.sku || '').trim();
+    const thumbSrc = rawSku ? opts.thumbsBySku?.get(rawSku) : undefined;
+    if (thumbSrc && thumbSrc.bytes && thumbSrc.bytes.length > 0) {
+      let img = embeddedThumbs.get(rawSku);
+      if (!img) {
+        img = thumbSrc.mime.includes('png') ? await pdf.embedPng(thumbSrc.bytes) : await pdf.embedJpg(thumbSrc.bytes);
+        embeddedThumbs.set(rawSku, img);
+      }
+      const innerW = cols[0].w - 8;
+      const innerH = rowH - 8;
+      const fitted = fitToBox(img.width, img.height, innerW, innerH);
+      const rowBottom = y - rowH + 4;
+      const imgX = x + 4 + (innerW - fitted.width) / 2;
+      const imgY = rowBottom + (rowH - fitted.height) / 2;
+      page.drawImage(img, { x: imgX, y: imgY, width: fitted.width, height: fitted.height });
+    }
     x += cols[0].w;
+
+    writeCell(sku, cols[1].w, cols[1].align);
+    x += cols[1].w;
 
     for (let i = 0; i < nameLines.length; i++) {
       const ln = nameLines[i];
       const baseY = y - smallSize - 2 - (smallSize + 2) * i;
       drawTextAt(ln, x + 4, baseY, smallSize);
     }
-    x += cols[1].w;
-
-    writeCell(unit, cols[2].w, cols[2].align);
     x += cols[2].w;
 
-    writeCell(ptLabel, cols[3].w, cols[3].align);
+    writeCell(unit, cols[3].w, cols[3].align);
     x += cols[3].w;
 
-    writeCell(String(Math.round(qty * 1000) / 1000).replace('.', ','), cols[4].w, cols[4].align);
+    writeCell(ptLabel, cols[4].w, cols[4].align);
     x += cols[4].w;
 
-    writeCell(fmtNumber(unitPrice), cols[5].w, cols[5].align);
+    writeCell(String(Math.round(qty * 1000) / 1000).replace('.', ','), cols[5].w, cols[5].align);
     x += cols[5].w;
 
-    writeCell(fmtNumber(discPct), cols[6].w, cols[6].align);
+    writeCell(fmtNumber(unitPrice), cols[6].w, cols[6].align);
     x += cols[6].w;
 
-    writeCell(fmtNumber(lineTotal), cols[7].w, cols[7].align);
+    writeCell(fmtNumber(discPct), cols[7].w, cols[7].align);
+    x += cols[7].w;
+
+    writeCell(fmtNumber(lineTotal), cols[8].w, cols[8].align);
 
     y -= rowH + 6;
   }
@@ -333,7 +395,49 @@ export async function POST(request: Request) {
       else if (desc) orderTypeLabel = desc;
     }
 
-    const bytes = await buildMirrorPdf(data, orderTypeLabel);
+    const rawSkus = items.map((it) => String((it as any)?.sku || '').trim()).filter(Boolean);
+    const skuSet = Array.from(new Set(rawSkus));
+    const thumbsBySku = new Map<string, ImageSource>();
+    if (skuSet.length > 0) {
+      const dbItems = await prisma.inventoryItem.findMany({
+        where: { sku: { in: skuSet } },
+        select: { sku: true, thumbnailMime: true, thumbnailBase64: true },
+      });
+      for (const row of dbItems as any[]) {
+        const sku = String(row?.sku || '').trim();
+        const mime = String(row?.thumbnailMime || '').trim().toLowerCase();
+        const b64 = String(row?.thumbnailBase64 || '').trim();
+        if (!sku || !mime || !b64) continue;
+        try {
+          const bytes = Buffer.from(b64, 'base64');
+          if (bytes.length > 0 && (mime.includes('png') || mime.includes('jpeg') || mime.includes('jpg'))) {
+            thumbsBySku.set(sku, { mime, bytes });
+          }
+        } catch {}
+      }
+    }
+
+    let logo: ImageSource | null = null;
+    const logoCandidates = [
+      path.join(process.cwd(), 'public', 'icons', 'logo prolinepet.png'),
+      path.join(process.cwd(), 'public', 'icons', 'logo-prolinepet.png'),
+      path.join(process.cwd(), 'public', 'icons', 'logo-prolinepet.jpg'),
+      path.join(process.cwd(), 'public', 'icons', 'logo-prolinepet.jpeg'),
+    ];
+    for (const p of logoCandidates) {
+      if (!existsSync(p)) continue;
+      try {
+        const bytes = await readFile(p);
+        const ext = path.extname(p).toLowerCase();
+        const mime = ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : '';
+        if (bytes.length > 0 && mime) {
+          logo = { mime, bytes };
+          break;
+        }
+      } catch {}
+    }
+
+    const bytes = await buildMirrorPdf(data, { orderTypeLabel, logo, thumbsBySku });
     const idPart = data.code ? String(data.code).trim() : data.id ? String(data.id) : '';
     const fileName = safeFileName(`espelho-pedido${idPart ? `-${idPart}` : ''}.pdf`);
 
