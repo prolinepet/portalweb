@@ -1,6 +1,5 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import Link from "next/link";
 
 export type OrderItem = {
   id: number;
@@ -244,16 +243,7 @@ export const SalesOrderItemRow = ({
         <td className="p-2">{localItem.sku || '-'}</td>
         <td className="p-2">{localItem.unit || '-'}</td>
         <td className="p-2" title={priceTableTitle || undefined}>
-          {priceTableLabel && Number.isFinite(Number((priceTable as any)?.id)) && Number((priceTable as any)?.id) > 0 ? (
-            <Link
-              className="text-blue-700 hover:underline"
-              href={`/base/price-tables/maintenance?id=${encodeURIComponent(String((priceTable as any).id))}`}
-            >
-              {priceTableLabel}
-            </Link>
-          ) : (
-            priceTableLabel || '-'
-          )}
+          {priceTableLabel || '-'}
         </td>
         
         {hasCoreCol && (
@@ -364,6 +354,10 @@ export const SalesOrderItemCard = ({
     priceTable && typeof priceTable === 'object'
       ? String((priceTable as any)?.nrtabpre || (priceTable as any)?.descricao || '').trim()
       : '';
+  const priceTableTitle =
+    priceTable && typeof priceTable === 'object'
+      ? String((priceTable as any)?.descricao || (priceTable as any)?.nrtabpre || '').trim()
+      : '';
 
   useEffect(() => {
     setLocalItem(prev => {
@@ -428,18 +422,9 @@ export const SalesOrderItemCard = ({
           <ItemThumb sku={thumbSku} />
           <div className="min-w-0">
           <div className="text-sm font-medium text-gray-900 truncate">{localItem.name}</div>
-          <div className="text-xs text-gray-600 truncate">
+          <div className="text-xs text-gray-600 truncate" title={priceTableTitle || undefined}>
             {localItem.sku || '-'} • {localItem.unit || '-'}{priceTableLabel ? ' • ' : ''}
-            {priceTableLabel && Number.isFinite(Number((priceTable as any)?.id)) && Number((priceTable as any)?.id) > 0 ? (
-              <Link
-                className="text-blue-700 hover:underline"
-                href={`/base/price-tables/maintenance?id=${encodeURIComponent(String((priceTable as any).id))}`}
-              >
-                {priceTableLabel}
-              </Link>
-            ) : (
-              priceTableLabel || ''
-            )}
+            {priceTableLabel || ''}
           </div>
           {isSaving && <div className="text-[10px] text-blue-600 animate-pulse">Salvando...</div>}
           </div>
