@@ -127,7 +127,7 @@ async function buildMirrorPdf(
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const pageWidth = 595.28;
   const pageHeight = 841.89;
-  const margin = 40;
+  const margin = 20;
   const headerSize = 16;
   const textSize = 10;
   const smallSize = 9;
@@ -223,9 +223,9 @@ async function buildMirrorPdf(
     }
   }
 
-  y = headerTop - headerBlockH - 10;
+  y = headerTop - headerBlockH - 5;
   page.drawLine({ start: { x: margin, y: y }, end: { x: pageWidth - margin, y: y }, thickness: 1, color: rgb(0.85, 0.85, 0.85) });
-  y -= 12;
+  y -= 6;
 
   const entityName = String(input.entity?.name || '').trim();
   const entityCnpj = String(input.entity?.cnpj || '').trim();
@@ -253,8 +253,8 @@ async function buildMirrorPdf(
     drawKeyValue('Obs.:', notes);
   }
 
-  y -= 6;
-  ensureSpace(60);
+  y -= 3;
+  ensureSpace(30);
 
   const cols = [
     { key: 'photo', label: 'Foto', w: 32, align: 'left' as const },
@@ -272,7 +272,7 @@ async function buildMirrorPdf(
   const headerH = 18;
 
   const drawTableHeader = () => {
-    ensureSpace(headerH + 10);
+    ensureSpace(headerH + 5);
     const headerTop = y;
     const rectY = headerTop - headerH;
     page.drawRectangle({
@@ -298,7 +298,7 @@ async function buildMirrorPdf(
       drawTextAt(t, x + 4 + dx, baselineY, smallSize, true, { r: 0.2, g: 0.2, b: 0.2 });
       x += c.w;
     }
-    y = rectY - 10;
+    y = rectY - 5;
   };
 
   drawTableHeader();
@@ -318,7 +318,7 @@ async function buildMirrorPdf(
 
     const nameLines = wrapText(font, name, smallSize, cols.find((c) => c.key === 'name')!.w - 8);
     const rowH = Math.max(34, nameLines.length * (smallSize + 2) + 10);
-    ensureSpace(rowH + 6);
+    ensureSpace(rowH + 1);
     if (y - rowH < margin) {
       newPage();
       drawTableHeader();
@@ -381,11 +381,11 @@ async function buildMirrorPdf(
 
     writeCell(fmtNumber(lineTotal), cols[8].w, cols[8].align);
 
-    y = rowBottom - 6;
+    y = rowBottom;
   }
 
-  ensureSpace(70);
-  y -= 8;
+  ensureSpace(35);
+  y -= 4;
   const totalsX = tableX + tableW - 220;
   const drawTotalLine = (label: string, value: string) => {
     drawText(label, totalsX, textSize, true);
