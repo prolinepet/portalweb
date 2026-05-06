@@ -181,6 +181,7 @@ export async function GET(request: Request) {
     if (q) {
       const or: any[] = [
         { name: { contains: q } },
+        { abbrevName: { contains: q } },
         { cidade: { contains: q } },
         { estado: { contains: q } },
       ];
@@ -195,6 +196,7 @@ export async function GET(request: Request) {
       select: {
         id: true,
         doc: true,
+        abbrevName: true,
         name: true,
         cep: true,
         logradouro: true,
@@ -214,6 +216,7 @@ export async function GET(request: Request) {
     const out = clients.map((c) => ({
       id: c.id,
       doc: c.doc,
+      abbrevName: c.abbrevName,
       name: c.name,
       cep: c.cep,
       logradouro: c.logradouro,
@@ -239,6 +242,8 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const doc = normalizeDoc(String(body?.doc || '')) || null;
+    const abbrevNameRaw = String(body?.abbrevName || '').trim();
+    const abbrevName = abbrevNameRaw ? abbrevNameRaw.slice(0, 20) : null;
     const name = String(body?.name || '').trim();
     const cep = String(body?.cep || '').trim() || null;
     const logradouro = String(body?.logradouro || '').trim() || null;
@@ -285,6 +290,7 @@ export async function POST(request: Request) {
 
     const created = await prisma.$transaction(async (tx) => {
       const baseData: any = {
+        abbrevName,
         name,
         cep,
         logradouro,
@@ -305,11 +311,11 @@ export async function POST(request: Request) {
             where: { doc },
             update: baseData,
             create: { ...baseData, doc },
-            select: { id: true, doc: true, name: true, cep: true, logradouro: true, numero: true, bairro: true, cidade: true, estado: true, paymentTermId: true },
+            select: { id: true, doc: true, abbrevName: true, name: true, cep: true, logradouro: true, numero: true, bairro: true, cidade: true, estado: true, paymentTermId: true },
           })
         : await tx.client.create({
             data: { ...baseData, doc: null },
-            select: { id: true, doc: true, name: true, cep: true, logradouro: true, numero: true, bairro: true, cidade: true, estado: true, paymentTermId: true },
+            select: { id: true, doc: true, abbrevName: true, name: true, cep: true, logradouro: true, numero: true, bairro: true, cidade: true, estado: true, paymentTermId: true },
           });
 
       if (syncPaymentTermIds !== null) {

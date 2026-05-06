@@ -402,6 +402,7 @@ model EntityModuleItem {
 model Client {
   id         Int     @id @default(autoincrement())
   doc        String? @unique
+  abbrevName String? @db.Char(20)
   name       String
   cep        String?
   logradouro String?

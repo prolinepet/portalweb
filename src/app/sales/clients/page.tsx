@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 type Client = {
   id: number;
   doc?: string | null;
+  abbrevName?: string | null;
   name: string;
   cep?: string | null;
   logradouro?: string | null;
@@ -97,6 +98,7 @@ export default function SalesClientsPage() {
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="text-left p-2 font-medium text-gray-600">Doc</th>
+                <th className="text-left p-2 font-medium text-gray-600">Nome Abreviado</th>
                 <th className="text-left p-2 font-medium text-gray-600">Nome</th>
                 <th className="text-left p-2 font-medium text-gray-600">Cidade</th>
                 <th className="text-left p-2 font-medium text-gray-600">Estado</th>
@@ -115,6 +117,7 @@ export default function SalesClientsPage() {
                   }}
                 >
                   <td className="p-2 text-gray-700 font-mono text-xs">{maskDoc(c.doc)}</td>
+                  <td className="p-2 text-gray-700">{c.abbrevName || "-"}</td>
                   <td className="p-2 text-gray-900 font-medium">{c.name}</td>
                   <td className="p-2 text-gray-600">{c.cidade || "-"}</td>
                   <td className="p-2 text-gray-600">{c.estado || "-"}</td>
