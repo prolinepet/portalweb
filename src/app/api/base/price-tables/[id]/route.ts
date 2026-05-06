@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../../../../lib/auth";
 
 export async function GET(_: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -48,6 +50,9 @@ export async function GET(_: Request, props: { params: Promise<{ id: string }> }
 export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
+    const session = await getServerSession(authOptions);
+    const shouldUnlinkItems = !session;
+
     const id = Number(params.id);
     if (!Number.isFinite(id) || id <= 0) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
@@ -75,10 +80,16 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       data.situacao = situacao;
     }
 
-    const updated = await prisma.priceTable.update({
-      where: { id: Math.trunc(id) },
-      data,
-      select: { id: true, nrtabpre: true, descricao: true, situacao: true },
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.priceTable.update({
+        where: { id: Math.trunc(id) },
+        data,
+        select: { id: true, nrtabpre: true, descricao: true, situacao: true },
+      });
+      if (shouldUnlinkItems) {
+        await tx.priceTableItem.deleteMany({ where: { priceTableId: row.id } });
+      }
+      return row;
     });
     return NextResponse.json(updated);
   } catch (err: any) {
@@ -100,4 +111,3 @@ export async function DELETE(_: Request, props: { params: Promise<{ id: string }
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
 }
-

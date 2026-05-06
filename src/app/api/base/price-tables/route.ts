@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../../../lib/auth";
 
 export async function GET(request: Request) {
   try {
@@ -27,6 +29,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    const shouldUnlinkItems = !session;
+
     const body = await request.json().catch(() => ({}));
     const nrtabpre = String(body?.nrtabpre || "").trim();
     const descricao = String(body?.descricao || "").trim();
@@ -39,9 +44,15 @@ export async function POST(request: Request) {
     if (descricao.length > 40) return NextResponse.json({ error: "Descrição excede 40 caracteres" }, { status: 400 });
     if (![1, 2].includes(situacao)) return NextResponse.json({ error: "Situação inválida" }, { status: 400 });
 
-    const created = await prisma.priceTable.create({
-      data: { nrtabpre, descricao, situacao },
-      select: { id: true, nrtabpre: true, descricao: true, situacao: true },
+    const created = await prisma.$transaction(async (tx) => {
+      const row = await tx.priceTable.create({
+        data: { nrtabpre, descricao, situacao },
+        select: { id: true, nrtabpre: true, descricao: true, situacao: true },
+      });
+      if (shouldUnlinkItems) {
+        await tx.priceTableItem.deleteMany({ where: { priceTableId: row.id } });
+      }
+      return row;
     });
     return NextResponse.json(created, { status: 201 });
   } catch (err: any) {
@@ -50,4 +61,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: isUnique ? "Cód Tab já existe" : msg }, { status: isUnique ? 409 : 500 });
   }
 }
-
