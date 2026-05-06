@@ -3,6 +3,24 @@ import { prisma } from '../../../../../../lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../../../lib/auth';
 
+function computeDiscountOrdPct(items: any[]): string {
+  const list = Array.isArray(items) ? items : [];
+  let subtotal = 0;
+  let discount = 0;
+  for (const it of list) {
+    const qty = Number((it as any)?.quantity ?? 0);
+    const unitPrice = Number((it as any)?.unitPrice ?? 0);
+    const pct = Number((it as any)?.discountPct ?? 0);
+    if (!Number.isFinite(qty) || qty <= 0) continue;
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) continue;
+    const line = qty * unitPrice;
+    subtotal += line;
+    if (Number.isFinite(pct) && pct > 0) discount += line * (pct / 100);
+  }
+  const pct = subtotal > 0 ? (discount / subtotal) * 100 : 0;
+  return Number.isFinite(pct) && pct > 0 ? pct.toFixed(2) : '0';
+}
+
 export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
     const params = await props.params;
     try {
@@ -210,13 +228,12 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
             code: order.code,
             customerDoc: customerDocRaw.replace(/\D/g, ''),
             triangularCustomerDoc: order.triangularCustomerDoc ? order.triangularCustomerDoc.replace(/\D/g, '') : "",
-            discountOrd: "0",
+            discountOrd: computeDiscountOrdPct(order.items),
             deliveryDate: order.deliveryDate ? order.deliveryDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             observ: order.notes || "Integração via Portal",
             entityDoc: entityDoc
           },
           orderitem: order.items.map(item => {
-            const creases = item.creases as Record<string, number> | null;
             const invId = Number((item as any)?.inventoryItemId ?? (item as any)?.inventoryItem?.id);
             const pt = Number.isFinite(invId) && invId > 0 ? priceTableByInvId.get(invId) : null;
             return {
@@ -225,19 +242,6 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
               orderId: order.id,
               sku: item.sku || item.inventoryItem?.sku || "",
               quantity: item.quantity,
-              diameter: item.diameter || 0,
-              grammage: item.grammage || 0,
-              tube: item.tube || 0,
-              width: item.width || 0,
-              length: item.length || 0,
-              crease1: creases?.['1'] || 0,
-              crease2: creases?.['2'] || 0,
-              crease3: creases?.['3'] || 0,
-              crease4: creases?.['4'] || 0,
-              crease5: creases?.['5'] || 0,
-              crease6: creases?.['6'] || 0,
-              crease7: creases?.['7'] || 0,
-              crease8: creases?.['8'] || 0,
               clientOrderNumber: item.clientOrderNumber || "",
               clientOrderItemNumber: item.clientOrderItemNumber || 0,
               deliveryDate: item.itemDeliveryDate ? item.itemDeliveryDate.toISOString().split('T')[0] : "",

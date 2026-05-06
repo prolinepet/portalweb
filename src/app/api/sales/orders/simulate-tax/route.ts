@@ -3,6 +3,24 @@ import { prisma } from '../../../../../lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../../lib/auth';
 
+function computeDiscountOrdPct(items: any[]): string {
+  const list = Array.isArray(items) ? items : [];
+  let subtotal = 0;
+  let discount = 0;
+  for (const it of list) {
+    const qty = Number((it as any)?.quantity ?? 0);
+    const unitPrice = Number((it as any)?.unitPrice ?? 0);
+    const pct = Number((it as any)?.discountPct ?? 0);
+    if (!Number.isFinite(qty) || qty <= 0) continue;
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) continue;
+    const line = qty * unitPrice;
+    subtotal += line;
+    if (Number.isFinite(pct) && pct > 0) discount += line * (pct / 100);
+  }
+  const pct = subtotal > 0 ? (discount / subtotal) * 100 : 0;
+  return Number.isFinite(pct) && pct > 0 ? pct.toFixed(2) : '0';
+}
+
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -63,27 +81,6 @@ export async function POST(request: Request) {
         }
     }
 
-    // Extract Payment Terms Code
-    let paymentTermsErp = 30; // Default
-    if (isFreePaymentTermsOrderType) {
-        paymentTermsErp = 0;
-    } else {
-        if (!paymentTerms) {
-            return NextResponse.json({ error: 'Condição de Pagamento não informada. Por favor, selecione uma condição de pagamento.' }, { status: 400 });
-        }
-        if (paymentTerms) {
-            const match = paymentTerms.match(/^\[(\d+)\]/);
-            if (match && match[1]) {
-                paymentTermsErp = parseInt(match[1], 10);
-            } else {
-                 const term = await prisma.paymentTerm.findFirst({
-                     where: { description: { equals: paymentTerms.trim() } }
-                 });
-                 if (term?.code) paymentTermsErp = term.code;
-            }
-        }
-    }
-
     const customerDocRaw = customerDoc || '';
 
     if (!customerDocRaw) return NextResponse.json({ error: 'CNPJ do cliente não encontrado.' }, { status: 400 });
@@ -102,6 +99,24 @@ export async function POST(request: Request) {
       if (Number.isFinite(ch) && ch > 0) salesChannel = Math.trunc(ch);
       const k = String((ot as any)?.kind || '').trim().toUpperCase();
       isFreePaymentTermsOrderType = k === 'BONIFICACAO' || k === 'AMOSTRA';
+    }
+
+    let paymentTermsErp = 30;
+    if (isFreePaymentTermsOrderType) {
+      paymentTermsErp = 0;
+    } else {
+      if (!paymentTerms) {
+        return NextResponse.json({ error: 'Condição de Pagamento não informada. Por favor, selecione uma condição de pagamento.' }, { status: 400 });
+      }
+      const match = String(paymentTerms || '').match(/^\[(\d+)\]/);
+      if (match && match[1]) {
+        paymentTermsErp = parseInt(match[1], 10);
+      } else {
+        const term = await prisma.paymentTerm.findFirst({
+          where: { description: { equals: String(paymentTerms || '').trim() } }
+        });
+        if (term?.code) paymentTermsErp = term.code;
+      }
     }
     const invIds = Array.from(
       new Set(
@@ -170,7 +185,7 @@ export async function POST(request: Request) {
           id: 0, // No ID yet
           code: "SIMULACAO", // Dummy code
           customerDoc: customerDocRaw.replace(/\D/g, ''),
-          discountOrd: "0",
+          discountOrd: computeDiscountOrdPct(items),
           deliveryDate: deliveryDate ? new Date(deliveryDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           observ: notes || "Simulação via Portal (Novo Pedido)",
           entityDoc: entityDoc
@@ -195,11 +210,6 @@ export async function POST(request: Request) {
           orderId: 0,
           sku: item.sku || item.inventoryItem?.sku || "",
           quantity: item.quantity,
-          diameter: item.diameter || 0,
-          grammage: item.grammage || 0,
-          tube: item.tube || 0,
-          width: item.width || 0,
-          length: item.length || 0,
           clientOrderNumber: item.clientOrderNumber || "",
           clientOrderItemNumber: item.clientOrderItemNumber || 0,
           deliveryDate: item.itemDeliveryDate ? new Date(item.itemDeliveryDate).toISOString().split('T')[0] : "",

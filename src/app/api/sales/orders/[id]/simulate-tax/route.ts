@@ -3,6 +3,24 @@ import { prisma } from '../../../../../../lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../../../lib/auth';
 
+function computeDiscountOrdPct(items: any[]): string {
+  const list = Array.isArray(items) ? items : [];
+  let subtotal = 0;
+  let discount = 0;
+  for (const it of list) {
+    const qty = Number((it as any)?.quantity ?? 0);
+    const unitPrice = Number((it as any)?.unitPrice ?? 0);
+    const pct = Number((it as any)?.discountPct ?? 0);
+    if (!Number.isFinite(qty) || qty <= 0) continue;
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) continue;
+    const line = qty * unitPrice;
+    subtotal += line;
+    if (Number.isFinite(pct) && pct > 0) discount += line * (pct / 100);
+  }
+  const pct = subtotal > 0 ? (discount / subtotal) * 100 : 0;
+  return Number.isFinite(pct) && pct > 0 ? pct.toFixed(2) : '0';
+}
+
 export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
@@ -179,7 +197,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           id: order.id,
           code: order.code,
           customerDoc: customerDocRaw.replace(/\D/g, ''),
-          discountOrd: "0",
+          discountOrd: computeDiscountOrdPct(order.items),
           deliveryDate: order.deliveryDate ? order.deliveryDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           observ: order.notes || "Simulação via Portal",
           entityDoc: entityDoc
@@ -198,11 +216,6 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           orderId: order.id,
           sku: item.sku || item.inventoryItem?.sku || "",
           quantity: item.quantity,
-          diameter: item.diameter || 0,
-          grammage: item.grammage || 0,
-          tube: item.tube || 0,
-          width: item.width || 0,
-          length: item.length || 0,
           clientOrderNumber: item.clientOrderNumber || "",
           clientOrderItemNumber: item.clientOrderItemNumber || 0,
           deliveryDate: item.itemDeliveryDate ? item.itemDeliveryDate.toISOString().split('T')[0] : "",
