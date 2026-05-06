@@ -21,6 +21,11 @@ function computeDiscountOrdPct(items: any[]): string {
   return Number.isFinite(pct) && pct > 0 ? pct.toFixed(2) : '0';
 }
 
+function formatDiscountPct(v: any): string {
+  const n = Number(v ?? 0);
+  return Number.isFinite(n) && n > 0 ? n.toFixed(2) : '0';
+}
+
 export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
@@ -197,7 +202,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           id: order.id,
           code: order.code,
           customerDoc: customerDocRaw.replace(/\D/g, ''),
-          discountOrd: computeDiscountOrdPct(order.items),
+          discountOrd: "0",
           deliveryDate: order.deliveryDate ? order.deliveryDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           observ: order.notes || "Simulação via Portal",
           entityDoc: entityDoc
@@ -216,6 +221,8 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           orderId: order.id,
           sku: item.sku || item.inventoryItem?.sku || "",
           quantity: item.quantity,
+          discountPct: formatDiscountPct((item as any)?.discountPct),
+          discountOrd: formatDiscountPct((item as any)?.discountPct),
           clientOrderNumber: item.clientOrderNumber || "",
           clientOrderItemNumber: item.clientOrderItemNumber || 0,
           deliveryDate: item.itemDeliveryDate ? item.itemDeliveryDate.toISOString().split('T')[0] : "",

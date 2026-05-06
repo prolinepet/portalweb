@@ -21,6 +21,11 @@ function computeDiscountOrdPct(items: any[]): string {
   return Number.isFinite(pct) && pct > 0 ? pct.toFixed(2) : '0';
 }
 
+function formatDiscountPct(v: any): string {
+  const n = Number(v ?? 0);
+  return Number.isFinite(n) && n > 0 ? n.toFixed(2) : '0';
+}
+
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -185,7 +190,7 @@ export async function POST(request: Request) {
           id: 0, // No ID yet
           code: "SIMULACAO", // Dummy code
           customerDoc: customerDocRaw.replace(/\D/g, ''),
-          discountOrd: computeDiscountOrdPct(items),
+          discountOrd: "0",
           deliveryDate: deliveryDate ? new Date(deliveryDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           observ: notes || "Simulação via Portal (Novo Pedido)",
           entityDoc: entityDoc
@@ -210,6 +215,8 @@ export async function POST(request: Request) {
           orderId: 0,
           sku: item.sku || item.inventoryItem?.sku || "",
           quantity: item.quantity,
+          discountPct: formatDiscountPct(item.discountPct),
+          discountOrd: formatDiscountPct(item.discountPct),
           clientOrderNumber: item.clientOrderNumber || "",
           clientOrderItemNumber: item.clientOrderItemNumber || 0,
           deliveryDate: item.itemDeliveryDate ? new Date(item.itemDeliveryDate).toISOString().split('T')[0] : "",
