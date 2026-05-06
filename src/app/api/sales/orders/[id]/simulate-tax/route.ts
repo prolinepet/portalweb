@@ -3,24 +3,6 @@ import { prisma } from '../../../../../../lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../../../lib/auth';
 
-function computeDiscountOrdPct(items: any[]): string {
-  const list = Array.isArray(items) ? items : [];
-  let subtotal = 0;
-  let discount = 0;
-  for (const it of list) {
-    const qty = Number((it as any)?.quantity ?? 0);
-    const unitPrice = Number((it as any)?.unitPrice ?? 0);
-    const pct = Number((it as any)?.discountPct ?? 0);
-    if (!Number.isFinite(qty) || qty <= 0) continue;
-    if (!Number.isFinite(unitPrice) || unitPrice <= 0) continue;
-    const line = qty * unitPrice;
-    subtotal += line;
-    if (Number.isFinite(pct) && pct > 0) discount += line * (pct / 100);
-  }
-  const pct = subtotal > 0 ? (discount / subtotal) * 100 : 0;
-  return Number.isFinite(pct) && pct > 0 ? pct.toFixed(2) : '0';
-}
-
 function formatDiscountPct(v: any): string {
   const n = Number(v ?? 0);
   return Number.isFinite(n) && n > 0 ? n.toFixed(2) : '0';
