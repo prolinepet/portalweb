@@ -259,9 +259,8 @@ async function buildMirrorPdf(
   const cols = [
     { key: 'photo', label: 'Foto', w: 32, align: 'left' as const },
     { key: 'sku', label: 'SKU', w: 55, align: 'left' as const },
-    { key: 'name', label: 'Descrição', w: 180, align: 'left' as const },
+    { key: 'name', label: 'Descrição', w: 222, align: 'left' as const },
     { key: 'unit', label: 'UM', w: 28, align: 'left' as const },
-    { key: 'pt', label: 'Tab.', w: 42, align: 'left' as const },
     { key: 'qty', label: 'Qtd', w: 35, align: 'right' as const },
     { key: 'unitPrice', label: 'Preço', w: 55, align: 'right' as const },
     { key: 'disc', label: 'Desc%', w: 40, align: 'right' as const },
@@ -309,7 +308,6 @@ async function buildMirrorPdf(
     const sku = String(it.sku || '').trim() || '-';
     const name = String(it.name || '').trim() || '-';
     const unit = String(it.unit || '').trim() || '-';
-    const ptLabel = String(it.priceTable?.nrtabpre || '').trim() || '-';
     const qty = Number(it.quantity || 0);
     const unitPrice = Number(it.unitPrice || 0);
     const discPct = Number(it.discountPct || 0);
@@ -367,19 +365,16 @@ async function buildMirrorPdf(
     writeCell(unit, cols[3].w, cols[3].align);
     x += cols[3].w;
 
-    writeCell(ptLabel, cols[4].w, cols[4].align);
+    writeCell(String(Math.round(qty * 1000) / 1000).replace('.', ','), cols[4].w, cols[4].align);
     x += cols[4].w;
 
-    writeCell(String(Math.round(qty * 1000) / 1000).replace('.', ','), cols[5].w, cols[5].align);
+    writeCell(fmtNumber(unitPrice), cols[5].w, cols[5].align);
     x += cols[5].w;
 
-    writeCell(fmtNumber(unitPrice), cols[6].w, cols[6].align);
+    writeCell(fmtNumber(discPct), cols[6].w, cols[6].align);
     x += cols[6].w;
 
-    writeCell(fmtNumber(discPct), cols[7].w, cols[7].align);
-    x += cols[7].w;
-
-    writeCell(fmtNumber(lineTotal), cols[8].w, cols[8].align);
+    writeCell(fmtNumber(lineTotal), cols[7].w, cols[7].align);
 
     y = rowBottom;
   }
