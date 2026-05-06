@@ -10,6 +10,16 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       const userId = session?.user ? Number((session.user as any).id) : null;
       if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+      let resource = 'inserePedido';
+      try {
+        const body = await request.json();
+        if (body && typeof body === 'object' && (body as any).resource) {
+          resource = String((body as any).resource || '').trim() || 'inserePedido';
+        }
+      } catch {
+        // Body might be empty, ignore
+      }
+
       // Fetch user settings for integration mode
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -107,6 +117,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       if (isFreePaymentTermsOrderType) {
         paymentTermsErp = 0;
       } else {
+        if (resource !== 'checkPedidoExiste') {
         if (!order.paymentTerms) {
           return NextResponse.json({ error: 'Condição de Pagamento não informada. Por favor, selecione uma condição de pagamento.' }, { status: 400 });
         }
@@ -118,6 +129,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
             where: { description: { equals: String(order.paymentTerms || '').trim() } }
           });
           if (term?.code) paymentTermsErp = term.code;
+        }
         }
       }
       const priceTableByInvId = new Map<number, { id: number; nrtabpre: string; descricao: string }>();
@@ -164,25 +176,32 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         }
       }
 
-      // Parse optional resource from body
-      let resource = "inserePedido";
-      try {
-        const body = await request.json();
-        if (body && body.resource) {
-          resource = body.resource;
-        }
-      } catch {
-        // Body might be empty, ignore
-      }
-
       // Construct Payload
-      const payload = {
+      const payload: any = {
         route: integrationRoute,
         module: "mpd",
         version: "v1",
         resource: resource,
         method: "POST",
-        params: {
+        params: {},
+      };
+
+      if (resource === 'checkPedidoExiste') {
+        const erpOrderNumber = String((order as any)?.erpOrderNumber || '').trim();
+        if (!erpOrderNumber) {
+          return NextResponse.json({ error: 'Pedido ERP não informado no pedido.' }, { status: 400 });
+        }
+        payload.params = {
+          order: {
+            branchId: "01",
+            entityDoc: entityDoc,
+            customerDoc: customerDocRaw.replace(/\D/g, ''),
+            erpOrderNumber,
+            code: erpOrderNumber,
+          },
+        };
+      } else {
+        payload.params = {
           order: {
             salesChannel: salesChannel,
             paymentTermsErp: paymentTermsErp,
@@ -226,8 +245,8 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
               internalResin: item.internalResin ? "S" : "N"
             };
           })
-        }
-      };
+        };
+      }
 
       console.log('Integrate Order Payload:', JSON.stringify(payload, null, 2));
 
@@ -359,6 +378,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         }
       }
 
+      if (resource === 'checkPedidoExiste') {
+        return NextResponse.json(data);
+      }
       return NextResponse.json({ ...data, newStatus, messages });
 
     } catch (err: any) {
