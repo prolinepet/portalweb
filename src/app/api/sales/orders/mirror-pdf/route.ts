@@ -256,16 +256,18 @@ async function buildMirrorPdf(
   y -= 3;
   ensureSpace(30);
 
+  const availableTableW = pageWidth - margin * 2;
   const cols = [
     { key: 'photo', label: 'Foto', w: 32, align: 'left' as const },
     { key: 'sku', label: 'SKU', w: 55, align: 'left' as const },
-    { key: 'name', label: 'Descrição', w: 222, align: 'left' as const },
     { key: 'unit', label: 'UM', w: 28, align: 'left' as const },
     { key: 'qty', label: 'Qtd', w: 35, align: 'right' as const },
     { key: 'unitPrice', label: 'Preço', w: 55, align: 'right' as const },
     { key: 'disc', label: 'Desc%', w: 40, align: 'right' as const },
     { key: 'total', label: 'Total', w: 48, align: 'right' as const },
   ];
+  const fixedW = cols.reduce((s, c) => s + c.w, 0);
+  cols.splice(2, 0, { key: 'name', label: 'Descrição', w: Math.max(160, availableTableW - fixedW), align: 'left' as const });
   const tableX = margin;
   const tableW = cols.reduce((s, c) => s + c.w, 0);
   const headerH = 18;
