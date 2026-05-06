@@ -83,6 +83,15 @@ function fmtNumber(n: number): string {
   return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function fmtCpfCnpj(doc: string): string {
+  const raw = String(doc || '').trim();
+  if (!raw) return '';
+  const digits = raw.replace(/\D+/g, '');
+  if (digits.length === 11) return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  if (digits.length === 14) return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+  return raw;
+}
+
 function safeFileName(name: string): string {
   const s = String(name || '').trim();
   if (!s) return 'espelho-pedido.pdf';
@@ -225,20 +234,20 @@ async function buildMirrorPdf(
 
   y = headerTop - headerBlockH - 5;
   page.drawLine({ start: { x: margin, y: y }, end: { x: pageWidth - margin, y: y }, thickness: 1, color: rgb(0.85, 0.85, 0.85) });
-  y -= 6;
+  y -= 12;
 
   const entityName = String(input.entity?.name || '').trim();
   const entityCnpj = String(input.entity?.cnpj || '').trim();
-  if (entityName || entityCnpj) drawKeyValue('Empresa:', [entityName, entityCnpj ? `CNPJ: ${entityCnpj}` : ''].filter(Boolean).join('  •  '));
+  if (entityName || entityCnpj) drawKeyValue('Empresa:', [entityName, entityCnpj ? `CNPJ: ${fmtCpfCnpj(entityCnpj)}` : ''].filter(Boolean).join('  •  '));
 
   const customerDoc = String(input.customerDoc || '').trim();
   drawKeyValue('Cliente:', String(input.customerName || '').trim());
-  if (customerDoc) drawKeyValue('Documento:', customerDoc);
+  if (customerDoc) drawKeyValue('Documento:', fmtCpfCnpj(customerDoc));
 
   const triName = String(input.triangularCustomerName || '').trim();
   const triDoc = String(input.triangularCustomerDoc || '').trim();
   if (triName || triDoc) {
-    drawKeyValue('Triangular:', [triName, triDoc ? `Doc.: ${triDoc}` : ''].filter(Boolean).join('  •  '));
+    drawKeyValue('Triangular:', [triName, triDoc ? `Doc.: ${fmtCpfCnpj(triDoc)}` : ''].filter(Boolean).join('  •  '));
   }
 
   const delivery = toDateBr(input.deliveryDate);
@@ -382,7 +391,7 @@ async function buildMirrorPdf(
   }
 
   ensureSpace(35);
-  y -= 4;
+  y -= 10;
   const totalsX = tableX + tableW - 220;
   const drawTotalLine = (label: string, value: string) => {
     drawText(label, totalsX, textSize, true);
