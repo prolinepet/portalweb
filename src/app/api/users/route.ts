@@ -47,66 +47,86 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const data = await request.json();
-  const { name, email, password, erpIntegrationMode, salesRepAdmin } = data || {};
-  const doc = normalizeDoc(String((data as any)?.doc || '')) || null;
-  const passwordStr = String(password || '');
-  if (!passwordStr) return NextResponse.json({ error: 'password é obrigatório' }, { status: 400 });
-  const hashed = await bcrypt.hash(passwordStr, 10);
+  try {
+    const data = await request.json().catch(() => ({} as any));
+    const name = String(data?.name || '').trim();
+    const emailRaw = String(data?.email ?? '').trim();
+    const email = emailRaw ? emailRaw : null;
+    const passwordStr = String(data?.password || '');
+    const erpIntegrationMode = String(data?.erpIntegrationMode || 'TEST');
+    const salesRepAdmin = data?.salesRepAdmin;
+    const doc = normalizeDoc(String((data as any)?.doc || '')) || null;
 
-  let finalEmail = email;
-  if (email) {
-    const found = await prisma.user
-      .findUnique({ where: { email: String(email) }, select: { doc: true } })
-      .catch(() => null);
-    if (found) {
-      const isSameUser = doc && found.doc === doc;
-      if (!isSameUser) finalEmail = null;
+    if (!name) return NextResponse.json({ error: 'name é obrigatório' }, { status: 400 });
+    if (!passwordStr) return NextResponse.json({ error: 'password é obrigatório' }, { status: 400 });
+
+    const hashed = await bcrypt.hash(passwordStr, 10);
+
+    let finalEmail: string | null = email;
+    if (finalEmail) {
+      const found = await prisma.user
+        .findUnique({ where: { email: String(finalEmail) }, select: { doc: true } })
+        .catch(() => null);
+      if (found) {
+        const isSameUser = doc && found.doc === doc;
+        if (!isSameUser) finalEmail = null;
+      }
     }
-  }
 
-  if (doc) {
-    const update: any = {
-      name: String(name || ''),
-      email: finalEmail ?? null,
-      password: String(hashed),
-      erpIntegrationMode: String(erpIntegrationMode || 'TEST'),
-    };
-    if (salesRepAdmin !== undefined) update.salesRepAdmin = Boolean(salesRepAdmin);
+    if (doc) {
+      const update: any = {
+        name,
+        email: finalEmail,
+        password: String(hashed),
+        erpIntegrationMode,
+      };
+      if (salesRepAdmin !== undefined) update.salesRepAdmin = Boolean(salesRepAdmin);
 
-    const create: any = {
-      name: String(name || ''),
-      email: finalEmail ?? null,
-      password: String(hashed),
-      doc,
-      salesRepAdmin: Boolean(salesRepAdmin),
-      isSalesAdmin: false,
-      erpIntegrationMode: String(erpIntegrationMode || 'TEST'),
-    };
-    const upserted = await prisma.user.upsert({
-      where: { doc },
-      update,
-      create,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        doc: true,
-        salesRepAdmin: true,
-        isSalesAdmin: true,
-        erpIntegrationMode: true,
-        createdAt: true,
-        updatedAt: true,
+      const create: any = {
+        name,
+        email: finalEmail,
+        password: String(hashed),
+        doc,
+        salesRepAdmin: Boolean(salesRepAdmin),
+        isSalesAdmin: false,
+        erpIntegrationMode,
+      };
+      const upserted = await prisma.user.upsert({
+        where: { doc },
+        update,
+        create,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          doc: true,
+          salesRepAdmin: true,
+          isSalesAdmin: true,
+          erpIntegrationMode: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      return NextResponse.json(upserted);
+    }
+
+    const created = await prisma.user.create({
+      data: {
+        name,
+        email: finalEmail,
+        password: hashed,
+        erpIntegrationMode,
+        salesRepAdmin: Boolean(salesRepAdmin),
+        isSalesAdmin: false,
       },
+      select: { id: true, name: true, email: true, createdAt: true, updatedAt: true, salesRepAdmin: true, isSalesAdmin: true, erpIntegrationMode: true },
     });
-    return NextResponse.json(upserted);
+    return NextResponse.json(created);
+  } catch (err: any) {
+    const msg = String(err?.message || err);
+    const isUnique = msg.toLowerCase().includes('unique') || msg.toLowerCase().includes('duplicate');
+    return NextResponse.json({ error: isUnique ? 'E-mail já existe' : msg }, { status: isUnique ? 409 : 500 });
   }
-  
-  const created = await prisma.user.create({ 
-    data: { name, email: finalEmail, password: hashed, erpIntegrationMode: erpIntegrationMode || 'TEST', salesRepAdmin: Boolean(salesRepAdmin), isSalesAdmin: false }, 
-    select: { id: true, name: true, email: true, createdAt: true, updatedAt: true, salesRepAdmin: true, isSalesAdmin: true, erpIntegrationMode: true } 
-  });
-  return NextResponse.json(created);
 }
 
 export async function PATCH(request: Request) {
