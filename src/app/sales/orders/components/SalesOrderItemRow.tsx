@@ -9,6 +9,7 @@ export type OrderItem = {
   quantity: number;
   unitPrice: number;
   discountPct: number;
+  discountValue: number;
   width?: number | null;
   length?: number | null;
   grammage?: number | null;
@@ -157,6 +158,9 @@ export const SalesOrderItemRow = ({
   const [discountInput, setDiscountInput] = useState(
     item.discountPct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   );
+  const [discountValueInput, setDiscountValueInput] = useState(
+    (item.discountValue ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [isRowLocked, setIsRowLocked] = useState(false);
   const priceTable = localItem?.inventoryItem?.priceTable ?? null;
@@ -174,6 +178,9 @@ export const SalesOrderItemRow = ({
       if (JSON.stringify(prev) !== JSON.stringify(item)) {
         if (prev.discountPct !== item.discountPct) {
             setDiscountInput(item.discountPct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        }
+        if (prev.discountValue !== item.discountValue) {
+            setDiscountValueInput((item.discountValue ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
         }
         return item;
       }
@@ -219,6 +226,18 @@ export const SalesOrderItemRow = ({
     const validNum = isNaN(num) ? 0 : num;
     
     handleChange('discountPct', validNum);
+  };
+
+  const handleDiscountValueChange = (val: string) => {
+    const filtered = val.replace(/[^0-9,]/g, '');
+    const parts = filtered.split(',');
+    const clean = parts[0] + (parts.length > 1 ? ',' + parts.slice(1).join('') : '');
+    setDiscountValueInput(clean);
+    
+    const num = parseFloat(clean.replace(',', '.'));
+    const validNum = isNaN(num) ? 0 : num;
+    
+    handleChange('discountValue', validNum);
   };
 
   const showDiameterTube = supportsCoreDims(localItem);
@@ -303,6 +322,15 @@ export const SalesOrderItemRow = ({
             />
         </td>
         <td className="p-2">
+            <input 
+                type="text" 
+                className={`w-24 px-2 py-1 border rounded ${!canEdit ? disabledClass : ''}`}
+                disabled={!canEdit}
+                value={discountValueInput} 
+                onChange={(e) => handleDiscountValueChange(e.target.value)} 
+            />
+        </td>
+        <td className="p-2">
             <div className="flex items-center justify-center gap-2">
                 <button
                   className={`inline-flex items-center justify-center w-8 h-8 border rounded shadow-sm ${isEffectivelyLocked ? 'bg-white border-gray-300 hover:bg-gray-50 text-gray-700' : 'text-green-600 border-green-200 bg-green-50 hover:bg-green-100'} ${lockToggleDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -347,6 +375,9 @@ export const SalesOrderItemCard = ({
   const [discountInput, setDiscountInput] = useState(
     item.discountPct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   );
+  const [discountValueInput, setDiscountValueInput] = useState(
+    (item.discountValue ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [isRowLocked, setIsRowLocked] = useState(false);
   const priceTable = localItem?.inventoryItem?.priceTable ?? null;
@@ -364,6 +395,9 @@ export const SalesOrderItemCard = ({
       if (JSON.stringify(prev) !== JSON.stringify(item)) {
         if (prev.discountPct !== item.discountPct) {
             setDiscountInput(item.discountPct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        }
+        if (prev.discountValue !== item.discountValue) {
+            setDiscountValueInput((item.discountValue ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
         }
         return item;
       }
@@ -406,6 +440,18 @@ export const SalesOrderItemCard = ({
     const validNum = isNaN(num) ? 0 : num;
     
     handleChange('discountPct', validNum);
+  };
+
+  const handleDiscountValueChange = (val: string) => {
+    const filtered = val.replace(/[^0-9,]/g, '');
+    const parts = filtered.split(',');
+    const clean = parts[0] + (parts.length > 1 ? ',' + parts.slice(1).join('') : '');
+    setDiscountValueInput(clean);
+    
+    const num = parseFloat(clean.replace(',', '.'));
+    const validNum = isNaN(num) ? 0 : num;
+    
+    handleChange('discountValue', validNum);
   };
 
   const showDiameterTube = supportsCoreDims(localItem);
@@ -496,6 +542,16 @@ export const SalesOrderItemCard = ({
             disabled={!canEdit}
             value={discountInput}
             onChange={(e) => handleDiscountChange(e.target.value)}
+          />
+        </div>
+        <div>
+          <div className="text-[11px] text-gray-600">Desc (R$)</div>
+          <input
+            type="text"
+            className={`w-full px-2 py-1 border rounded text-sm ${!canEdit ? disabledClass : ''}`}
+            disabled={!canEdit}
+            value={discountValueInput}
+            onChange={(e) => handleDiscountValueChange(e.target.value)}
           />
         </div>
         {hasCoreCol && showDiameterTube && (

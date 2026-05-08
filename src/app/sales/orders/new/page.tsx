@@ -26,6 +26,7 @@ type OrderItem = {
   quantity: number;
   unitPrice: number;
   discountPct: number;
+  discountValue: number;
   width?: number | null;
   length?: number | null;
   grammage?: number | null;
@@ -200,6 +201,7 @@ function NewSalesOrderContent() {
   const [paymentTermsOptions, setPaymentTermsOptions] = useState<any[]>([]);
   const [paymentTermsLoading, setPaymentTermsLoading] = useState(false);
   const lastOrderTypeIdRef = useRef<number | null>(null);
+  const [searchHistItemDiscount, setSearchHistItemDiscount] = useState(false);
 
   const selectedOrderType = useMemo(() => {
     const oid = order.orderTypeId != null ? Number(order.orderTypeId) : null;
@@ -570,7 +572,19 @@ function NewSalesOrderContent() {
     searchClientItems(searchTermRef.current);
   }, [addingItems, order.customerId, order.orderTypeId, searchClientItems]);
 
-  const addItemToOrder = (invItem: InventoryItem) => {
+  const addItemToOrder = async (invItem: InventoryItem) => {
+    let histDiscountPct = 0;
+    let histDiscountValue = 0;
+    if (searchHistItemDiscount && order.customerId) {
+      try {
+        const res = await fetch(`/api/sales/orders/last-item-discount?clientId=${encodeURIComponent(String(order.customerId))}&inventoryItemId=${encodeURIComponent(String(invItem.id))}`, { cache: 'no-store' });
+        if (res.ok) {
+          const j = await res.json().catch(() => null as any);
+          histDiscountPct = Number(j?.discountPct ?? 0) || 0;
+          histDiscountValue = Number(j?.discountValue ?? 0) || 0;
+        }
+      } catch {}
+    }
     const newItem: OrderItem = {
       id: -Date.now(), // Temp ID
       name: invItem.name,
@@ -578,7 +592,8 @@ function NewSalesOrderContent() {
       unit: invItem.unit,
       quantity: 1,
       unitPrice: Number(invItem.unitPrice ?? 0),
-      discountPct: 0,
+      discountPct: histDiscountPct,
+      discountValue: histDiscountValue,
       inventoryItem: invItem,
       width: invItem.width,
       length: invItem.length,
@@ -643,6 +658,7 @@ function NewSalesOrderContent() {
             quantity: it.quantity,
             unitPrice: it.unitPrice,
             discountPct: it.discountPct,
+            discountValue: it.discountValue,
             width: it.width,
             length: it.length,
             grammage: it.grammage,
@@ -913,13 +929,23 @@ function NewSalesOrderContent() {
     return qty * price;
   };
 
+  const lineDiscount = (it: OrderItem): number => {
+    const base = lineBase(it);
+    const pct = Number(it.discountPct ?? 0);
+    const dv = Number(it.discountValue ?? 0);
+    const unitFactor = familyPriceBy(it) === 'WEIGHT' ? computeWeightKg(it) : (it.quantity ?? 0);
+    const valueDisc = unitFactor * dv;
+    const pctDisc = base * (pct / 100);
+    return valueDisc + pctDisc;
+  };
+
   const globalItems = order.items || [];
   const globalSubtotal = globalItems.reduce((s, it) => {
     return s + lineBase(it);
   }, 0);
 
   const globalDiscount = globalItems.reduce((s, it) => {
-    return s + (lineBase(it) * (it.discountPct / 100));
+    return s + lineDiscount(it);
   }, 0);
 
   const globalTotalNoTax = globalSubtotal - globalDiscount;
@@ -1188,27 +1214,33 @@ function NewSalesOrderContent() {
         <div className="border rounded bg-white">
           <div className="px-3 py-2 border-b flex items-center gap-2">
             <span className="text-sm text-gray-700">Itens</span>
-            <button 
-              className={`ml-auto px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 ${(!order.customerId || (linkedOrderTypes.length > 0 && !order.orderTypeId)) ? 'opacity-50 cursor-not-allowed' : ''}`}
-              disabled={!order.customerId || (linkedOrderTypes.length > 0 && !order.orderTypeId)}
-              title={
-                !order.customerId
-                  ? "Selecione um cliente primeiro"
-                  : linkedOrderTypes.length > 0 && !order.orderTypeId
-                  ? "Selecione o tipo de pedido primeiro"
-                  : ""
-              }
-              onClick={() => {
-                if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 767px)').matches) {
-                  setHeaderCollapsed(true);
+            <div className="ml-auto flex items-center gap-3">
+              <label className="text-xs flex items-center gap-1 select-none">
+                <input type="checkbox" checked={searchHistItemDiscount} onChange={(e) => setSearchHistItemDiscount(e.target.checked)} />
+                Busca Hist Desconto Item
+              </label>
+              <button 
+                className={`px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 ${(!order.customerId || (linkedOrderTypes.length > 0 && !order.orderTypeId)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={!order.customerId || (linkedOrderTypes.length > 0 && !order.orderTypeId)}
+                title={
+                  !order.customerId
+                    ? "Selecione um cliente primeiro"
+                    : linkedOrderTypes.length > 0 && !order.orderTypeId
+                    ? "Selecione o tipo de pedido primeiro"
+                    : ""
                 }
-                setAddingItems(true);
-                setSearchTerm('');
-                searchClientItems('');
-              }}
-            >
-              Adicionar itens
-            </button>
+                onClick={() => {
+                  if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 767px)').matches) {
+                    setHeaderCollapsed(true);
+                  }
+                  setAddingItems(true);
+                  setSearchTerm('');
+                  searchClientItems('');
+                }}
+              >
+                Adicionar itens
+              </button>
+            </div>
           </div>
           {addingItems && (
             <div className="p-3 border-b">
@@ -1231,7 +1263,7 @@ function NewSalesOrderContent() {
                 {searchResults.length === 0 && searchTerm && <div className="text-xs text-gray-500">Nenhum item encontrado.</div>}
                 <ul className="divide-y max-h-60 overflow-auto">
                   {searchResults.map((it) => (
-                    <li key={it.id} className="py-2 flex items-center gap-3 cursor-pointer hover:bg-gray-50 px-2 rounded" onClick={() => addItemToOrder(it)}>
+                    <li key={it.id} className="py-2 flex items-center gap-3 cursor-pointer hover:bg-gray-50 px-2 rounded" onClick={() => { void addItemToOrder(it); }}>
                       <div className="w-10 h-10 border rounded bg-white overflow-hidden flex items-center justify-center shrink-0">
                         {it.sku ? (
                           <img
@@ -1293,6 +1325,7 @@ function NewSalesOrderContent() {
                     <th className="p-2 text-left w-24">Peso (KG)</th>
                     <th className="p-2 text-left w-24">Preço</th>
                     <th className="p-2 text-left w-20">Desc (%)</th>
+                    <th className="p-2 text-left w-24">Desc (R$)</th>
                     <th className="p-2 text-left w-24">Ações</th>
                   </tr>
                 </thead>
@@ -1321,8 +1354,7 @@ function NewSalesOrderContent() {
               }, 0);
               
               const discountTotal = list.reduce((s, it) => {
-                const discount = it.discountPct;
-                return s + (lineBase(it) * (discount / 100));
+                return s + lineDiscount(it);
               }, 0);
               
               const total = subtotal - discountTotal;

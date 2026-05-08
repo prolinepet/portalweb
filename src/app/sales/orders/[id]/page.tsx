@@ -28,6 +28,7 @@ type OrderItem = {
   quantity: number;
   unitPrice: number;
   discountPct: number;
+  discountValue: number;
   width?: number | null;
   length?: number | null;
   grammage?: number | null;
@@ -300,6 +301,7 @@ export default function SalesOrderMaintenancePage() {
   const [hdrCustomerId, setHdrCustomerId] = useState<number | null>(null);
   const [isHeaderEditing, setIsHeaderEditing] = useState(false);
   const [addingItems, setAddingItems] = useState(false);
+  const [searchHistItemDiscount, setSearchHistItemDiscount] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<InventoryItem[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -698,6 +700,23 @@ export default function SalesOrderMaintenancePage() {
   const addItemToOrder = async (item: InventoryItem) => {
     if (!order) return;
     try {
+      let histDiscountPct = 0;
+      let histDiscountValue = 0;
+      const clientId = hdrCustomerId ?? ((order as any)?.clientId != null ? Number((order as any).clientId) : null);
+      if (searchHistItemDiscount && clientId) {
+        try {
+          const res = await fetch(
+            `/api/sales/orders/last-item-discount?clientId=${encodeURIComponent(String(clientId))}&inventoryItemId=${encodeURIComponent(String(item.id))}`,
+            { cache: 'no-store' }
+          );
+          if (res.ok) {
+            const j = await res.json().catch(() => null as any);
+            histDiscountPct = Number(j?.discountPct ?? 0) || 0;
+            histDiscountValue = Number(j?.discountValue ?? 0) || 0;
+          }
+        } catch {}
+      }
+
       const payload = {
         orderId: order.id,
         inventoryItemId: item.id,
@@ -706,7 +725,8 @@ export default function SalesOrderMaintenancePage() {
         unit: item.unit,
         quantity: 1,
         unitPrice: item.unitPrice ?? 0,
-        discountPct: 0,
+        discountPct: histDiscountPct,
+        discountValue: histDiscountValue,
         width: item.width,
         length: item.length,
         grammage: item.grammage
@@ -773,7 +793,11 @@ export default function SalesOrderMaintenancePage() {
         }
 
         const data: SalesOrder = await res.json();
-        let nextItems: OrderItem[] = data.items || [];
+        let nextItems: OrderItem[] = (data.items || []).map((it: any) => ({
+          ...it,
+          discountPct: Number(it?.discountPct ?? 0) || 0,
+          discountValue: Number(it?.discountValue ?? 0) || 0,
+        }));
         const clientIdForPricing = (data as any)?.clientId != null ? Number((data as any).clientId) : null;
         const orderTypeIdForPricing = (data as any)?.orderTypeId != null ? Number((data as any).orderTypeId) : null;
         if (
@@ -908,6 +932,14 @@ export default function SalesOrderMaintenancePage() {
     return qty * price;
   };
 
+  const lineDiscount = (it: OrderItem): number => {
+    const base = lineBase(it);
+    const pct = Number(it.discountPct ?? 0);
+    const dv = Number(it.discountValue ?? 0);
+    const unitFactor = familyPriceBy(it) === 'WEIGHT' ? computeWeightKg(it) : (it.quantity ?? 0);
+    return base * (pct / 100) + unitFactor * dv;
+  };
+
   const saveHeader = async (partial: { paymentTerms?: string; deliveryDate?: string; customerName?: string; customerDoc?: string; triangularCustomerName?: string; triangularCustomerDoc?: string; clientId?: number | null; orderTypeId?: number | null }) => {
     if (!order) return;
 
@@ -1038,7 +1070,11 @@ export default function SalesOrderMaintenancePage() {
     if (!oid) return;
     const r = await fetch(`/api/sales/orders/${oid}`, { cache: 'no-store' });
     const data = await r.json();
-    let nextItems: OrderItem[] = data.items || [];
+    let nextItems: OrderItem[] = (data.items || []).map((it: any) => ({
+      ...it,
+      discountPct: Number(it?.discountPct ?? 0) || 0,
+      discountValue: Number(it?.discountValue ?? 0) || 0,
+    }));
     const clientIdForPricing = (data as any)?.clientId != null ? Number((data as any).clientId) : null;
     const orderTypeIdForPricing = (data as any)?.orderTypeId != null ? Number((data as any).orderTypeId) : null;
     if (
@@ -1095,7 +1131,7 @@ export default function SalesOrderMaintenancePage() {
 
   const globalItems = orderItems;
   const globalSubtotal = globalItems.reduce((s, it) => s + lineBase(it), 0);
-  const globalDiscount = globalItems.reduce((s, it) => s + (lineBase(it) * (it.discountPct / 100)), 0);
+  const globalDiscount = globalItems.reduce((s, it) => s + lineDiscount(it), 0);
   const globalTotalNoTax = globalSubtotal - globalDiscount;
   const globalWeight = globalItems.reduce((s, it) => s + Math.round(computeWeightKg(it)), 0);
 
@@ -1720,8 +1756,20 @@ export default function SalesOrderMaintenancePage() {
           <div className="border rounded bg-white">
             <div className="px-3 py-2 border-b flex items-center gap-2">
               <span className="text-sm text-gray-700">Itens</span>
+              <label
+                className={`ml-auto flex items-center gap-2 text-xs text-gray-700 ${(!isHeaderEditing && !canEditOrder) || (isOrderTypeRequired && !hasSelectedOrderType) ? 'opacity-50' : ''}`}
+              >
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={searchHistItemDiscount}
+                  disabled={(!isHeaderEditing && !canEditOrder) || (isOrderTypeRequired && !hasSelectedOrderType)}
+                  onChange={(e) => setSearchHistItemDiscount(e.target.checked)}
+                />
+                Busca Hist Desconto Item
+              </label>
               <button 
-                className={`ml-auto px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 ${(!isHeaderEditing && !canEditOrder) || (isOrderTypeRequired && !hasSelectedOrderType) ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                className={`px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 ${(!isHeaderEditing && !canEditOrder) || (isOrderTypeRequired && !hasSelectedOrderType) ? 'opacity-50 cursor-not-allowed' : ''}`} 
                 disabled={(!isHeaderEditing && !canEditOrder) || (isOrderTypeRequired && !hasSelectedOrderType)} 
                 title={
                   isOrderTypeRequired && !hasSelectedOrderType
@@ -1851,6 +1899,7 @@ export default function SalesOrderMaintenancePage() {
                       <th className="p-2 text-left w-24">Peso (KG)</th>
                       <th className="p-2 text-left w-24">Preço</th>
                       <th className="p-2 text-left w-20">Desc (%)</th>
+                      <th className="p-2 text-left w-24">Desc (R$)</th>
                       <th className="p-2 text-left w-24">Ações</th>
                     </tr>
                   </thead>
@@ -1901,7 +1950,7 @@ export default function SalesOrderMaintenancePage() {
               </div>
               {(() => {
                 const subtotal = list.reduce((s, it) => s + lineBase(it), 0);
-                const discountTotal = list.reduce((s, it) => s + (lineBase(it) * (it.discountPct / 100)), 0);
+                const discountTotal = list.reduce((s, it) => s + lineDiscount(it), 0);
                 const total = subtotal - discountTotal;
                 const totalWeight = list.reduce((s, it) => s + Math.round(computeWeightKg(it)), 0);
                 return (

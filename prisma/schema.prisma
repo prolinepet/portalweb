@@ -382,6 +382,7 @@ model SalesOrderItem {
   unit                  String?
   unitPrice             Float          @default(0)
   discountPct           Float          @default(0)
+  discountValue         Float          @default(0)
   lineTotal             Float          @default(0)
   // Medidas e características
   width                 Int?

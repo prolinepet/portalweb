@@ -9,11 +9,14 @@ function parseIdParam(raw: unknown): number | null {
   return Math.trunc(n);
 }
 
-function computeWeightKgFromFields(it: { width?: number | null; length?: number | null; grammage?: number | null; quantity?: number | null }): number {
+function computeWeightKg(it: { width?: number | null; length?: number | null; grammage?: number | null; quantity?: number | null }, unitWeightKg?: number | null): number {
+  const q = Number(it.quantity ?? 0);
+  const uw = Number(unitWeightKg ?? 0);
+  if (Number.isFinite(uw) && uw > 0 && Number.isFinite(q) && q > 0) return uw * q;
+
   const w = Number(it.width ?? 0);
   const l = Number(it.length ?? 0);
   const g = Number(it.grammage ?? 0);
-  const q = Number(it.quantity ?? 0);
   if (w > 0 && l > 0 && g > 0 && q > 0) {
     const areaM2 = (l / 1000) * (w / 1000);
     const weightKg = (areaM2 * g * q) / 1000;
@@ -22,11 +25,15 @@ function computeWeightKgFromFields(it: { width?: number | null; length?: number 
   return 0;
 }
 
-function lineBase(it: { quantity?: number | null; unitPrice?: number | null; width?: number | null; length?: number | null; grammage?: number | null }, priceBy?: string | null): number {
+function lineBase(
+  it: { quantity?: number | null; unitPrice?: number | null; width?: number | null; length?: number | null; grammage?: number | null },
+  priceBy?: string | null,
+  unitWeightKg?: number | null
+): number {
   const qty = Number(it.quantity ?? 0);
   const price = Number(it.unitPrice ?? 0);
   const pb = String(priceBy || '').trim().toUpperCase();
-  if (pb === 'WEIGHT' || pb === 'PESO') return computeWeightKgFromFields(it) * price;
+  if (pb === 'WEIGHT' || pb === 'PESO') return computeWeightKg(it, unitWeightKg) * price;
   return qty * price;
 }
 
@@ -60,6 +67,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (body.diameter !== undefined) allowed.diameter = Number(body.diameter);
     if (body.tube !== undefined) allowed.tube = Number(body.tube);
     if (body.discountPct !== undefined) allowed.discountPct = Number(body.discountPct);
+    if (body.discountValue !== undefined) allowed.discountValue = Number(body.discountValue);
     if (body.clientOrderNumber !== undefined) allowed.clientOrderNumber = String(body.clientOrderNumber);
     if (body.clientOrderItemNumber !== undefined) allowed.clientOrderItemNumber = Number(body.clientOrderItemNumber);
     if (body.itemDeliveryDate !== undefined) allowed.itemDeliveryDate = body.itemDeliveryDate ? new Date(body.itemDeliveryDate) : null;
@@ -75,29 +83,72 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         where: { id },
         data: allowed,
       });
-      const invId = after.inventoryItemId ? Number(after.inventoryItemId) : null;
-      let priceBy: string | null = null;
-      let commercialFamilyId: number | null = null;
-      if (invId) {
-        const inv = await tx.inventoryItem.findUnique({
-          where: { id: invId },
+      const orderId = Number(after.orderId);
+
+      const remainingItems = await tx.salesOrderItem.findMany({
+        where: { orderId },
+      });
+      const invIds = remainingItems
+        .map((it) => (it.inventoryItemId ? Number(it.inventoryItemId) : null))
+        .filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0);
+
+      const invInfoMap = new Map<number, { priceBy: string | null; unitWeightKg: number | null; commercialFamilyId: number | null }>();
+      if (invIds.length > 0) {
+        const unique = Array.from(new Set(invIds));
+        const invs = await tx.inventoryItem.findMany({
+          where: { id: { in: unique } },
           select: {
+            id: true,
+            unitWeightKg: true,
             commercialFamilyId: true,
             commercialFamily: { select: { priceBy: true } },
           },
         });
-        commercialFamilyId = inv?.commercialFamilyId != null ? Number(inv.commercialFamilyId) : null;
-        priceBy = inv?.commercialFamily?.priceBy != null ? String(inv.commercialFamily.priceBy) : null;
+        for (const inv of invs) {
+          invInfoMap.set(inv.id, {
+            priceBy: inv.commercialFamily?.priceBy != null ? String(inv.commercialFamily.priceBy) : null,
+            unitWeightKg: inv.unitWeightKg != null ? Number(inv.unitWeightKg) : null,
+            commercialFamilyId: inv.commercialFamilyId != null ? Number(inv.commercialFamilyId) : null,
+          });
+        }
       }
 
-      const base = lineBase(after, priceBy);
-      const disc = Number(after.discountPct ?? 0);
-      const computedLineTotal = base * (1 - disc / 100);
-      const saved = await tx.salesOrderItem.update({
-        where: { id },
-        data: { lineTotal: computedLineTotal },
+      for (const it of remainingItems) {
+        const info = it.inventoryItemId ? invInfoMap.get(Number(it.inventoryItemId)) : undefined;
+        const pb = info?.priceBy ?? null;
+        const uw = info?.unitWeightKg ?? null;
+        const base = lineBase(it, pb, uw);
+        const pbNorm = String(pb || '').trim().toUpperCase();
+        const unitFactor = pbNorm === 'WEIGHT' || pbNorm === 'PESO' ? computeWeightKg(it, uw) : Number(it.quantity ?? 0);
+        const lineDiscount = base * (Number(it.discountPct ?? 0) / 100) + unitFactor * Number(it.discountValue ?? 0);
+        const computedLineTotal = Math.max(0, base - lineDiscount);
+        if (Number(it.lineTotal ?? 0) !== computedLineTotal) {
+          await tx.salesOrderItem.update({ where: { id: it.id }, data: { lineTotal: computedLineTotal } });
+        }
+      }
+
+      const subtotal = remainingItems.reduce((acc, it) => {
+        const info = it.inventoryItemId ? invInfoMap.get(Number(it.inventoryItemId)) : undefined;
+        return acc + lineBase(it, info?.priceBy ?? null, info?.unitWeightKg ?? null);
+      }, 0);
+      const discountTotal = remainingItems.reduce((acc, it) => {
+        const info = it.inventoryItemId ? invInfoMap.get(Number(it.inventoryItemId)) : undefined;
+        const pbNorm = String(info?.priceBy || '').trim().toUpperCase();
+        const base = lineBase(it, info?.priceBy ?? null, info?.unitWeightKg ?? null);
+        const unitFactor = pbNorm === 'WEIGHT' || pbNorm === 'PESO' ? computeWeightKg(it, info?.unitWeightKg ?? null) : Number(it.quantity ?? 0);
+        return acc + (base * (Number(it.discountPct ?? 0) / 100) + unitFactor * Number(it.discountValue ?? 0));
+      }, 0);
+      const total = subtotal - discountTotal;
+
+      await tx.salesOrder.update({
+        where: { id: orderId },
+        data: { subtotal, discountTotal, total },
       });
-      return { ...saved, commercialFamilyId };
+
+      const saved = await tx.salesOrderItem.findUnique({ where: { id } });
+      const invId = saved?.inventoryItemId ? Number(saved.inventoryItemId) : null;
+      const commercialFamilyId = invId ? (invInfoMap.get(invId)?.commercialFamilyId ?? null) : null;
+      return saved ? { ...saved, commercialFamilyId } : { ...after, commercialFamilyId };
     });
     return NextResponse.json(updated);
   } catch (err: any) {
@@ -133,38 +184,49 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
       const invIds = remainingItems
         .map((it) => (it.inventoryItemId ? Number(it.inventoryItemId) : null))
         .filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0);
-      const priceByMap = new Map<number, string | null>();
+      const invInfoMap = new Map<number, { priceBy: string | null; unitWeightKg: number | null }>();
       if (invIds.length > 0) {
         const unique = Array.from(new Set(invIds));
         const invs = await tx.inventoryItem.findMany({
           where: { id: { in: unique } },
           select: {
             id: true,
+            unitWeightKg: true,
             commercialFamily: { select: { priceBy: true } },
           },
         });
         for (const inv of invs) {
-          priceByMap.set(inv.id, inv.commercialFamily?.priceBy != null ? String(inv.commercialFamily.priceBy) : null);
+          invInfoMap.set(inv.id, {
+            priceBy: inv.commercialFamily?.priceBy != null ? String(inv.commercialFamily.priceBy) : null,
+            unitWeightKg: inv.unitWeightKg != null ? Number(inv.unitWeightKg) : null,
+          });
         }
       }
 
       for (const it of remainingItems) {
-        const pb = it.inventoryItemId ? (priceByMap.get(Number(it.inventoryItemId)) ?? null) : null;
-        const base = lineBase(it, pb);
-        const disc = Number(it.discountPct ?? 0);
-        const computedLineTotal = base * (1 - disc / 100);
+        const info = it.inventoryItemId ? invInfoMap.get(Number(it.inventoryItemId)) : undefined;
+        const pb = info?.priceBy ?? null;
+        const uw = info?.unitWeightKg ?? null;
+        const base = lineBase(it, pb, uw);
+        const pbNorm = String(pb || '').trim().toUpperCase();
+        const unitFactor = pbNorm === 'WEIGHT' || pbNorm === 'PESO' ? computeWeightKg(it, uw) : Number(it.quantity ?? 0);
+        const lineDiscount = base * (Number(it.discountPct ?? 0) / 100) + unitFactor * Number(it.discountValue ?? 0);
+        const computedLineTotal = Math.max(0, base - lineDiscount);
         if (Number(it.lineTotal ?? 0) !== computedLineTotal) {
           await tx.salesOrderItem.update({ where: { id: it.id }, data: { lineTotal: computedLineTotal } });
         }
       }
 
       const subtotal = remainingItems.reduce((acc, it) => {
-        const pb = it.inventoryItemId ? (priceByMap.get(Number(it.inventoryItemId)) ?? null) : null;
-        return acc + lineBase(it, pb);
+        const info = it.inventoryItemId ? invInfoMap.get(Number(it.inventoryItemId)) : undefined;
+        return acc + lineBase(it, info?.priceBy ?? null, info?.unitWeightKg ?? null);
       }, 0);
       const discountTotal = remainingItems.reduce((acc, it) => {
-        const pb = it.inventoryItemId ? (priceByMap.get(Number(it.inventoryItemId)) ?? null) : null;
-        return acc + (lineBase(it, pb) * (Number(it.discountPct ?? 0) / 100));
+        const info = it.inventoryItemId ? invInfoMap.get(Number(it.inventoryItemId)) : undefined;
+        const pbNorm = String(info?.priceBy || '').trim().toUpperCase();
+        const base = lineBase(it, info?.priceBy ?? null, info?.unitWeightKg ?? null);
+        const unitFactor = pbNorm === 'WEIGHT' || pbNorm === 'PESO' ? computeWeightKg(it, info?.unitWeightKg ?? null) : Number(it.quantity ?? 0);
+        return acc + (base * (Number(it.discountPct ?? 0) / 100) + unitFactor * Number(it.discountValue ?? 0));
       }, 0);
       const total = subtotal - discountTotal;
 

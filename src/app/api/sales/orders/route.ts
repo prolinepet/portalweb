@@ -52,11 +52,14 @@ async function resolveEntityIdFromDoc(raw: unknown): Promise<number | undefined>
   return id ? Number(id) : undefined;
 }
 
-function computeWeightKgFromFields(it: { width?: number | null; length?: number | null; grammage?: number | null; quantity?: number | null }): number {
+function computeWeightKg(it: { width?: number | null; length?: number | null; grammage?: number | null; quantity?: number | null }, unitWeightKg?: number | null): number {
+  const q = Number(it.quantity ?? 0);
+  const uw = Number(unitWeightKg ?? 0);
+  if (Number.isFinite(uw) && uw > 0 && Number.isFinite(q) && q > 0) return uw * q;
+
   const w = Number(it.width ?? 0);
   const l = Number(it.length ?? 0);
   const g = Number(it.grammage ?? 0);
-  const q = Number(it.quantity ?? 0);
   if (w > 0 && l > 0 && g > 0 && q > 0) {
     const areaM2 = (l / 1000) * (w / 1000);
     const weightKg = (areaM2 * g * q) / 1000;
@@ -65,11 +68,15 @@ function computeWeightKgFromFields(it: { width?: number | null; length?: number 
   return 0;
 }
 
-function lineBase(it: { quantity?: number | null; unitPrice?: number | null; width?: number | null; length?: number | null; grammage?: number | null }, priceBy?: string | null): number {
+function lineBase(
+  it: { quantity?: number | null; unitPrice?: number | null; width?: number | null; length?: number | null; grammage?: number | null },
+  priceBy?: string | null,
+  unitWeightKg?: number | null
+): number {
   const qty = Number(it.quantity ?? 0);
   const price = Number(it.unitPrice ?? 0);
   const pb = String(priceBy || '').trim().toUpperCase();
-  if (pb === 'WEIGHT' || pb === 'PESO') return computeWeightKgFromFields(it) * price;
+  if (pb === 'WEIGHT' || pb === 'PESO') return computeWeightKg(it, unitWeightKg) * price;
   return qty * price;
 }
 
@@ -253,17 +260,20 @@ export async function POST(request: Request) {
     const invIds = rawItems
       .map((it: any) => Number(it?.inventoryItemId))
       .filter((n: any) => Number.isFinite(n) && n > 0);
-    const invMap = new Map<number, { priceBy?: string | null }>();
+    const invMap = new Map<number, { priceBy?: string | null; unitWeightKg?: number | null }>();
     if (invIds.length > 0) {
       const unique = Array.from(new Set(invIds));
       const invItems = await prisma.inventoryItem.findMany({
         where: { id: { in: unique } },
-        select: { id: true, commercialFamily: { select: { priceBy: true } } },
+        select: { id: true, unitWeightKg: true, commercialFamily: { select: { priceBy: true } } },
       });
       for (const it of invItems) {
         const id = Number(it.id);
         if (!Number.isFinite(id) || id <= 0) continue;
-        invMap.set(id, { priceBy: it.commercialFamily?.priceBy != null ? String(it.commercialFamily.priceBy) : null });
+        invMap.set(id, {
+          priceBy: it.commercialFamily?.priceBy != null ? String(it.commercialFamily.priceBy) : null,
+          unitWeightKg: it.unitWeightKg != null ? Number(it.unitWeightKg) : null,
+        });
       }
     }
 
@@ -271,8 +281,11 @@ export async function POST(request: Request) {
       const qty = Number(it.quantity || 1);
       const price = Number(it.unitPrice || 0);
       const disc = Number(it.discountPct || 0);
+      const discValue = Number(it.discountValue || 0);
       const inventoryItemId = it.inventoryItemId ? Number(it.inventoryItemId) : undefined;
-      const priceBy = inventoryItemId ? (invMap.get(inventoryItemId)?.priceBy ?? null) : null;
+      const invInfo = inventoryItemId ? invMap.get(inventoryItemId) : undefined;
+      const priceBy = invInfo?.priceBy ?? null;
+      const unitWeightKg = invInfo?.unitWeightKg ?? null;
       const base = lineBase(
         {
           quantity: qty,
@@ -281,9 +294,13 @@ export async function POST(request: Request) {
           length: it.length ? Number(it.length) : undefined,
           grammage: it.grammage ? Number(it.grammage) : undefined,
         },
-        priceBy
+        priceBy,
+        unitWeightKg
       );
-      const lineTotal = base * (1 - disc / 100);
+      const pb = String(priceBy || '').trim().toUpperCase();
+      const unitFactor = pb === 'WEIGHT' || pb === 'PESO' ? computeWeightKg({ quantity: qty, width: it.width, length: it.length, grammage: it.grammage }, unitWeightKg) : qty;
+      const lineDiscount = base * (disc / 100) + unitFactor * discValue;
+      const lineTotal = Math.max(0, base - lineDiscount);
       return {
         inventoryItemId,
         sku: it.sku || undefined,
@@ -292,6 +309,7 @@ export async function POST(request: Request) {
         unit: it.unit || undefined,
         unitPrice: price,
         discountPct: disc,
+        discountValue: discValue,
         width: it.width ? Number(it.width) : undefined,
         length: it.length ? Number(it.length) : undefined,
         grammage: it.grammage ? Number(it.grammage) : undefined,
@@ -307,12 +325,19 @@ export async function POST(request: Request) {
       };
     });
     const subtotal = normalizedItems.reduce((acc: number, i: any) => {
-      const priceBy = i.inventoryItemId ? (invMap.get(i.inventoryItemId)?.priceBy ?? null) : null;
-      return acc + lineBase(i, priceBy);
+      const invInfo = i.inventoryItemId ? invMap.get(i.inventoryItemId) : undefined;
+      const priceBy = invInfo?.priceBy ?? null;
+      const unitWeightKg = invInfo?.unitWeightKg ?? null;
+      return acc + lineBase(i, priceBy, unitWeightKg);
     }, 0);
     const discountTotal = normalizedItems.reduce((acc: number, i: any) => {
-      const priceBy = i.inventoryItemId ? (invMap.get(i.inventoryItemId)?.priceBy ?? null) : null;
-      return acc + (lineBase(i, priceBy) * (Number(i.discountPct || 0) / 100));
+      const invInfo = i.inventoryItemId ? invMap.get(i.inventoryItemId) : undefined;
+      const priceBy = invInfo?.priceBy ?? null;
+      const unitWeightKg = invInfo?.unitWeightKg ?? null;
+      const base = lineBase(i, priceBy, unitWeightKg);
+      const pb = String(priceBy || '').trim().toUpperCase();
+      const unitFactor = pb === 'WEIGHT' || pb === 'PESO' ? computeWeightKg(i, unitWeightKg) : Number(i.quantity ?? 0);
+      return acc + (base * (Number(i.discountPct || 0) / 100) + unitFactor * Number(i.discountValue || 0));
     }, 0);
     const total = subtotal - discountTotal;
 
@@ -474,8 +499,8 @@ export async function POST(request: Request) {
               const creasesJson = it.creases !== undefined ? JSON.stringify(it.creases) : null;
               await tx.$executeRawUnsafe(
                 `INSERT INTO salesorderitem
-                  (id, orderId, inventoryItemId, sku, name, quantity, unit, unitPrice, discountPct, lineTotal, width, length, grammage, diameter, tube, weightKg, creases, clientOrderNumber, clientOrderItemNumber, itemDeliveryDate, internalResin, externalResin)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  (id, orderId, inventoryItemId, sku, name, quantity, unit, unitPrice, discountPct, discountValue, lineTotal, width, length, grammage, diameter, tube, weightKg, creases, clientOrderNumber, clientOrderItemNumber, itemDeliveryDate, internalResin, externalResin)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 Math.trunc(nextItemId),
                 Math.trunc(id),
                 it.inventoryItemId ?? null,
@@ -485,6 +510,7 @@ export async function POST(request: Request) {
                 it.unit ?? null,
                 Number(it.unitPrice ?? 0),
                 Number(it.discountPct ?? 0),
+                Number(it.discountValue ?? 0),
                 Number(it.lineTotal ?? 0),
                 it.width ?? null,
                 it.length ?? null,
