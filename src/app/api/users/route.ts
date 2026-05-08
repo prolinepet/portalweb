@@ -19,9 +19,17 @@ async function ensureSalesRepDefaults(userId: number) {
     .findMany({ where: { code: { in: programCodes }, moduleId: salesModule.id, isActive: true }, select: { id: true } })
     .catch(() => []);
 
-  const entities = await prisma.entity.findMany({ where: { isActive: true }, select: { id: true } }).catch(() => []);
-  const entityIds = (entities || []).map((e) => Number(e.id)).filter((n) => Number.isFinite(n) && n > 0);
-  if (!entityIds.length) return;
+  const entities = await prisma.entity
+    .findMany({ where: { isActive: true }, select: { id: true, cnpj: true }, orderBy: { id: 'asc' } })
+    .catch(() => []);
+  const cleanEntities = (entities || [])
+    .map((e) => ({ id: Number(e.id), cnpj: normalizeDoc(String((e as any)?.cnpj || '')) }))
+    .filter((e) => Number.isFinite(e.id) && e.id > 0 && e.cnpj);
+  if (!cleanEntities.length) return;
+
+  const primaryByBranch0001 = cleanEntities.find((e) => e.cnpj.length === 14 && e.cnpj.slice(8, 12) === '0001') ?? null;
+  const primaryEntityId = primaryByBranch0001?.id ?? cleanEntities[0].id;
+  const entityIds = [Math.trunc(primaryEntityId)];
 
   await prisma.$transaction(async (tx) => {
     await tx.userEntity.createMany({
