@@ -231,11 +231,11 @@ export const SalesOrderItemRow = ({
   return (
     <>
       <tr className={`border-t ${isSaving ? 'bg-blue-50' : ''}`}>
-        <td className="p-2">
+        <td className="p-2 align-top">
             <div className="flex items-center gap-3">
                 <ItemThumb sku={thumbSku} />
                 <div className="flex flex-col min-w-0">
-                <span className="truncate">{localItem.name}</span>
+                <span className="whitespace-normal break-words leading-tight">{localItem.name}</span>
                 {isSaving && <span className="text-[10px] text-blue-600 animate-pulse">Salvando...</span>}
                 </div>
             </div>

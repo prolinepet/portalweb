@@ -100,6 +100,67 @@ function mergeGroupRows(a: GroupRow[], b: GroupRow[]): GroupRow[] {
   return Array.from(byKey.values()).sort((x, y) => x.label.localeCompare(y.label, 'pt-BR'));
 }
 
+function normalizeKey(s: unknown): string {
+  return String(s || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function pickRepRow(rows: GroupRow[], candidates: string[]): GroupRow | null {
+  if (!rows.length) return null;
+  const cand = candidates.map(normalizeKey).filter(Boolean);
+  if (!cand.length) return null;
+
+  for (const c of cand) {
+    const exact = rows.find((r) => normalizeKey(r.key) === c || normalizeKey(r.label) === c);
+    if (exact) return exact;
+  }
+
+  for (const c of cand) {
+    const partial = rows.find((r) => normalizeKey(r.key).includes(c) || normalizeKey(r.label).includes(c));
+    if (partial) return partial;
+  }
+
+  return null;
+}
+
+function filterGroupRowsByRepPrefix(rows: GroupRow[], rep: GroupRow, candidates: string[]): GroupRow[] {
+  const cand = new Set(candidates.map(normalizeKey).filter(Boolean));
+  const repKeys = new Set<string>([normalizeKey(rep.key), normalizeKey(rep.label)].filter(Boolean));
+  for (const x of repKeys) cand.add(x);
+
+  const splitDelims = ['|', '::', ';', '-', '—', '–'];
+  const trySplit = (rawKey: string): { repPart: string; rest: string } | null => {
+    const k = String(rawKey || '').trim();
+    if (!k) return null;
+    for (const d of splitDelims) {
+      const idx = k.indexOf(d);
+      if (idx <= 0) continue;
+      const left = k.slice(0, idx).trim();
+      const right = k.slice(idx + d.length).trim();
+      if (!left || !right) continue;
+      return { repPart: left, rest: right };
+    }
+    return null;
+  };
+
+  const out: GroupRow[] = [];
+  for (const r of rows) {
+    const parts = trySplit(String(r.key || ''));
+    if (!parts) continue;
+    const leftNorm = normalizeKey(parts.repPart);
+    if (!cand.has(leftNorm)) continue;
+    out.push({
+      key: parts.rest,
+      label: String(r.label || parts.rest),
+      peso: r.peso,
+      valor: r.valor,
+    });
+  }
+  return out.sort((x, y) => x.label.localeCompare(y.label, 'pt-BR'));
+}
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
@@ -107,6 +168,8 @@ export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
     const userId = session?.user ? Number((session.user as any).id) : null;
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const me = await prisma.user.findUnique({ where: { id: Math.trunc(userId) }, select: { isSalesAdmin: true, name: true, doc: true } }).catch(() => null);
+    const isSalesAdmin = Boolean(me?.isSalesAdmin);
     const sessionEntityIdRaw = (session as any)?.entityId ?? (session as any)?.activeEntityId ?? null;
     const sessionEntityId = sessionEntityIdRaw != null ? toInt(sessionEntityIdRaw) : null;
 
@@ -179,6 +242,25 @@ export async function GET(request: Request) {
         region = mergeGroupRows(region, readGroupRows(g?.REGION));
       }
 
+      if (!isSalesAdmin) {
+        const candidates = [
+          String(userId),
+          String(me?.name || ''),
+          String(me?.doc || ''),
+        ].filter(Boolean);
+        const repRow = pickRepRow(rep, candidates);
+        const emptyMetric = computeMetric(0, 0, 0, 0);
+        const nextSummaryPeso = repRow?.peso ?? emptyMetric;
+        const nextSummaryValor = repRow?.valor ?? emptyMetric;
+        const repOnly = repRow ? [repRow] : [];
+        family = repRow ? filterGroupRowsByRepPrefix(family, repRow, candidates) : [];
+        customer = repRow ? filterGroupRowsByRepPrefix(customer, repRow, candidates) : [];
+        region = repRow ? filterGroupRowsByRepPrefix(region, repRow, candidates) : [];
+        rep = repOnly;
+        summaryPeso = nextSummaryPeso;
+        summaryValor = nextSummaryValor;
+      }
+
       return NextResponse.json({
         year,
         month: monthOut,
@@ -223,6 +305,25 @@ export async function GET(request: Request) {
       customer = mergeGroupRows(customer, readGroupRows(g?.CUSTOMER));
       rep = mergeGroupRows(rep, readGroupRows(g?.REP));
       region = mergeGroupRows(region, readGroupRows(g?.REGION));
+    }
+
+    if (!isSalesAdmin) {
+      const candidates = [
+        String(userId),
+        String(me?.name || ''),
+        String(me?.doc || ''),
+      ].filter(Boolean);
+      const repRow = pickRepRow(rep, candidates);
+      const emptyMetric = computeMetric(0, 0, 0, 0);
+      const nextSummaryPeso = repRow?.peso ?? emptyMetric;
+      const nextSummaryValor = repRow?.valor ?? emptyMetric;
+      const repOnly = repRow ? [repRow] : [];
+      family = repRow ? filterGroupRowsByRepPrefix(family, repRow, candidates) : [];
+      customer = repRow ? filterGroupRowsByRepPrefix(customer, repRow, candidates) : [];
+      region = repRow ? filterGroupRowsByRepPrefix(region, repRow, candidates) : [];
+      rep = repOnly;
+      summaryPeso = nextSummaryPeso;
+      summaryValor = nextSummaryValor;
     }
 
     return NextResponse.json({

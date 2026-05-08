@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useSession } from 'next-auth/react';
 
 type EntityEntry = {
   id: number;
@@ -169,6 +170,8 @@ function MultiSelectDropdown({
 }
 
 export default function SalesDashboard() {
+  const { data: session } = useSession();
+  const sessionUserId = (session?.user as any)?.id != null ? Number((session?.user as any)?.id) : null;
   const [loading, setLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
@@ -179,6 +182,7 @@ export default function SalesDashboard() {
   const [repOptions, setRepOptions] = useState<MultiOpt[]>([]);
   const [selectedReps, setSelectedReps] = useState<string[]>([]);
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  const [isSalesAdmin, setIsSalesAdmin] = useState(false);
   const [activeGroupTab, setActiveGroupTab] = useState<'FAMILY' | 'CUSTOMER' | 'REP' | 'REGION'>('FAMILY');
   const [data, setData] = useState<DashboardData | null>(null);
 
@@ -221,6 +225,14 @@ export default function SalesDashboard() {
         if (usersRes?.ok) {
           const arr = await usersRes.json().catch(() => []);
           const list = Array.isArray(arr) ? (arr as UserEntry[]) : [];
+          const me = sessionUserId ? list.find((u: any) => Number(u?.id) === Number(sessionUserId)) : null;
+          const salesAdminFlag = Boolean((me as any)?.isSalesAdmin);
+          setIsSalesAdmin(salesAdminFlag);
+          if (!salesAdminFlag && me?.id) {
+            setRepOptions([{ value: String(me.id), label: String(me.name || '') }]);
+            setSelectedReps([String(me.id)]);
+            return;
+          }
           const reps = list.filter((u: any) => Boolean(u?.salesRepAdmin));
           const finalList = reps.length ? reps : list;
           setRepOptions(
@@ -235,7 +247,7 @@ export default function SalesDashboard() {
     };
 
     loadFilters();
-  }, []);
+  }, [sessionUserId]);
 
   const regionOptions: MultiOpt[] = useMemo(() => {
     return [
@@ -336,13 +348,24 @@ export default function SalesDashboard() {
             </select>
           </div>
 
-          <MultiSelectDropdown
-            label="Representante"
-            placeholder={loading ? "Carregando..." : "Selecione..."}
-            options={repOptions}
-            value={selectedReps}
-            onChange={setSelectedReps}
-          />
+          {isSalesAdmin ? (
+            <MultiSelectDropdown
+              label="Representante"
+              placeholder={loading ? "Carregando..." : "Selecione..."}
+              options={repOptions}
+              value={selectedReps}
+              onChange={setSelectedReps}
+            />
+          ) : (
+            <div className="min-w-0">
+              <label className="block text-xs font-medium text-gray-700 mb-1">Representante</label>
+              <input
+                value={repOptions?.[0]?.label || ''}
+                disabled
+                className="border rounded px-3 py-1.5 text-sm w-full bg-gray-50 text-gray-700"
+              />
+            </div>
+          )}
 
           <MultiSelectDropdown
             label="Região"

@@ -7,6 +7,52 @@ function normalizeDoc(doc: string): string {
   return (doc || '').replace(/\D+/g, '');
 }
 
+async function ensureSalesRepDefaults(userId: number) {
+  const uid = Math.trunc(Number(userId));
+  if (!uid || Number.isNaN(uid)) return;
+
+  const salesModule = await prisma.module.findUnique({ where: { code: 'SALES' }, select: { id: true } }).catch(() => null);
+  if (!salesModule?.id) return;
+
+  const programCodes = ['SALES_CREATE_ORDER', 'SALES_ORDER_SEARCH', 'SALES_CLIENT_SEARCH', 'SALES_PRODUCTION_SCHEDULE'];
+  const programs = await prisma.program
+    .findMany({ where: { code: { in: programCodes }, moduleId: salesModule.id, isActive: true }, select: { id: true } })
+    .catch(() => []);
+
+  const entities = await prisma.entity.findMany({ where: { isActive: true }, select: { id: true } }).catch(() => []);
+  const entityIds = (entities || []).map((e) => Number(e.id)).filter((n) => Number.isFinite(n) && n > 0);
+  if (!entityIds.length) return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.userEntity.createMany({
+      data: entityIds.map((entityId) => ({ userId: uid, entityId: Math.trunc(entityId) })),
+      skipDuplicates: true,
+    });
+
+    const userEntities = await tx.userEntity.findMany({
+      where: { userId: uid, entityId: { in: entityIds } },
+      select: { id: true },
+    });
+
+    await tx.userEntityModule.createMany({
+      data: userEntities.map((ue) => ({ userEntityId: ue.id, moduleId: salesModule.id, allowed: true })),
+      skipDuplicates: true,
+    });
+
+    if (!programs.length) return;
+
+    const uems = await tx.userEntityModule.findMany({
+      where: { moduleId: salesModule.id, userEntity: { userId: uid } },
+      select: { id: true },
+    });
+
+    await tx.userEntityModuleProgram.createMany({
+      data: uems.flatMap((uem) => programs.map((p) => ({ userEntityModuleId: uem.id, programId: p.id, allowed: true }))),
+      skipDuplicates: true,
+    });
+  });
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const salesRepAdmin = url.searchParams.get('salesRepAdmin');
@@ -73,7 +119,10 @@ export async function POST(request: Request) {
       }
     }
 
+    const shouldEnsureRepDefaults = Boolean(salesRepAdmin);
+
     if (doc) {
+      const existing = await prisma.user.findUnique({ where: { doc }, select: { id: true } }).catch(() => null);
       const update: any = {
         name,
         email: finalEmail,
@@ -107,6 +156,9 @@ export async function POST(request: Request) {
           updatedAt: true,
         },
       });
+      if (shouldEnsureRepDefaults && !existing?.id) {
+        await ensureSalesRepDefaults(Number(upserted.id)).catch(() => {});
+      }
       return NextResponse.json(upserted);
     }
 
@@ -121,6 +173,9 @@ export async function POST(request: Request) {
       },
       select: { id: true, name: true, email: true, createdAt: true, updatedAt: true, salesRepAdmin: true, isSalesAdmin: true, erpIntegrationMode: true },
     });
+    if (shouldEnsureRepDefaults) {
+      await ensureSalesRepDefaults(Number(created.id)).catch(() => {});
+    }
     return NextResponse.json(created);
   } catch (err: any) {
     const msg = String(err?.message || err);

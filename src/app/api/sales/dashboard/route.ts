@@ -13,6 +13,8 @@ export async function GET(request: Request) {
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const me = await prisma.user.findUnique({ where: { id: Math.trunc(userId) }, select: { isSalesAdmin: true } }).catch(() => null);
+    const isSalesAdmin = Boolean(me?.isSalesAdmin);
 
     const { searchParams } = new URL(request.url);
     const year = Number(searchParams.get('year') || new Date().getFullYear());
@@ -21,12 +23,12 @@ export async function GET(request: Request) {
 
     // Base filter for orders
     const whereClause: any = {
-      createdById: userId,
       orderDate: {
         gte: new Date(year, 0, 1),
         lt: new Date(year + 1, 0, 1),
       },
     };
+    if (!isSalesAdmin) whereClause.createdById = userId;
 
     if (month) {
         const m = Number(month) - 1;

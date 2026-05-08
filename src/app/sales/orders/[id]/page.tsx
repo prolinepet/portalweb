@@ -1839,19 +1839,19 @@ export default function SalesOrderMaintenancePage() {
                 })}
               </div>
               <div className="hidden sm:block overflow-x-auto">
-                <table className="min-w-full text-sm">
+                <table className="min-w-full text-sm table-fixed">
                   <thead>
                     <tr className="bg-gray-50">
-                      <th className="p-2 text-left">Item</th>
-                      <th className="p-2 text-left">SKU</th>
-                      <th className="p-2 text-left">UM</th>
-                      <th className="p-2 text-left">Tab. Preço</th>
-                      {(() => { const hasCore = list.some(supportsCoreDims); return hasCore ? (<><th className="p-2 text-left">Diâmetro</th><th className="p-2 text-left">Tubete</th></>) : null; })()}
-                      <th className="p-2 text-left">Qtd</th>
-                      <th className="p-2 text-left">Peso (KG)</th>
-                      <th className="p-2 text-left">Preço</th>
-                      <th className="p-2 text-left">Desc (%)</th>
-                      <th className="p-2 text-left">Ações</th>
+                      <th className="p-2 text-left w-[420px]">Item</th>
+                      <th className="p-2 text-left w-24">SKU</th>
+                      <th className="p-2 text-left w-16">UM</th>
+                      <th className="p-2 text-left w-28">Tab. Preço</th>
+                      {(() => { const hasCore = list.some(supportsCoreDims); return hasCore ? (<><th className="p-2 text-left w-24">Diâmetro</th><th className="p-2 text-left w-24">Tubete</th></>) : null; })()}
+                      <th className="p-2 text-left w-20">Qtd</th>
+                      <th className="p-2 text-left w-24">Peso (KG)</th>
+                      <th className="p-2 text-left w-24">Preço</th>
+                      <th className="p-2 text-left w-20">Desc (%)</th>
+                      <th className="p-2 text-left w-24">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
