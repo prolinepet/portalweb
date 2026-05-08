@@ -28,6 +28,7 @@ model User {
   userEntities       UserEntity[]
   assignedWorkOrders WorkOrder[]
   userInventoryItemPrices UserInventoryItemPrice[]
+  trustedDevices     TrustedDevice[]
 
   // Gestão FinTI Relations
   gestaoFintiCategoriasCriadas       GestaoFintiCategoria[]   @relation("GestaoFintiCategoriaCriadoPor")
@@ -48,6 +49,21 @@ model User {
   gestaoFintiConfiguracoesAtualizadas GestaoFintiConfiguracao[] @relation("GestaoFintiConfiguracaoAtualizadoPor")
 
   @@map("user")
+}
+
+model TrustedDevice {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  tokenHash  String   @unique @db.Char(64)
+  userAgent  String?  @db.VarChar(255)
+  expiresAt  DateTime? @db.DateTime(3)
+  lastUsedAt DateTime? @db.DateTime(3)
+  createdAt  DateTime @default(now()) @db.DateTime(3)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("trusteddevice")
 }
 
 model Asset {

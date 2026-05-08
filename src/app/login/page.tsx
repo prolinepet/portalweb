@@ -19,6 +19,7 @@ function LoginForm() {
   const [tempSecret, setTempSecret] = useState("");
   const [otpauth, setOtpauth] = useState("");
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+  const [trustDevice, setTrustDevice] = useState(false);
 
   // Forgot Password States
   const [showForgot, setShowForgot] = useState(false);
@@ -58,6 +59,11 @@ function LoginForm() {
       return;
     }
     if (res?.ok) {
+      if (trustDevice && step !== 'credentials') {
+        try {
+          await fetch('/api/auth/trusted-device', { method: 'POST' });
+        } catch {}
+      }
       // Após login, garantir que a entidade ativa esteja definida
       try {
         const r = await fetch('/api/permissions', { cache: 'no-store' });
@@ -134,9 +140,11 @@ function LoginForm() {
                 setTempSecret(checkData.secret);
                 setOtpauth(checkData.otpauth);
                 setStep('setup');
+                setTrustDevice(false);
                 setLoading(false);
             } else {
                 setStep('2fa');
+                setTrustDevice(false);
                 setLoading(false);
             }
         } else {
@@ -218,6 +226,10 @@ function LoginForm() {
                     placeholder="000000"
                     required
                 />
+                <label className="mt-2 flex items-center gap-2 text-sm text-gray-700 select-none">
+                  <input type="checkbox" checked={trustDevice} onChange={(e) => setTrustDevice(e.target.checked)} />
+                  Confiar neste dispositivo
+                </label>
              </div>
           )}
 
@@ -246,6 +258,10 @@ function LoginForm() {
                         placeholder="000000"
                         required
                     />
+                    <label className="mt-2 flex items-center gap-2 text-sm text-gray-700 select-none">
+                      <input type="checkbox" checked={trustDevice} onChange={(e) => setTrustDevice(e.target.checked)} />
+                      Confiar neste dispositivo
+                    </label>
                   </div>
               </div>
           )}

@@ -4,6 +4,50 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { prisma } from './prisma';
 import bcrypt from 'bcryptjs';
 import { authenticator } from './otp';
+import { createHash } from 'crypto';
+
+function parseCookieHeader(cookieHeader: string | null): Record<string, string> {
+  const out: Record<string, string> = {};
+  const raw = String(cookieHeader || '').trim();
+  if (!raw) return out;
+  for (const part of raw.split(';')) {
+    const s = part.trim();
+    if (!s) continue;
+    const idx = s.indexOf('=');
+    if (idx <= 0) continue;
+    const k = s.slice(0, idx).trim();
+    const v = s.slice(idx + 1).trim();
+    if (!k) continue;
+    out[k] = decodeURIComponent(v);
+  }
+  return out;
+}
+
+function sha256Hex(input: string): string {
+  return createHash('sha256').update(input).digest('hex');
+}
+
+async function isTrustedDevice(userId: number, token: string): Promise<boolean> {
+  const uid = Number(userId);
+  const t = String(token || '').trim();
+  if (!Number.isFinite(uid) || uid <= 0) return false;
+  if (!t) return false;
+  const tokenHash = sha256Hex(t);
+  const now = new Date();
+  const row = await prisma.trustedDevice
+    .findFirst({
+      where: {
+        userId: Math.trunc(uid),
+        tokenHash,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      select: { id: true },
+    })
+    .catch(() => null);
+  if (!row?.id) return false;
+  await prisma.trustedDevice.update({ where: { id: row.id }, data: { lastUsedAt: now } }).catch(() => {});
+  return true;
+}
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: 'jwt' },
@@ -16,7 +60,7 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Senha', type: 'password' },
         twoFactorCode: { label: '2FA Code', type: 'text' }
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
         
         const identifier = credentials.email;
@@ -49,6 +93,15 @@ export const authOptions: NextAuthOptions = {
         // 2FA Verification
         if (user.twoFactorRequired && user.twoFactorSecret) {
           const code = credentials.twoFactorCode as string | undefined;
+          if (!code) {
+            const cookieHeader = (req as any)?.headers?.cookie ?? (req as any)?.headers?.get?.('cookie') ?? null;
+            const cookies = parseCookieHeader(cookieHeader);
+            const token = cookies['trustedDevice'] || '';
+            const trusted = await isTrustedDevice(Number(user.id), token);
+            if (trusted) {
+              return { id: String(user.id), name: user.name, email: user.email } as any;
+            }
+          }
           if (!code) {
              throw new Error('2FA_REQUIRED');
           }
