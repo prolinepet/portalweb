@@ -272,9 +272,30 @@ export async function DELETE(request: Request) {
     const body = await request.json().catch(() => ({}));
     const ids: number[] = Array.isArray(body?.ids) ? body.ids.map((n: any) => Number(n)).filter((n) => Number.isFinite(n) && n > 0) : [];
     if (ids.length === 0) return NextResponse.json({ error: 'IDs obrigatórios' }, { status: 400 });
-    await prisma.entityModuleItem.deleteMany({ where: { inventoryItemId: { in: ids } } });
-    const result = await prisma.inventoryItem.deleteMany({ where: { id: { in: ids } } });
-    return NextResponse.json({ deleted: result.count });
+    const blockedRows = await prisma.salesOrderItem.findMany({
+      where: { inventoryItemId: { in: ids } },
+      select: { inventoryItemId: true },
+      distinct: ['inventoryItemId'],
+    });
+    const blockedIds = new Set<number>(blockedRows.map((r) => Number(r.inventoryItemId)).filter((n) => Number.isFinite(n) && n > 0));
+    const deletableIds = ids.filter((id) => !blockedIds.has(id));
+
+    const result = await prisma.$transaction(async (tx) => {
+      if (deletableIds.length > 0) {
+        await tx.entityModuleItem.deleteMany({ where: { inventoryItemId: { in: deletableIds } } });
+        await tx.clientItem.deleteMany({ where: { inventoryItemId: { in: deletableIds } } });
+        await tx.clientCartItem.deleteMany({ where: { inventoryItemId: { in: deletableIds } } });
+        await tx.priceTableItem.deleteMany({ where: { inventoryItemId: { in: deletableIds } } });
+        await tx.userInventoryItemPrice.deleteMany({ where: { inventoryItemId: { in: deletableIds } } });
+      }
+      return tx.inventoryItem.deleteMany({ where: { id: { in: deletableIds } } });
+    });
+
+    const skipped = ids
+      .filter((id) => blockedIds.has(id))
+      .map((id) => ({ id, reason: 'Item possui pedido(s) vinculado(s)' }));
+
+    return NextResponse.json({ deleted: result.count, skipped });
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }

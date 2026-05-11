@@ -169,6 +169,10 @@ export default function BaseItemMaintenancePage() {
       const res = await fetch('/api/items', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+      if (Array.isArray(data?.skipped) && data.skipped.length > 0) {
+        const sample = data.skipped.slice(0, 10).map((x: any) => x?.id).filter(Boolean).join(', ');
+        alert(`Alguns itens não foram excluídos por vínculo com pedido.\nIDs: ${sample}${data.skipped.length > 10 ? '...' : ''}`);
+      }
       setSelectedIds([]);
       await load();
     } catch (err: any) {

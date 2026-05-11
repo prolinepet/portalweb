@@ -59,7 +59,22 @@ export async function DELETE(_: Request, props: { params: Promise<{ id: string }
   try {
     const id = Number(params.id);
     if (!id || Number.isNaN(id)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
-    await prisma.inventoryItem.delete({ where: { id } });
+    const hasOrders = await prisma.salesOrderItem.findFirst({
+      where: { inventoryItemId: id },
+      select: { id: true },
+    });
+    if (hasOrders) {
+      return NextResponse.json({ error: 'Não é possível excluir: item possui pedido(s) vinculado(s).' }, { status: 409 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.entityModuleItem.deleteMany({ where: { inventoryItemId: id } });
+      await tx.clientItem.deleteMany({ where: { inventoryItemId: id } });
+      await tx.clientCartItem.deleteMany({ where: { inventoryItemId: id } });
+      await tx.priceTableItem.deleteMany({ where: { inventoryItemId: id } });
+      await tx.userInventoryItemPrice.deleteMany({ where: { inventoryItemId: id } });
+      await tx.inventoryItem.delete({ where: { id } });
+    });
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
