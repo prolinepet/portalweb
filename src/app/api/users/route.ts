@@ -32,6 +32,11 @@ async function ensureSalesRepDefaults(userId: number) {
   const entityIds = [Math.trunc(primaryEntityId)];
 
   await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: uid },
+      data: { erpIntegrationMode: 'PROD' },
+    });
+
     await tx.userEntity.createMany({
       data: entityIds.map((entityId) => ({ userId: uid, entityId: Math.trunc(entityId) })),
       skipDuplicates: true,
