@@ -202,7 +202,7 @@ export default function SalesDashboard() {
   const [selectedReps, setSelectedReps] = useState<string[]>([]);
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
   const [isSalesAdmin, setIsSalesAdmin] = useState(false);
-  const [activeGroupTab, setActiveGroupTab] = useState<'FAMILY' | 'CUSTOMER' | 'REP' | 'REGION'>('FAMILY');
+  const [activeGroupTab, setActiveGroupTab] = useState<'FAMILY' | 'CUSTOMER' | 'REP' | 'REGION'>('REP');
   const [data, setData] = useState<DashboardData | null>(null);
 
   const months = [
@@ -442,10 +442,10 @@ export default function SalesDashboard() {
           <div className="flex flex-wrap gap-3 border-b">
             <button
               type="button"
-              onClick={() => setActiveGroupTab('FAMILY')}
-              className={`px-1 pb-1 text-sm ${activeGroupTab === 'FAMILY' ? 'text-blue-600 border-b-2 border-solid border-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
+              onClick={() => setActiveGroupTab('REP')}
+              className={`px-1 pb-1 text-sm ${activeGroupTab === 'REP' ? 'text-blue-600 border-b-2 border-solid border-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
             >
-              Por Família
+              Por Representante
             </button>
             <button
               type="button"
@@ -456,17 +456,17 @@ export default function SalesDashboard() {
             </button>
             <button
               type="button"
-              onClick={() => setActiveGroupTab('REP')}
-              className={`px-1 pb-1 text-sm ${activeGroupTab === 'REP' ? 'text-blue-600 border-b-2 border-solid border-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
-            >
-              Por Representante
-            </button>
-            <button
-              type="button"
               onClick={() => setActiveGroupTab('REGION')}
               className={`px-1 pb-1 text-sm ${activeGroupTab === 'REGION' ? 'text-blue-600 border-b-2 border-solid border-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Por Região
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveGroupTab('FAMILY')}
+              className={`px-1 pb-1 text-sm ${activeGroupTab === 'FAMILY' ? 'text-blue-600 border-b-2 border-solid border-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Por Família
             </button>
           </div>
 
