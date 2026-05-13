@@ -252,13 +252,7 @@ export default function SalesDashboard() {
             setSelectedReps([String(me.id)]);
             return;
           }
-          const reps = list.filter((u: any) => Boolean(u?.salesRepAdmin));
-          const finalList = reps.length ? reps : list;
-          setRepOptions(
-            finalList
-              .map((u: any) => ({ value: String(u.id), label: String(u.name || '') }))
-              .filter((o: any) => o.value && o.label)
-          );
+          setRepOptions([]);
         }
       } finally {
         setLoading(false);
@@ -267,6 +261,30 @@ export default function SalesDashboard() {
 
     loadFilters();
   }, [sessionUserId]);
+
+  const repOptionsForUi: MultiOpt[] = useMemo(() => {
+    if (!isSalesAdmin) return repOptions;
+    const rows = data?.groups?.REP;
+    if (!Array.isArray(rows)) return [];
+    const out: MultiOpt[] = [];
+    const seen = new Set<string>();
+    for (const r of rows) {
+      const value = String((r as any)?.key || '').trim();
+      const label = String((r as any)?.label || '').trim();
+      if (!value || !label) continue;
+      if (seen.has(value)) continue;
+      seen.add(value);
+      out.push({ value, label });
+    }
+    return out;
+  }, [isSalesAdmin, repOptions, data]);
+
+  useEffect(() => {
+    if (!isSalesAdmin) return;
+    if (repOptionsForUi.length === 0) return;
+    const allowed = new Set(repOptionsForUi.map((o) => o.value));
+    setSelectedReps((prev) => prev.filter((v) => allowed.has(String(v))));
+  }, [isSalesAdmin, repOptionsForUi]);
 
   const regionOptions: MultiOpt[] = useMemo(() => {
     return [
@@ -290,10 +308,9 @@ export default function SalesDashboard() {
         params.set('year', String(year));
         if (month) params.set('month', month);
         if (entityId) params.set('entityId', entityId);
-        for (const r of selectedReps) params.append('rep', String(r));
-        for (const r of selectedReps) {
-          const opt = repOptions.find((o) => String(o.value) === String(r));
-          if (opt?.label) params.append('rep', String(opt.label));
+        const allRepsSelected = isSalesAdmin && repOptionsForUi.length > 0 && selectedReps.length === repOptionsForUi.length;
+        if (!allRepsSelected) {
+          for (const r of selectedReps) params.append('rep', String(r));
         }
         for (const rg of selectedRegions) params.append('region', String(rg));
 
@@ -313,7 +330,7 @@ export default function SalesDashboard() {
     };
 
     load();
-  }, [year, month, entityId, selectedReps, selectedRegions, repOptions]);
+  }, [year, month, entityId, selectedReps, selectedRegions, isSalesAdmin, repOptionsForUi.length]);
 
   const summary =
     data?.summary ?? {
@@ -372,7 +389,7 @@ export default function SalesDashboard() {
             <MultiSelectDropdown
               label="Representante"
               placeholder={loading ? "Carregando..." : "Selecione..."}
-              options={repOptions}
+              options={repOptionsForUi}
               value={selectedReps}
               onChange={setSelectedReps}
             />

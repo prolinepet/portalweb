@@ -355,23 +355,25 @@ export async function GET(request: Request) {
 
       if (isSalesAdmin && selectedRepCandidates.length > 0) {
         const repRows = filterRowsDirect(rep, selectedRepCandidates);
-        const repsToUse = repRows.length ? repRows : [];
-        const sum = sumMetricsFromRows(repsToUse);
-        summaryPeso = sum.peso;
-        summaryValor = sum.valor;
-        rep = repsToUse;
+        if (repRows.length > 0 && repRows.length < rep.length) {
+          const repsToUse = repRows;
+          const sum = sumMetricsFromRows(repsToUse);
+          summaryPeso = sum.peso;
+          summaryValor = sum.valor;
+          rep = repsToUse;
 
-        let familyNext: GroupRow[] = [];
-        let customerNext: GroupRow[] = [];
-        let regionNext: GroupRow[] = [];
-        for (const rr of repsToUse) {
-          familyNext = mergeGroupRows(familyNext, filterGroupRowsByRepPrefix(family, rr, selectedRepCandidates));
-          customerNext = mergeGroupRows(customerNext, filterGroupRowsByRepPrefix(customer, rr, selectedRepCandidates));
-          regionNext = mergeGroupRows(regionNext, filterGroupRowsByRepPrefix(region, rr, selectedRepCandidates));
+          let familyNext: GroupRow[] = [];
+          let customerNext: GroupRow[] = [];
+          let regionNext: GroupRow[] = [];
+          for (const rr of repsToUse) {
+            familyNext = mergeGroupRows(familyNext, filterGroupRowsByRepPrefix(family, rr, selectedRepCandidates));
+            customerNext = mergeGroupRows(customerNext, filterGroupRowsByRepPrefix(customer, rr, selectedRepCandidates));
+            regionNext = mergeGroupRows(regionNext, filterGroupRowsByRepPrefix(region, rr, selectedRepCandidates));
+          }
+          family = familyNext.length ? familyNext : family;
+          customer = customerNext.length ? customerNext : customer;
+          region = regionNext.length ? regionNext : region;
         }
-        family = familyNext;
-        customer = customerNext;
-        region = regionNext;
       }
 
       if (selectedRegionCandidates.length > 0) {
@@ -467,23 +469,25 @@ export async function GET(request: Request) {
 
     if (isSalesAdmin && selectedRepCandidates.length > 0) {
       const repRows = filterRowsDirect(rep, selectedRepCandidates);
-      const repsToUse = repRows.length ? repRows : [];
-      const sum = sumMetricsFromRows(repsToUse);
-      summaryPeso = sum.peso;
-      summaryValor = sum.valor;
-      rep = repsToUse;
+      if (repRows.length > 0 && repRows.length < rep.length) {
+        const repsToUse = repRows;
+        const sum = sumMetricsFromRows(repsToUse);
+        summaryPeso = sum.peso;
+        summaryValor = sum.valor;
+        rep = repsToUse;
 
-      let familyNext: GroupRow[] = [];
-      let customerNext: GroupRow[] = [];
-      let regionNext: GroupRow[] = [];
-      for (const rr of repsToUse) {
-        familyNext = mergeGroupRows(familyNext, filterGroupRowsByRepPrefix(family, rr, selectedRepCandidates));
-        customerNext = mergeGroupRows(customerNext, filterGroupRowsByRepPrefix(customer, rr, selectedRepCandidates));
-        regionNext = mergeGroupRows(regionNext, filterGroupRowsByRepPrefix(region, rr, selectedRepCandidates));
+        let familyNext: GroupRow[] = [];
+        let customerNext: GroupRow[] = [];
+        let regionNext: GroupRow[] = [];
+        for (const rr of repsToUse) {
+          familyNext = mergeGroupRows(familyNext, filterGroupRowsByRepPrefix(family, rr, selectedRepCandidates));
+          customerNext = mergeGroupRows(customerNext, filterGroupRowsByRepPrefix(customer, rr, selectedRepCandidates));
+          regionNext = mergeGroupRows(regionNext, filterGroupRowsByRepPrefix(region, rr, selectedRepCandidates));
+        }
+        family = familyNext.length ? familyNext : family;
+        customer = customerNext.length ? customerNext : customer;
+        region = regionNext.length ? regionNext : region;
       }
-      family = familyNext;
-      customer = customerNext;
-      region = regionNext;
     }
 
     if (selectedRegionCandidates.length > 0) {
