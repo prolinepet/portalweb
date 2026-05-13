@@ -130,6 +130,67 @@ function normalizeKey(s: unknown): string {
     .toLowerCase();
 }
 
+function sumMetricsFromRows(rows: GroupRow[]): { peso: Metric; valor: Metric } {
+  let pm = 0;
+  let pc = 0;
+  let pd = 0;
+  let pe = 0;
+  let pAp = 0;
+  let pG = 0;
+  let pPr = 0;
+
+  let vm = 0;
+  let vc = 0;
+  let vd = 0;
+  let ve = 0;
+  let vAp = 0;
+  let vG = 0;
+  let vPr = 0;
+
+  for (const r of rows) {
+    pm += r.peso.metaPrevista;
+    pc += r.peso.carregado;
+    pd += r.peso.devolucao;
+    pe += r.peso.emCarteira;
+    pAp += r.peso.atingProj;
+    pG += r.peso.ganhoPct;
+    pPr += r.peso.premioRs;
+
+    vm += r.valor.metaPrevista;
+    vc += r.valor.carregado;
+    vd += r.valor.devolucao;
+    ve += r.valor.emCarteira;
+    vAp += r.valor.atingProj;
+    vG += r.valor.ganhoPct;
+    vPr += r.valor.premioRs;
+  }
+
+  return {
+    peso: computeMetric(pm, pc, pd, pe, pAp, pG, pPr),
+    valor: computeMetric(vm, vc, vd, ve, vAp, vG, vPr),
+  };
+}
+
+function filterRowsDirect(rows: GroupRow[], candidates: string[]): GroupRow[] {
+  if (!rows.length) return [];
+  const cand = candidates.map(normalizeKey).filter(Boolean);
+  if (!cand.length) return rows;
+
+  const exact: GroupRow[] = [];
+  for (const r of rows) {
+    const k = normalizeKey(r.key);
+    const l = normalizeKey(r.label);
+    if (cand.some((c) => c === k || c === l)) exact.push(r);
+  }
+  if (exact.length) return exact;
+
+  return rows.filter((r) => {
+    const k = normalizeKey(r.key);
+    const l = normalizeKey(r.label);
+    return cand.some((c) => k.includes(c) || l.includes(c));
+  });
+}
+
 function pickRepRow(rows: GroupRow[], candidates: string[]): GroupRow | null {
   if (!rows.length) return null;
   const cand = candidates.map(normalizeKey).filter(Boolean);
@@ -226,6 +287,8 @@ export async function GET(request: Request) {
     const effectiveEntityId = entityIdParam ?? null;
     const monthOut = monthParam ? String(monthParam) : '';
     const monthsFilter = monthParam ? [monthParam] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    const selectedRepCandidates = url.searchParams.getAll('rep').map((s) => String(s || '').trim()).filter(Boolean);
+    const selectedRegionCandidates = url.searchParams.getAll('region').map((s) => String(s || '').trim()).filter(Boolean);
 
     if (effectiveEntityId) {
       const snaps = await prisma.salesDashboardSnapshot.findMany({
@@ -288,6 +351,47 @@ export async function GET(request: Request) {
         rep = repOnly;
         summaryPeso = nextSummaryPeso;
         summaryValor = nextSummaryValor;
+      }
+
+      if (isSalesAdmin && selectedRepCandidates.length > 0) {
+        const repRows = filterRowsDirect(rep, selectedRepCandidates);
+        const repsToUse = repRows.length ? repRows : [];
+        const sum = sumMetricsFromRows(repsToUse);
+        summaryPeso = sum.peso;
+        summaryValor = sum.valor;
+        rep = repsToUse;
+
+        let familyNext: GroupRow[] = [];
+        let customerNext: GroupRow[] = [];
+        let regionNext: GroupRow[] = [];
+        for (const rr of repsToUse) {
+          familyNext = mergeGroupRows(familyNext, filterGroupRowsByRepPrefix(family, rr, selectedRepCandidates));
+          customerNext = mergeGroupRows(customerNext, filterGroupRowsByRepPrefix(customer, rr, selectedRepCandidates));
+          regionNext = mergeGroupRows(regionNext, filterGroupRowsByRepPrefix(region, rr, selectedRepCandidates));
+        }
+        family = familyNext;
+        customer = customerNext;
+        region = regionNext;
+      }
+
+      if (selectedRegionCandidates.length > 0) {
+        const regionRows = filterRowsDirect(region, selectedRegionCandidates);
+        const sum = sumMetricsFromRows(regionRows);
+        summaryPeso = sum.peso;
+        summaryValor = sum.valor;
+        region = regionRows;
+
+        let repNext: GroupRow[] = [];
+        let familyNext: GroupRow[] = [];
+        let customerNext: GroupRow[] = [];
+        for (const rg of regionRows) {
+          repNext = mergeGroupRows(repNext, filterGroupRowsByRepPrefix(rep, rg, selectedRegionCandidates));
+          familyNext = mergeGroupRows(familyNext, filterGroupRowsByRepPrefix(family, rg, selectedRegionCandidates));
+          customerNext = mergeGroupRows(customerNext, filterGroupRowsByRepPrefix(customer, rg, selectedRegionCandidates));
+        }
+        rep = repNext.length ? repNext : rep;
+        family = familyNext.length ? familyNext : family;
+        customer = customerNext.length ? customerNext : customer;
       }
 
       return NextResponse.json({
@@ -359,6 +463,47 @@ export async function GET(request: Request) {
       rep = repOnly;
       summaryPeso = nextSummaryPeso;
       summaryValor = nextSummaryValor;
+    }
+
+    if (isSalesAdmin && selectedRepCandidates.length > 0) {
+      const repRows = filterRowsDirect(rep, selectedRepCandidates);
+      const repsToUse = repRows.length ? repRows : [];
+      const sum = sumMetricsFromRows(repsToUse);
+      summaryPeso = sum.peso;
+      summaryValor = sum.valor;
+      rep = repsToUse;
+
+      let familyNext: GroupRow[] = [];
+      let customerNext: GroupRow[] = [];
+      let regionNext: GroupRow[] = [];
+      for (const rr of repsToUse) {
+        familyNext = mergeGroupRows(familyNext, filterGroupRowsByRepPrefix(family, rr, selectedRepCandidates));
+        customerNext = mergeGroupRows(customerNext, filterGroupRowsByRepPrefix(customer, rr, selectedRepCandidates));
+        regionNext = mergeGroupRows(regionNext, filterGroupRowsByRepPrefix(region, rr, selectedRepCandidates));
+      }
+      family = familyNext;
+      customer = customerNext;
+      region = regionNext;
+    }
+
+    if (selectedRegionCandidates.length > 0) {
+      const regionRows = filterRowsDirect(region, selectedRegionCandidates);
+      const sum = sumMetricsFromRows(regionRows);
+      summaryPeso = sum.peso;
+      summaryValor = sum.valor;
+      region = regionRows;
+
+      let repNext: GroupRow[] = [];
+      let familyNext: GroupRow[] = [];
+      let customerNext: GroupRow[] = [];
+      for (const rg of regionRows) {
+        repNext = mergeGroupRows(repNext, filterGroupRowsByRepPrefix(rep, rg, selectedRegionCandidates));
+        familyNext = mergeGroupRows(familyNext, filterGroupRowsByRepPrefix(family, rg, selectedRegionCandidates));
+        customerNext = mergeGroupRows(customerNext, filterGroupRowsByRepPrefix(customer, rg, selectedRegionCandidates));
+      }
+      rep = repNext.length ? repNext : rep;
+      family = familyNext.length ? familyNext : family;
+      customer = customerNext.length ? customerNext : customer;
     }
 
     return NextResponse.json({

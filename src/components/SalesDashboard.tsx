@@ -290,6 +290,12 @@ export default function SalesDashboard() {
         params.set('year', String(year));
         if (month) params.set('month', month);
         if (entityId) params.set('entityId', entityId);
+        for (const r of selectedReps) params.append('rep', String(r));
+        for (const r of selectedReps) {
+          const opt = repOptions.find((o) => String(o.value) === String(r));
+          if (opt?.label) params.append('rep', String(opt.label));
+        }
+        for (const rg of selectedRegions) params.append('region', String(rg));
 
         const res = await fetch(`/api/sales/dashboard/vendas?${params.toString()}`, { cache: 'no-store' });
         if (!res.ok) {
@@ -307,7 +313,7 @@ export default function SalesDashboard() {
     };
 
     load();
-  }, [year, month, entityId]);
+  }, [year, month, entityId, selectedReps, selectedRegions, repOptions]);
 
   const summary =
     data?.summary ?? {
@@ -318,13 +324,8 @@ export default function SalesDashboard() {
   const currentRows = useMemo(() => {
     const g = data?.groups;
     if (!g) return [];
-    const rows = g[activeGroupTab] || [];
-    if (activeGroupTab === 'REGION' && selectedRegions.length > 0) {
-      const set = new Set(selectedRegions);
-      return rows.filter((r) => set.has(String(r.key || '').toUpperCase()));
-    }
-    return rows;
-  }, [data, activeGroupTab, selectedRegions]);
+    return g[activeGroupTab] || [];
+  }, [data, activeGroupTab]);
 
   return (
     <div className="space-y-3 animate-in fade-in duration-500">
