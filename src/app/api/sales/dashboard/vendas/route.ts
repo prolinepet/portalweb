@@ -28,11 +28,22 @@ type Metric = {
   realizadoLiq: number;
   atingimento: number;
   emCarteira: number;
+  atingProj: number;
+  ganhoPct: number;
+  premioRs: number;
 };
 
 type GroupRow = { key: string; label: string; peso: Metric; valor: Metric };
 
-function computeMetric(metaPrevista: number, carregado: number, devolucao: number, emCarteira: number): Metric {
+function computeMetric(
+  metaPrevista: number,
+  carregado: number,
+  devolucao: number,
+  emCarteira: number,
+  atingProj?: number,
+  ganhoPct?: number,
+  premioRs?: number
+): Metric {
   const realizadoLiq = carregado - devolucao;
   const atingimento = metaPrevista > 0 ? (realizadoLiq / metaPrevista) * 100 : 0;
   return {
@@ -42,6 +53,9 @@ function computeMetric(metaPrevista: number, carregado: number, devolucao: numbe
     realizadoLiq,
     atingimento,
     emCarteira,
+    atingProj: atingProj ?? 0,
+    ganhoPct: ganhoPct ?? 0,
+    premioRs: premioRs ?? 0,
   };
 }
 
@@ -50,7 +64,10 @@ function readMetric(raw: any): Metric {
   const carregado = num(raw?.carregado);
   const devolucao = num(raw?.devolucao);
   const emCarteira = num(raw?.emCarteira);
-  return computeMetric(metaPrevista, carregado, devolucao, emCarteira);
+  const atingProj = num(raw?.atingProj);
+  const ganhoPct = num(raw?.ganhoPct);
+  const premioRs = num(raw?.premioRs);
+  return computeMetric(metaPrevista, carregado, devolucao, emCarteira, atingProj, ganhoPct, premioRs);
 }
 
 function readGroupRows(arr: any): GroupRow[] {
@@ -85,13 +102,19 @@ function mergeGroupRows(a: GroupRow[], b: GroupRow[]): GroupRow[] {
       cur.peso.metaPrevista + row.peso.metaPrevista,
       cur.peso.carregado + row.peso.carregado,
       cur.peso.devolucao + row.peso.devolucao,
-      cur.peso.emCarteira + row.peso.emCarteira
+      cur.peso.emCarteira + row.peso.emCarteira,
+      cur.peso.atingProj + row.peso.atingProj,
+      cur.peso.ganhoPct + row.peso.ganhoPct,
+      cur.peso.premioRs + row.peso.premioRs
     );
     cur.valor = computeMetric(
       cur.valor.metaPrevista + row.valor.metaPrevista,
       cur.valor.carregado + row.valor.carregado,
       cur.valor.devolucao + row.valor.devolucao,
-      cur.valor.emCarteira + row.valor.emCarteira
+      cur.valor.emCarteira + row.valor.emCarteira,
+      cur.valor.atingProj + row.valor.atingProj,
+      cur.valor.ganhoPct + row.valor.ganhoPct,
+      cur.valor.premioRs + row.valor.premioRs
     );
     cur.label = cur.label || row.label;
   };
@@ -226,13 +249,19 @@ export async function GET(request: Request) {
           summaryPeso.metaPrevista + sp.metaPrevista,
           summaryPeso.carregado + sp.carregado,
           summaryPeso.devolucao + sp.devolucao,
-          summaryPeso.emCarteira + sp.emCarteira
+          summaryPeso.emCarteira + sp.emCarteira,
+          summaryPeso.atingProj + sp.atingProj,
+          summaryPeso.ganhoPct + sp.ganhoPct,
+          summaryPeso.premioRs + sp.premioRs
         );
         summaryValor = computeMetric(
           summaryValor.metaPrevista + sv.metaPrevista,
           summaryValor.carregado + sv.carregado,
           summaryValor.devolucao + sv.devolucao,
-          summaryValor.emCarteira + sv.emCarteira
+          summaryValor.emCarteira + sv.emCarteira,
+          summaryValor.atingProj + sv.atingProj,
+          summaryValor.ganhoPct + sv.ganhoPct,
+          summaryValor.premioRs + sv.premioRs
         );
 
         const g = payload?.groups || {};
@@ -291,13 +320,19 @@ export async function GET(request: Request) {
         summaryPeso.metaPrevista + sp.metaPrevista,
         summaryPeso.carregado + sp.carregado,
         summaryPeso.devolucao + sp.devolucao,
-        summaryPeso.emCarteira + sp.emCarteira
+        summaryPeso.emCarteira + sp.emCarteira,
+        summaryPeso.atingProj + sp.atingProj,
+        summaryPeso.ganhoPct + sp.ganhoPct,
+        summaryPeso.premioRs + sp.premioRs
       );
       summaryValor = computeMetric(
         summaryValor.metaPrevista + sv.metaPrevista,
         summaryValor.carregado + sv.carregado,
         summaryValor.devolucao + sv.devolucao,
-        summaryValor.emCarteira + sv.emCarteira
+        summaryValor.emCarteira + sv.emCarteira,
+        summaryValor.atingProj + sv.atingProj,
+        summaryValor.ganhoPct + sv.ganhoPct,
+        summaryValor.premioRs + sv.premioRs
       );
 
       const g = payload?.groups || {};

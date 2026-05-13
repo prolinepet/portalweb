@@ -18,6 +18,9 @@ type Metric = {
   realizadoLiq: number;
   atingimento: number;
   emCarteira: number;
+  atingProj?: number;
+  ganhoPct?: number;
+  premioRs?: number;
 };
 
 type GroupRow = { key: string; label: string; peso: Metric; valor: Metric };
@@ -36,12 +39,14 @@ function GroupGrid({
   fmtInt,
   fmtDec,
   metricType,
+  showRepCols = false,
 }: {
   firstColLabel: string;
   rows: GroupRow[];
   fmtInt: (v: number) => string;
   fmtDec: (v: number) => string;
   metricType: 'peso' | 'valor';
+  showRepCols?: boolean;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -54,13 +59,20 @@ function GroupGrid({
             <th className="p-1 border-b border-b-gray-200 border-r border-r-gray-100 font-medium text-right">Devolução</th>
             <th className="p-1 border-b border-b-gray-200 border-r border-r-gray-100 font-medium text-right">Realizado Líq</th>
             <th className="p-1 border-b border-b-gray-200 border-r border-r-gray-100 font-medium text-right">(%)Atingimento</th>
-            <th className="p-1 border-b font-medium text-right">Em Carteira</th>
+            <th className="p-1 border-b border-b-gray-200 border-r border-r-gray-100 font-medium text-right">Em Carteira</th>
+            <th className={`p-1 border-b border-b-gray-200 font-medium text-right ${showRepCols ? 'border-r border-r-gray-100' : ''}`}>(%)Ating Proj</th>
+            {showRepCols && (
+              <>
+                <th className="p-1 border-b border-b-gray-200 border-r border-r-gray-100 font-medium text-right">(%)Ganho</th>
+                <th className="p-1 border-b font-medium text-right">Prêmio R$</th>
+              </>
+            )}
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td className="p-2 text-center text-gray-500" colSpan={7}>
+              <td className="p-2 text-center text-gray-500" colSpan={showRepCols ? 10 : 8}>
                 Sem dados
               </td>
             </tr>
@@ -75,7 +87,14 @@ function GroupGrid({
                   <td className="p-1 text-right border-r border-r-gray-100">{fmtInt(m.devolucao)}</td>
                   <td className="p-1 text-right border-r border-r-gray-100">{fmtInt(m.realizadoLiq)}</td>
                   <td className="p-1 text-right border-r border-r-gray-100">{fmtDec(m.atingimento)}</td>
-                  <td className="p-1 text-right">{fmtInt(m.emCarteira)}</td>
+                  <td className={`p-1 text-right ${showRepCols ? 'border-r border-r-gray-100' : 'border-r border-r-gray-100'}`}>{fmtInt(m.emCarteira)}</td>
+                  <td className={`p-1 text-right ${showRepCols ? 'border-r border-r-gray-100' : ''}`}>{fmtDec(m.atingProj ?? 0)}</td>
+                  {showRepCols && (
+                    <>
+                      <td className="p-1 text-right border-r border-r-gray-100">{fmtDec(m.ganhoPct ?? 0)}</td>
+                      <td className="p-1 text-right">{fmtDec(m.premioRs ?? 0)}</td>
+                    </>
+                  )}
                 </tr>
               );
             })
@@ -390,6 +409,7 @@ export default function SalesDashboard() {
                 <th className="p-1 border-b font-medium text-right">Realizado Líq</th>
                 <th className="p-1 border-b font-medium text-right">(%)Atingimento</th>
                 <th className="p-1 border-b font-medium text-right">Em Carteira</th>
+                <th className="p-1 border-b font-medium text-right">(%)Ating Proj</th>
               </tr>
             </thead>
             <tbody>
@@ -401,6 +421,7 @@ export default function SalesDashboard() {
                 <td className="p-1 border-b text-right">{fmtInt(summary.peso.realizadoLiq)}</td>
                 <td className="p-1 border-b text-right">{fmtDec(summary.peso.atingimento)}</td>
                 <td className="p-1 border-b text-right">{fmtInt(summary.peso.emCarteira)}</td>
+                <td className="p-1 border-b text-right">{fmtDec(summary.peso.atingProj ?? 0)}</td>
               </tr>
               <tr>
                 <td className="p-1">Valor</td>
@@ -410,6 +431,7 @@ export default function SalesDashboard() {
                 <td className="p-1 text-right">{fmtInt(summary.valor.realizadoLiq)}</td>
                 <td className="p-1 text-right">{fmtDec(summary.valor.atingimento)}</td>
                 <td className="p-1 text-right">{fmtInt(summary.valor.emCarteira)}</td>
+                <td className="p-1 text-right">{fmtDec(summary.valor.atingProj ?? 0)}</td>
               </tr>
             </tbody>
           </table>
@@ -456,7 +478,7 @@ export default function SalesDashboard() {
               <GroupGrid firstColLabel="Descrição Cliente" rows={currentRows} fmtInt={fmtInt} fmtDec={fmtDec} metricType="valor" />
             )}
             {activeGroupTab === 'REP' && (
-              <GroupGrid firstColLabel="Descrição Representante" rows={currentRows} fmtInt={fmtInt} fmtDec={fmtDec} metricType="valor" />
+              <GroupGrid firstColLabel="Descrição Representante" rows={currentRows} fmtInt={fmtInt} fmtDec={fmtDec} metricType="valor" showRepCols={true} />
             )}
             {activeGroupTab === 'REGION' && (
               <GroupGrid firstColLabel="Descrição Região" rows={currentRows} fmtInt={fmtInt} fmtDec={fmtDec} metricType="valor" />
