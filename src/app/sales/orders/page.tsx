@@ -28,21 +28,39 @@ export default function SalesOrdersPage() {
   const [selected, setSelected] = useState<SalesOrder | null>(null);
   const [integratingId, setIntegratingId] = useState<number | null>(null);
 
+  const loadOrders = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/sales/orders', { cache: 'no-store' });
+      const data = await res.json();
+      setOrders(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setError(String(err?.message || err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch('/api/sales/orders');
-        const data = await res.json();
-        setOrders(Array.isArray(data) ? data : []);
-      } catch (err: any) {
-        setError(String(err?.message || err));
-      } finally {
-        setLoading(false);
-      }
+    loadOrders();
+  }, []);
+
+  useEffect(() => {
+    const handleFocus = () => loadOrders();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') loadOrders();
     };
-    load();
+    const handlePageShow = () => loadOrders();
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pageshow', handlePageShow);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
   }, []);
 
   const statusColor = (s: string) => {
@@ -248,11 +266,7 @@ export default function SalesOrdersPage() {
                             alert('Envio realizado. Verifique o status atual.');
                         }
 
-                        const r = await fetch('/api/sales/orders');
-                        if (r.ok) {
-                            const list = await r.json();
-                            setOrders(Array.isArray(list) ? list : []);
-                        }
+                        await loadOrders();
                       } catch (e: any) { 
                           alert(e?.message || String(e)); 
                       } finally {
@@ -346,12 +360,7 @@ export default function SalesOrdersPage() {
                                 alert('Envio realizado. Verifique o status atual.');
                             }
 
-                            // Reload
-                            const r = await fetch('/api/sales/orders');
-                            if (r.ok) {
-                                const list = await r.json();
-                                setOrders(Array.isArray(list) ? list : []);
-                            }
+                            await loadOrders();
                           } catch (e: any) { 
                               alert(e?.message || String(e)); 
                           } finally {
