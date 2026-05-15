@@ -4,6 +4,8 @@ import { authOptions } from '../../../../../../lib/auth';
 import { prisma } from '../../../../../../lib/prisma';
 import { isProgramAllowed } from '../../../../../../lib/isProgramAllowed';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(_: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
