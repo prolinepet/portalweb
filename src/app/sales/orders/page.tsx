@@ -27,6 +27,28 @@ export default function SalesOrdersPage() {
   const [dateEnd, setDateEnd] = useState<string>("");
   const [selected, setSelected] = useState<SalesOrder | null>(null);
   const [integratingId, setIntegratingId] = useState<number | null>(null);
+  const [erpModalOpen, setErpModalOpen] = useState(false);
+  const [erpModalTitle, setErpModalTitle] = useState('');
+  const [erpModalMessages, setErpModalMessages] = useState<string[]>([]);
+
+  const openErpModal = (title: string, messages: string[]) => {
+    setErpModalTitle(String(title || 'Retorno ERP'));
+    setErpModalMessages(Array.isArray(messages) ? messages.map((m) => String(m)).filter((m) => m.trim().length > 0) : []);
+    setErpModalOpen(true);
+  };
+
+  const extractErpMessages = (data: any): string[] => {
+    if (!data) return [];
+    if (Array.isArray(data?.messages)) return data.messages.map((m: any) => String(m));
+    const rows = Array.isArray(data?.RowErrors) ? data.RowErrors : [];
+    const out: string[] = [];
+    for (const it of rows) {
+      const sub = String(it?.ErrorSubType || '').trim();
+      const desc = String(it?.ErrorDescription || '').trim();
+      if (sub || desc) out.push(`${sub || 'ERRO'}: ${desc || '-'}`);
+    }
+    return out;
+  };
 
   const loadOrders = async () => {
     setLoading(true);
@@ -253,22 +275,27 @@ export default function SalesOrdersPage() {
                             method: 'POST', headers: { 'Content-Type': 'application/json' }
                         });
                         if (!res.ok) {
-                            const err = await res.json();
-                            throw new Error(err.error || 'Falha ao enviar para ERP');
+                            const err = await res.json().catch(() => ({} as any));
+                            const msgs = extractErpMessages(err);
+                            openErpModal(err?.error ? `Erro ao enviar para ERP: ${String(err.error)}` : 'Erro ao enviar para ERP', msgs.length ? msgs : ['Verifique o histórico de situação.']);
+                            return;
                         }
                         const data = await res.json();
                         
                         if (data.newStatus === 'Erro na integração') {
-                            alert('Houve erros na integração. Verifique o histórico de situação.');
+                            const msgs = extractErpMessages(data);
+                            openErpModal('Erros na integração', msgs.length ? msgs : ['Verifique o histórico de situação.']);
                         } else if (data.newStatus === 'Integrado') {
-                            alert('Pedido integrado com sucesso!');
+                            const msgs = extractErpMessages(data);
+                            openErpModal('Pedido integrado com sucesso', msgs.length ? msgs : ['Envio realizado com sucesso.']);
                         } else {
-                            alert('Envio realizado. Verifique o status atual.');
+                            const msgs = extractErpMessages(data);
+                            openErpModal('Envio realizado', msgs.length ? msgs : ['Envio realizado. Verifique o status atual.']);
                         }
 
                         await loadOrders();
                       } catch (e: any) { 
-                          alert(e?.message || String(e)); 
+                          openErpModal('Erro ao enviar para ERP', [String(e?.message || e)]); 
                       } finally {
                           setIntegratingId(null);
                       }
@@ -347,22 +374,27 @@ export default function SalesOrdersPage() {
                                 method: 'POST', headers: { 'Content-Type': 'application/json' }
                             });
                             if (!res.ok) {
-                                const err = await res.json();
-                                throw new Error(err.error || 'Falha ao enviar para ERP');
+                                const err = await res.json().catch(() => ({} as any));
+                                const msgs = extractErpMessages(err);
+                                openErpModal(err?.error ? `Erro ao enviar para ERP: ${String(err.error)}` : 'Erro ao enviar para ERP', msgs.length ? msgs : ['Verifique o histórico de situação.']);
+                                return;
                             }
                             const data = await res.json();
                             
                             if (data.newStatus === 'Erro na integração') {
-                                alert('Houve erros na integração. Verifique o histórico de situação.');
+                                const msgs = extractErpMessages(data);
+                                openErpModal('Erros na integração', msgs.length ? msgs : ['Verifique o histórico de situação.']);
                             } else if (data.newStatus === 'Integrado') {
-                                alert('Pedido integrado com sucesso!');
+                                const msgs = extractErpMessages(data);
+                                openErpModal('Pedido integrado com sucesso', msgs.length ? msgs : ['Envio realizado com sucesso.']);
                             } else {
-                                alert('Envio realizado. Verifique o status atual.');
+                                const msgs = extractErpMessages(data);
+                                openErpModal('Envio realizado', msgs.length ? msgs : ['Envio realizado. Verifique o status atual.']);
                             }
 
                             await loadOrders();
                           } catch (e: any) { 
-                              alert(e?.message || String(e)); 
+                              openErpModal('Erro ao enviar para ERP', [String(e?.message || e)]); 
                           } finally {
                               setIntegratingId(null);
                           }
@@ -432,6 +464,38 @@ export default function SalesOrdersPage() {
             </div>
             <div className="px-4 py-3 border-t text-right">
               <button className="px-3 py-1.5 border rounded hover:bg-gray-100" onClick={() => setSelected(null)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {erpModalOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50"
+          onClick={() => setErpModalOpen(false)}
+        >
+          <div className="bg-white w-full max-w-2xl rounded shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b flex items-center">
+              <div className="font-semibold">{erpModalTitle || 'Retorno ERP'}</div>
+              <button className="ml-auto text-gray-500 hover:text-black" onClick={() => setErpModalOpen(false)} aria-label="Fechar">
+                ×
+              </button>
+            </div>
+            <div className="p-4">
+              {erpModalMessages.length > 0 ? (
+                <ul className="list-disc pl-5 space-y-1 text-sm text-gray-800">
+                  {erpModalMessages.map((m, idx) => (
+                    <li key={idx}>{m}</li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-sm text-gray-700">Sem mensagens.</div>
+              )}
+            </div>
+            <div className="px-4 py-3 border-t text-right">
+              <button className="px-3 py-1.5 border rounded hover:bg-gray-100" onClick={() => setErpModalOpen(false)}>
+                Fechar
+              </button>
             </div>
           </div>
         </div>

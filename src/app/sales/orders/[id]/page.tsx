@@ -480,14 +480,13 @@ export default function SalesOrderMaintenancePage() {
       }
       const data = await res.json();
       console.log('Simulation result:', data);
+      const msgs = extractErpMessages(data);
       
       if (data && data.vltotcomimp !== undefined) {
          await refreshOrder();
-         const msgs = extractErpMessages(data);
          openErpModal('Simulação realizada', msgs.length ? msgs : [`Total com Impostos: ${Number(data.vltotcomimp).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`]);
-      } else if (data && data.RowErrors && Array.isArray(data.RowErrors)) {
-         const msgs = extractErpMessages(data);
-         openErpModal('Erros retornados pelo ERP', msgs.length ? msgs : ['Erro desconhecido']);
+      } else if (msgs.length > 0) {
+         openErpModal('Erros retornados pelo ERP', msgs);
       } else {
          openErpModal('Retorno inesperado da simulação', ['Campo vltotcomimp não encontrado. Verifique o console (F12).']);
       }
