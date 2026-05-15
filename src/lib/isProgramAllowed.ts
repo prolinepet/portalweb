@@ -26,11 +26,21 @@ export async function isProgramAllowed(userId: number, entityId: number | null, 
   if (!uem?.id || !Boolean(uem.allowed)) return false;
   if (!em?.id) return false;
 
-  const emp = await prisma.entityModuleProgram.findUnique({
-    where: { entityModuleId_programId: { entityModuleId: em.id, programId: program.id } },
-    select: { allowed: true },
-  });
+  const [uemp, emp] = await Promise.all([
+    prisma.userEntityModuleProgram.findUnique({
+      where: { userEntityModuleId_programId: { userEntityModuleId: uem.id, programId: program.id } },
+      select: { allowed: true },
+    }),
+    prisma.entityModuleProgram.findUnique({
+      where: { entityModuleId_programId: { entityModuleId: em.id, programId: program.id } },
+      select: { allowed: true },
+    }),
+  ]);
 
-  return Boolean(emp?.allowed);
+  const userAllowed = Boolean(uemp?.allowed);
+  if (!userAllowed) return false;
+
+  const entityAllowed = emp ? Boolean(emp.allowed) : true;
+  return entityAllowed;
 }
 
