@@ -6,7 +6,7 @@ import { isProgramAllowed } from '../../../../../../lib/isProgramAllowed';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(_: Request, props: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
     const session = await getServerSession(authOptions);
@@ -14,7 +14,76 @@ export async function GET(_: Request, props: { params: Promise<{ id: string }> }
     const entityId = (session as any)?.entityId ?? (session as any)?.activeEntityId ?? null;
     if (!uid) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     const allowed = await isProgramAllowed(uid, entityId, 'ADMIN_MODULES');
-    if (!allowed) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+    if (!allowed) {
+      const url = new URL(request.url);
+      const debug = ['1', 'true', 'yes'].includes(String(url.searchParams.get('debug') || '').toLowerCase());
+      if (!debug) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+
+      const uidNum = Number(uid);
+      const eidNum = entityId == null ? null : Number(entityId);
+      const program = await prisma.program.findUnique({ where: { code: 'ADMIN_MODULES' }, select: { id: true, moduleId: true, code: true } }).catch(() => null);
+      const moduleId = program?.moduleId ? Number(program.moduleId) : null;
+
+      const userEntity = eidNum
+        ? await prisma.userEntity.findUnique({
+            where: { userId_entityId: { userId: uidNum, entityId: eidNum } },
+            select: { id: true },
+          }).catch(() => null)
+        : null;
+
+      const uem = userEntity?.id && moduleId
+        ? await prisma.userEntityModule
+            .findUnique({
+              where: { userEntityId_moduleId: { userEntityId: userEntity.id, moduleId } },
+              select: { id: true, allowed: true },
+            })
+            .catch(() => null)
+        : null;
+
+      const em = eidNum && moduleId
+        ? await prisma.entityModule
+            .findUnique({
+              where: { entityId_moduleId: { entityId: eidNum, moduleId } },
+              select: { id: true },
+            })
+            .catch(() => null)
+        : null;
+
+      const uemp = uem?.id && program?.id
+        ? await prisma.userEntityModuleProgram
+            .findUnique({
+              where: { userEntityModuleId_programId: { userEntityModuleId: uem.id, programId: program.id } },
+              select: { id: true, allowed: true },
+            })
+            .catch(() => null)
+        : null;
+
+      const emp = em?.id && program?.id
+        ? await prisma.entityModuleProgram
+            .findUnique({
+              where: { entityModuleId_programId: { entityModuleId: em.id, programId: program.id } },
+              select: { id: true, allowed: true },
+            })
+            .catch(() => null)
+        : null;
+
+      return NextResponse.json(
+        {
+          error: 'Sem permissão',
+          debug: {
+            uid: uidNum,
+            sessionEntityId: eidNum,
+            program,
+            userEntityId: userEntity?.id ?? null,
+            userEntityModule: uem,
+            userEntityModuleProgram: uemp,
+            entityModule: em,
+            entityModuleProgram: emp,
+          },
+        },
+        { status: 403 },
+      );
+    }
     const mid = Number(params.id);
     if (!mid) return NextResponse.json({ error: 'Módulo inválido' }, { status: 400 });
     const programs = await prisma.program.findMany({
