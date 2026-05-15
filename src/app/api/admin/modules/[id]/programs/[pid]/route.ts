@@ -4,6 +4,8 @@ import { authOptions } from '../../../../../../../lib/auth';
 import { prisma } from '../../../../../../../lib/prisma';
 import { isProgramAllowed } from '../../../../../../../lib/isProgramAllowed';
 
+export const dynamic = 'force-dynamic';
+
 // DELETE /api/admin/modules/:id/programs/:pid
 // Remove o programa indicado e todos os vínculos com entidades e usuários
 export async function DELETE(_req: Request, props: { params: Promise<{ id: string; pid: string }> }) {
