@@ -8,6 +8,37 @@ function formatDiscountPct(v: any): string {
   return Number.isFinite(n) && n > 0 ? n.toFixed(2) : '0';
 }
 
+function translateErrorSubType(v: any): string {
+  const s = String(v || '').trim().toUpperCase();
+  if (s === 'ERROR') return 'ERRO';
+  if (s === 'INFORMATION' || s === 'INFO') return 'INFORMAÇÃO';
+  if (s === 'WARNING' || s === 'WARN') return 'AVISO';
+  return s || 'ERRO';
+}
+
+function extractMessages(data: any): string[] {
+  const msgs: string[] = [];
+  const pushFrom = (obj: any) => {
+    if (!obj || typeof obj !== 'object') return;
+    if (obj.ErrorSubType || obj.ErrorDescription) {
+      const label = translateErrorSubType(obj.ErrorSubType);
+      const desc = String(obj.ErrorDescription || '').trim();
+      msgs.push(`${label}: ${desc || '-'}`);
+    }
+  };
+
+  if (Array.isArray(data)) {
+    for (const it of data) pushFrom(it);
+    return msgs;
+  }
+
+  pushFrom(data);
+  if (Array.isArray(data?.RowErrors)) {
+    for (const it of data.RowErrors) pushFrom(it);
+  }
+  return msgs;
+}
+
 export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
@@ -243,15 +274,27 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     }
 
     if (!response.ok) {
-        const text = await response.text();
-        console.error('External API Error:', text);
-        return NextResponse.json({ 
-            error: `Erro na API externa: ${response.status} - ${text}`,
-            payloadSent: payload
-        }, { status: response.status });
+      const text = await response.text();
+      let parsed: any = null;
+      try {
+        parsed = text ? JSON.parse(text) : null;
+      } catch {
+        parsed = null;
+      }
+      const messages = extractMessages(parsed);
+      console.error('External API Error:', text);
+      return NextResponse.json(
+        {
+          error: `Erro na API externa: ${response.status} - ${text}`,
+          messages,
+          payloadSent: payload,
+        },
+        { status: response.status }
+      );
     }
 
     const data = await response.json();
+    const messages = extractMessages(data);
 
     // Parse total with tax from response
     let totalWithTax = 0;
@@ -268,7 +311,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       }
     });
 
-    return NextResponse.json(data);
+    if (Array.isArray(data)) return NextResponse.json({ rows: data, messages });
+    if (data && typeof data === 'object') return NextResponse.json({ ...data, messages });
+    return NextResponse.json({ data, messages });
 
   } catch (err: any) {
     console.error('Simulate Tax Error:', err);
