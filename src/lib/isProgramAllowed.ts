@@ -1,35 +1,36 @@
 import { prisma } from './prisma';
 
 export async function isProgramAllowed(userId: number, entityId: number | null, programCode: string): Promise<boolean> {
-  if (!entityId) return false;
+  const eid = entityId == null ? null : Number(entityId);
+  if (!eid || !Number.isFinite(eid)) return false;
 
-  const program = await prisma.program.findUnique({
-    where: { code: programCode },
-    select: { id: true, moduleId: true },
-  });
-  if (!program) return false;
+  const [program, userEntity] = await Promise.all([
+    prisma.program.findUnique({ where: { code: programCode }, select: { id: true, moduleId: true } }),
+    prisma.userEntity.findUnique({ where: { userId_entityId: { userId, entityId: eid } }, select: { id: true } }),
+  ]);
 
-  const userEntity = await prisma.userEntity.findUnique({
-    where: { userId_entityId: { userId, entityId } },
-    select: { id: true },
-  });
-  if (!userEntity) return false;
+  if (!program?.id || !program.moduleId) return false;
+  if (!userEntity?.id) return false;
 
-  const userEntityModule = await prisma.userEntityModule.findUnique({
-    where: { userEntityId_moduleId: { userEntityId: userEntity.id, moduleId: program.moduleId } },
-    select: { id: true, allowed: true },
-  });
+  const [uem, em] = await Promise.all([
+    prisma.userEntityModule.findUnique({
+      where: { userEntityId_moduleId: { userEntityId: userEntity.id, moduleId: program.moduleId } },
+      select: { id: true, allowed: true },
+    }),
+    prisma.entityModule.findUnique({
+      where: { entityId_moduleId: { entityId: eid, moduleId: program.moduleId } },
+      select: { id: true },
+    }),
+  ]);
 
-  const moduleAllowed = userEntityModule ? Boolean(userEntityModule.allowed) : true;
-  if (!moduleAllowed) return false;
+  if (!uem?.id || !Boolean(uem.allowed)) return false;
+  if (!em?.id) return false;
 
-  if (!userEntityModule) return true;
-
-  const userProgram = await prisma.userEntityModuleProgram.findUnique({
-    where: { userEntityModuleId_programId: { userEntityModuleId: userEntityModule.id, programId: program.id } },
+  const emp = await prisma.entityModuleProgram.findUnique({
+    where: { entityModuleId_programId: { entityModuleId: em.id, programId: program.id } },
     select: { allowed: true },
   });
 
-  return userProgram ? Boolean(userProgram.allowed) : true;
+  return Boolean(emp?.allowed);
 }
 
