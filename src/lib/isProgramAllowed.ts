@@ -4,43 +4,67 @@ export async function isProgramAllowed(userId: number, entityId: number | null, 
   const eid = entityId == null ? null : Number(entityId);
   if (!eid || !Number.isFinite(eid)) return false;
 
-  const [program, userEntity] = await Promise.all([
-    prisma.program.findUnique({ where: { code: programCode }, select: { id: true, moduleId: true } }),
-    prisma.userEntity.findUnique({ where: { userId_entityId: { userId, entityId: eid } }, select: { id: true } }),
-  ]);
-
+  const program = await prisma.program.findUnique({ where: { code: programCode }, select: { id: true, moduleId: true } });
   if (!program?.id || !program.moduleId) return false;
-  if (!userEntity?.id) return false;
 
-  const [uem, em] = await Promise.all([
-    prisma.userEntityModule.findUnique({
-      where: { userEntityId_moduleId: { userEntityId: userEntity.id, moduleId: program.moduleId } },
-      select: { id: true, allowed: true },
-    }),
-    prisma.entityModule.findUnique({
-      where: { entityId_moduleId: { entityId: eid, moduleId: program.moduleId } },
-      select: { id: true },
-    }),
-  ]);
+  const moduleId = Number(program.moduleId);
 
-  if (!uem?.id || !Boolean(uem.allowed)) return false;
-  if (!em?.id) return false;
+  const uemRows = await prisma
+    .$queryRawUnsafe<any[]>(
+      `SELECT uem.id as id
+       FROM userentitymodule uem
+       JOIN userentity ue ON ue.id = uem.userEntityId
+       WHERE ue.userId = ? AND ue.entityId = ? AND uem.moduleId = ? AND uem.allowed = 1 AND uem.id IS NOT NULL
+       ORDER BY uem.id DESC
+       LIMIT 1`,
+      Number(userId),
+      eid,
+      moduleId,
+    )
+    .catch(() => []);
+  const userEntityModuleId = uemRows?.[0]?.id ? Number(uemRows[0].id) : null;
+  if (!userEntityModuleId || !Number.isFinite(userEntityModuleId)) return false;
 
-  const [uemp, emp] = await Promise.all([
-    prisma.userEntityModuleProgram.findUnique({
-      where: { userEntityModuleId_programId: { userEntityModuleId: uem.id, programId: program.id } },
-      select: { allowed: true },
-    }),
-    prisma.entityModuleProgram.findUnique({
-      where: { entityModuleId_programId: { entityModuleId: em.id, programId: program.id } },
-      select: { allowed: true },
-    }),
-  ]);
+  const uempRows = await prisma
+    .$queryRawUnsafe<any[]>(
+      `SELECT id
+       FROM userentitymoduleprogram
+       WHERE userEntityModuleId = ? AND programId = ? AND allowed = 1 AND id IS NOT NULL
+       ORDER BY id DESC
+       LIMIT 1`,
+      Math.trunc(userEntityModuleId),
+      Math.trunc(Number(program.id)),
+    )
+    .catch(() => []);
+  if (!uempRows?.[0]?.id) return false;
 
-  const userAllowed = Boolean(uemp?.allowed);
-  if (!userAllowed) return false;
+  const emRows = await prisma
+    .$queryRawUnsafe<any[]>(
+      `SELECT id
+       FROM entitymodule
+       WHERE entityId = ? AND moduleId = ? AND id IS NOT NULL
+       ORDER BY id DESC
+       LIMIT 1`,
+      eid,
+      moduleId,
+    )
+    .catch(() => []);
+  const entityModuleId = emRows?.[0]?.id ? Number(emRows[0].id) : null;
+  if (!entityModuleId || !Number.isFinite(entityModuleId)) return false;
 
-  const entityAllowed = emp ? Boolean(emp.allowed) : true;
-  return entityAllowed;
+  const empRows = await prisma
+    .$queryRawUnsafe<any[]>(
+      `SELECT allowed
+       FROM entitymoduleprogram
+       WHERE entityModuleId = ? AND programId = ? AND id IS NOT NULL
+       ORDER BY id DESC
+       LIMIT 1`,
+      Math.trunc(entityModuleId),
+      Math.trunc(Number(program.id)),
+    )
+    .catch(() => []);
+
+  if (!empRows || empRows.length === 0) return true;
+  return Boolean(empRows?.[0]?.allowed);
 }
 
