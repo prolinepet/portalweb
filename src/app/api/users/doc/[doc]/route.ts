@@ -26,7 +26,7 @@ export async function GET(_: Request, props: { params: Promise<{ doc: string }> 
     if (!doc) return NextResponse.json({ error: 'doc inválido' }, { status: 400 });
     const user = await prisma.user.findUnique({
       where: { doc },
-      select: { id: true, name: true, email: true, doc: true, salesRepAdmin: true, createdAt: true, updatedAt: true },
+      select: { id: true, name: true, abbrevName: true, email: true, doc: true, salesRepAdmin: true, createdAt: true, updatedAt: true },
     });
     if (!user) return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     return NextResponse.json(user);
@@ -44,6 +44,10 @@ export async function PATCH(request: Request, props: { params: Promise<{ doc: st
     const body = await request.json().catch(() => ({} as any));
     const data: any = {};
     if (body.name !== undefined) data.name = String(body.name);
+    if (body.abbrevName !== undefined) {
+      const raw = body.abbrevName == null ? null : String(body.abbrevName);
+      data.abbrevName = raw == null ? null : String(raw).trim().slice(0, 20) || null;
+    }
     if (body.email !== undefined) {
       const emailRaw = body.email == null ? '' : String(body.email);
       const email = emailRaw.trim();
@@ -67,7 +71,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ doc: st
       const updated = await prisma.user.update({
         where: { doc },
         data,
-        select: { id: true, name: true, email: true, doc: true, salesRepAdmin: true, createdAt: true, updatedAt: true },
+        select: { id: true, name: true, abbrevName: true, email: true, doc: true, salesRepAdmin: true, createdAt: true, updatedAt: true },
       });
       return NextResponse.json(updated);
     } catch (e: any) {
@@ -75,7 +79,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ doc: st
         const updated = await prisma.user.update({
           where: { doc },
           data: { ...data, email: null },
-          select: { id: true, name: true, email: true, doc: true, salesRepAdmin: true, createdAt: true, updatedAt: true },
+          select: { id: true, name: true, abbrevName: true, email: true, doc: true, salesRepAdmin: true, createdAt: true, updatedAt: true },
         });
         return NextResponse.json(updated);
       }

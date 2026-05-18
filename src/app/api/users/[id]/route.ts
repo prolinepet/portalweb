@@ -15,6 +15,10 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     const body = await request.json().catch(() => ({} as any));
     const update: any = {};
     if (body.name !== undefined) update.name = String(body.name);
+    if (body.abbrevName !== undefined) {
+      const raw = body.abbrevName == null ? null : String(body.abbrevName);
+      update.abbrevName = raw == null ? null : String(raw).trim().slice(0, 20) || null;
+    }
     if (body.email !== undefined) update.email = body.email == null ? null : String(body.email);
     if (body.erpIntegrationMode !== undefined) update.erpIntegrationMode = String(body.erpIntegrationMode);
     if (body.doc !== undefined) update.doc = normalizeDoc(String(body.doc || '')) || null;
@@ -29,7 +33,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         isSalesAdmin: body.isSalesAdmin !== undefined ? Boolean(body.isSalesAdmin) : undefined,
         twoFactorRequired: body.twoFactorRequired !== undefined ? Boolean(body.twoFactorRequired) : undefined,
       },
-      select: { id: true, name: true, email: true, doc: true, createdAt: true, updatedAt: true, salesRepAdmin: true, isSalesAdmin: true, twoFactorRequired: true, erpIntegrationMode: true }
+      select: { id: true, name: true, abbrevName: true, email: true, doc: true, createdAt: true, updatedAt: true, salesRepAdmin: true, isSalesAdmin: true, twoFactorRequired: true, erpIntegrationMode: true }
     });
     return NextResponse.json(updated);
   } catch (err: any) {
