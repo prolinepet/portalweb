@@ -5,6 +5,16 @@ function normalizeDoc(doc: string): string {
   return (doc || '').replace(/\D+/g, '');
 }
 
+function parseMoneyValue(v: any): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? Number(v) : null;
+  const s0 = String(v).trim();
+  if (!s0) return null;
+  const s = s0.replace(/\s/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
 async function ensurePaymentTermByCode(code: number): Promise<number | null> {
   const c = Number(code);
   if (!Number.isFinite(c) || c <= 0) return null;
@@ -164,6 +174,7 @@ export async function GET(_: Request, props: { params: Promise<{ doc: string }> 
       select: {
         id: true,
         doc: true,
+        abbrevName: true,
         name: true,
         cep: true,
         logradouro: true,
@@ -202,6 +213,10 @@ export async function PATCH(request: Request, props: { params: Promise<{ doc: st
     }
     const fields: any = {};
     if (body.doc !== undefined) fields.doc = normalizeDoc(String(body.doc || '')) || null;
+    if (body.abbrevName !== undefined) {
+      const raw = body.abbrevName == null ? null : String(body.abbrevName);
+      fields.abbrevName = raw == null ? null : String(raw).trim().slice(0, 20) || null;
+    }
     if (body.name !== undefined) fields.name = String(body.name || '').trim();
     if (body.cep !== undefined) fields.cep = String(body.cep || '').trim() || null;
     if (body.logradouro !== undefined) fields.logradouro = String(body.logradouro || '').trim() || null;
@@ -209,6 +224,28 @@ export async function PATCH(request: Request, props: { params: Promise<{ doc: st
     if (body.bairro !== undefined) fields.bairro = String(body.bairro || '').trim() || null;
     if (body.cidade !== undefined) fields.cidade = String(body.cidade || '').trim() || null;
     if (body.estado !== undefined) fields.estado = String(body.estado || '').trim() || null;
+
+    if (body.creditLimit !== undefined) {
+      const n = parseMoneyValue(body.creditLimit);
+      if (n === null) return NextResponse.json({ error: 'creditLimit inválido' }, { status: 400 });
+      fields.creditLimit = n;
+    }
+    if (body.availableLimit !== undefined) {
+      const n = parseMoneyValue(body.availableLimit);
+      if (n === null) return NextResponse.json({ error: 'availableLimit inválido' }, { status: 400 });
+      fields.availableLimit = n;
+    }
+    if (body.titlesDue !== undefined) {
+      const n = parseMoneyValue(body.titlesDue);
+      if (n === null) return NextResponse.json({ error: 'titlesDue inválido' }, { status: 400 });
+      fields.titlesDue = n;
+    }
+    if (body.titlesOverdue !== undefined) {
+      const n = parseMoneyValue(body.titlesOverdue);
+      if (n === null) return NextResponse.json({ error: 'titlesOverdue inválido' }, { status: 400 });
+      fields.titlesOverdue = n;
+    }
+
     const paymentTermIds = await resolvePaymentTermIds(body);
     const listProvided = paymentTermIds !== null;
     const singleProvided = !listProvided && (body.paymentTermId !== undefined || body.paymentTermCode !== undefined || body.condPagto !== undefined || body.condPagtoCode !== undefined);
@@ -258,6 +295,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ doc: st
         select: {
           id: true,
           doc: true,
+          abbrevName: true,
           name: true,
           cep: true,
           logradouro: true,
