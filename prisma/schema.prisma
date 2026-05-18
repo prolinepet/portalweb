@@ -469,6 +469,23 @@ model ClientItem {
   @@map("clientitem")
 }
 
+model ClientItemStock {
+  id           Int      @id @default(autoincrement())
+  clientId     Int
+  sku          String   @db.VarChar(50)
+  lotSerie     String   @default("") @db.VarChar(60)
+  qtyCurrent   Float    @default(0)
+  qtyAvailable Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, sku, lotSerie])
+  @@index([sku])
+  @@index([clientId])
+  @@map("clientitemstock")
+}
+
 model PriceTable {
   id       Int    @id @default(autoincrement())
   nrtabpre String @unique @db.VarChar(20)

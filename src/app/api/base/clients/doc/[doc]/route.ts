@@ -15,6 +15,36 @@ function parseMoneyValue(v: any): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function extractStockList(body: any): any[] | null {
+  const candidates = [
+    body?.stock,
+    body?.stockItems,
+    body?.estoque,
+    body?.estoqueItens,
+    body?.itensEstoque,
+  ];
+  for (const c of candidates) {
+    if (Array.isArray(c)) return c;
+  }
+  return null;
+}
+
+function normalizeSku(v: any): string | null {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  return s ? s : null;
+}
+
+function normalizeLotSerie(v: any): string {
+  if (v === null || v === undefined) return '';
+  const s = String(v).trim();
+  return s ? s : '';
+}
+
+function parseQtyValue(v: any): number | null {
+  return parseMoneyValue(v);
+}
+
 async function ensurePaymentTermByCode(code: number): Promise<number | null> {
   const c = Number(code);
   if (!Number.isFinite(c) || c <= 0) return null;
@@ -211,6 +241,71 @@ export async function PATCH(request: Request, props: { params: Promise<{ doc: st
     if (!body || typeof body !== 'object') {
       return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
     }
+
+    const stockList = extractStockList(body);
+    const stockProvided = stockList !== null;
+    const stockRowsRaw = Array.isArray(stockList)
+      ? stockList
+          .map((it: any) => {
+            const sku =
+              normalizeSku(it?.sku) ??
+              normalizeSku(it?.item) ??
+              normalizeSku(it?.codItem) ??
+              normalizeSku(it?.codigoItem) ??
+              normalizeSku(it?.codigo) ??
+              null;
+            if (!sku) return null;
+            const lotSerie =
+              normalizeLotSerie(it?.lotSerie) ||
+              normalizeLotSerie(it?.loteSerie) ||
+              normalizeLotSerie(it?.lote) ||
+              normalizeLotSerie(it?.serie) ||
+              '';
+            const qtyCurrentRaw =
+              it?.qtyCurrent ??
+              it?.qtdeAtual ??
+              it?.qtdAtual ??
+              it?.qtAtual ??
+              it?.quantidadeAtual ??
+              it?.quantAtual ??
+              it?.quantidade ??
+              null;
+            const qtyAvailableRaw =
+              it?.qtyAvailable ??
+              it?.qtdeDisp ??
+              it?.qtdDisp ??
+              it?.qtDisp ??
+              it?.quantidadeDisponivel ??
+              it?.quantDisp ??
+              null;
+
+            const qtyCurrent = parseQtyValue(qtyCurrentRaw) ?? 0;
+            const qtyAvailable = parseQtyValue(qtyAvailableRaw) ?? 0;
+
+            return { sku, lotSerie, qtyCurrent, qtyAvailable };
+          })
+          .filter(Boolean)
+      : [];
+
+    const stockRows: { sku: string; lotSerie: string; qtyCurrent: number; qtyAvailable: number }[] = [];
+    if (stockProvided) {
+      const seen = new Set<string>();
+      for (const r of stockRowsRaw as any[]) {
+        const sku = String(r.sku || '').trim();
+        if (!sku) continue;
+        const lotSerie = String(r.lotSerie || '').trim();
+        const key = `${sku}::${lotSerie}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        stockRows.push({
+          sku,
+          lotSerie,
+          qtyCurrent: Number(r.qtyCurrent ?? 0) || 0,
+          qtyAvailable: Number(r.qtyAvailable ?? 0) || 0,
+        });
+      }
+    }
+
     const fields: any = {};
     if (body.doc !== undefined) fields.doc = normalizeDoc(String(body.doc || '')) || null;
     if (body.abbrevName !== undefined) {
@@ -285,38 +380,70 @@ export async function PATCH(request: Request, props: { params: Promise<{ doc: st
       fields.paymentTermId = await resolvePaymentTermId(body);
     }
     const setCols = Object.keys(fields);
-    if (setCols.length === 0) return NextResponse.json({ message: 'Nada para atualizar' }, { status: 400 });
+    if (setCols.length === 0 && !stockProvided) return NextResponse.json({ message: 'Nada para atualizar' }, { status: 400 });
     const data: any = {};
     for (const k of setCols) data[k] = (fields as any)[k];
     const updated = await prisma.$transaction(async (tx) => {
-      const row = await tx.client.update({
-        where: { doc },
-        data,
-        select: {
-          id: true,
-          doc: true,
-          abbrevName: true,
-          name: true,
-          cep: true,
-          logradouro: true,
-          numero: true,
-          bairro: true,
-          cidade: true,
-          estado: true,
-          creditLimit: true,
-          availableLimit: true,
-          titlesDue: true,
-          titlesOverdue: true,
-          paymentTermId: true,
-          paymentTerm: { select: { code: true, description: true } },
-        },
-      });
+      const row = setCols.length
+        ? await tx.client.update({
+            where: { doc },
+            data,
+            select: {
+              id: true,
+              doc: true,
+              abbrevName: true,
+              name: true,
+              cep: true,
+              logradouro: true,
+              numero: true,
+              bairro: true,
+              cidade: true,
+              estado: true,
+              creditLimit: true,
+              availableLimit: true,
+              titlesDue: true,
+              titlesOverdue: true,
+              paymentTermId: true,
+              paymentTerm: { select: { code: true, description: true } },
+            },
+          })
+        : await tx.client.findUnique({
+            where: { doc },
+            select: {
+              id: true,
+              doc: true,
+              abbrevName: true,
+              name: true,
+              cep: true,
+              logradouro: true,
+              numero: true,
+              bairro: true,
+              cidade: true,
+              estado: true,
+              creditLimit: true,
+              availableLimit: true,
+              titlesDue: true,
+              titlesOverdue: true,
+              paymentTermId: true,
+              paymentTerm: { select: { code: true, description: true } },
+            },
+          });
+      if (!row) throw new Error('Cliente não encontrado');
 
       await Promise.all([
         tx.userClientRep.deleteMany({ where: { clientId: row.id } }),
         tx.clientPaymentTerm.deleteMany({ where: { clientId: row.id } }),
         tx.clientPriceTable.deleteMany({ where: { clientId: row.id } }),
       ]);
+
+      if (stockProvided) {
+        await tx.clientItemStock.deleteMany({ where: { clientId: row.id } });
+        if (stockRows.length) {
+          await tx.clientItemStock.createMany({
+            data: stockRows.map((s) => ({ clientId: row.id, sku: s.sku, lotSerie: s.lotSerie, qtyCurrent: s.qtyCurrent, qtyAvailable: s.qtyAvailable })),
+          });
+        }
+      }
 
       return row;
     });

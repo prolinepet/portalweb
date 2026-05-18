@@ -20,6 +20,7 @@ function LoginForm() {
   const [otpauth, setOtpauth] = useState("");
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [trustDevice, setTrustDevice] = useState(false);
+  const [autoLoginTried, setAutoLoginTried] = useState(false);
 
   // Forgot Password States
   const [showForgot, setShowForgot] = useState(false);
@@ -41,6 +42,33 @@ function LoginForm() {
     }
   }, [step, otpauth]);
 
+  useEffect(() => {
+    if (autoLoginTried) return;
+    if (step !== 'credentials') return;
+    if (showForgot) return;
+    if ((identifier || '').trim() || (password || '').trim()) return;
+    setAutoLoginTried(true);
+    signIn("credentials", {
+      autoLogin: "1",
+      redirect: false,
+      callbackUrl,
+    }).then(async (res) => {
+      if (!res?.ok) return;
+      try {
+        const r = await fetch('/api/permissions', { cache: 'no-store' });
+        const j = await r.json();
+        if (!j?.activeEntityId && Array.isArray(j?.entities) && j.entities.length > 0) {
+          await fetch('/api/session/entity', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entityId: Number(j.entities[0].id) })
+          });
+        }
+      } catch {}
+      window.location.href = res.url ?? "/";
+    }).catch(() => {});
+  }, [autoLoginTried, callbackUrl, identifier, password, showForgot, step]);
+
   const performSignIn = async (creds: any) => {
     const res = await signIn("credentials", {
       ...creds,
@@ -59,7 +87,7 @@ function LoginForm() {
       return;
     }
     if (res?.ok) {
-      if (trustDevice && step !== 'credentials') {
+      if (trustDevice) {
         try {
           await fetch('/api/auth/trusted-device', { method: 'POST' });
         } catch {}
@@ -140,11 +168,9 @@ function LoginForm() {
                 setTempSecret(checkData.secret);
                 setOtpauth(checkData.otpauth);
                 setStep('setup');
-                setTrustDevice(false);
                 setLoading(false);
             } else {
                 setStep('2fa');
-                setTrustDevice(false);
                 setLoading(false);
             }
         } else {
@@ -209,6 +235,10 @@ function LoginForm() {
                     required
                     />
                 </div>
+                <label className="flex items-center gap-2 text-sm text-gray-700 select-none">
+                  <input type="checkbox" checked={trustDevice} onChange={(e) => setTrustDevice(e.target.checked)} />
+                  Confiar neste dispositivo
+                </label>
             </>
           )}
 
