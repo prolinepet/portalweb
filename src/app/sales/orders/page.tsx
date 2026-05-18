@@ -332,7 +332,7 @@ export default function SalesOrdersPage() {
             <thead className="bg-gray-100 text-gray-700">
               <tr>
                 <th className="text-left px-3 py-2">Número</th>
-                <th className="text-left px-3 py-2">Nome Abrev</th>
+                <th className="text-left px-3 py-2">Representante</th>
                 <th className="text-left px-3 py-2">Cliente</th>
                 <th className="text-left px-3 py-2">Tipo de pedido</th>
                 <th className="text-left px-3 py-2">Data</th>
