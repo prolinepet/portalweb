@@ -39,6 +39,7 @@ type Representative = { id: number; name: string };
 type BasePriceRow = { inventoryItemId: number; unit: string; unitPrice: number };
 type OrderType = { id: number; codtipoped: number; descricao: string; situacao: number };
 type PriceTable = { id: number; nrtabpre: string; descricao: string; situacao: number };
+type StockRow = { sku: string; description?: string | null; lotSerie?: string | null; qtyCurrent: number; qtyAvailable?: number };
 
 const statusColor = (s: string) => {
   const v = (s || '').trim();
@@ -138,6 +139,8 @@ export default function ClientDetailsPage() {
   const [orderTypeToLink, setOrderTypeToLink] = useState<string>("");
   const [linkedPriceTables, setLinkedPriceTables] = useState<PriceTable[]>([]);
   const [priceTablesLoading, setPriceTablesLoading] = useState(false);
+  const [stockRows, setStockRows] = useState<StockRow[]>([]);
+  const [stockLoading, setStockLoading] = useState(false);
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -147,7 +150,7 @@ export default function ClientDetailsPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [selected, setSelected] = useState<SalesOrder | null>(null);
   const [integratingId, setIntegratingId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"orders" | "paymentTerms" | "priceTables" | "linkedItems" | "orderTypes">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "paymentTerms" | "priceTables" | "stock" | "linkedItems" | "orderTypes">("orders");
   const [ordersPage, setOrdersPage] = useState(0);
   const [paymentTermsPage, setPaymentTermsPage] = useState(0);
   const [linkedItemsPage, setLinkedItemsPage] = useState(0);
@@ -338,6 +341,30 @@ export default function ClientDetailsPage() {
       refreshPriceTables().catch(() => {});
     }
   }, [activeTab, refreshPriceTables]);
+
+  useEffect(() => {
+    const loadStock = async () => {
+      if (!Number.isFinite(id) || id <= 0) return;
+      setStockLoading(true);
+      try {
+        const r = await fetch(`/api/base/clients/${encodeURIComponent(String(id))}/stock`, { cache: 'no-store' });
+        if (r.ok) {
+          const arr: StockRow[] = await r.json();
+          setStockRows(Array.isArray(arr) ? arr : []);
+        } else {
+          setStockRows([]);
+        }
+      } catch {
+        setStockRows([]);
+      } finally {
+        setStockLoading(false);
+      }
+    };
+
+    if (activeTab === "stock") {
+      loadStock().catch(() => {});
+    }
+  }, [activeTab, id]);
 
   useEffect(() => {
     const loadUnlinked = async () => {
@@ -677,6 +704,19 @@ export default function ClientDetailsPage() {
                 aria-current={activeTab === "priceTables" ? "page" : undefined}
               >
                 Tab Preço
+              </button>
+            </li>
+            <li className="mr-2">
+              <button
+                onClick={() => setActiveTab("stock")}
+                className={`inline-block px-3 py-2 border-b-2 border-solid rounded-t-lg transition-colors duration-200 ${
+                  activeTab === "stock"
+                    ? "text-blue-600 border-blue-600 active group-hover:text-blue-600"
+                    : "border-transparent hover:text-gray-600 hover:border-gray-300"
+                }`}
+                aria-current={activeTab === "stock" ? "page" : undefined}
+              >
+                Estoque
               </button>
             </li>
             <li className="mr-2">
@@ -1022,6 +1062,57 @@ export default function ClientDetailsPage() {
                 </div>
               ))}
               {!priceTablesLoading && linkedPriceTables.length === 0 && <div className="p-3 text-gray-500 text-sm">Sem vínculos</div>}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "stock" && (
+          <div className="border rounded bg-white overflow-hidden">
+            <div className="px-3 py-2 border-b bg-gray-50 flex items-center">
+              <div className="text-sm text-gray-700">Estoque do cliente</div>
+              <div className="ml-auto text-xs text-gray-500">
+                {stockLoading ? "Carregando..." : `${stockRows.length} registro(s)`}
+              </div>
+            </div>
+
+            <div className="sm:hidden divide-y">
+              {stockRows.map((r, i) => (
+                <div key={`${r.sku}::${r.lotSerie || ''}::${i}`} className="p-3">
+                  <div className="text-sm font-semibold text-gray-900 font-mono">{r.sku || '-'}</div>
+                  <div className="mt-1 text-xs text-gray-700">{r.description || '-'}</div>
+                  <div className="mt-2 text-xs text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
+                    <span>Qtde Atual: {(Number(r.qtyCurrent ?? 0)).toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}</span>
+                    <span>Lote/Série: {r.lotSerie || '-'}</span>
+                  </div>
+                </div>
+              ))}
+              {!stockLoading && stockRows.length === 0 && <div className="p-3 text-gray-500 text-sm">Sem estoque</div>}
+            </div>
+
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="p-2 text-left">Item</th>
+                    <th className="p-2 text-left">Descrição</th>
+                    <th className="p-2 text-right">Qtde Atual</th>
+                    <th className="p-2 text-left">Lote/Série</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!stockLoading && stockRows.length === 0 && (
+                    <tr><td className="p-3 text-gray-500" colSpan={4}>Sem estoque</td></tr>
+                  )}
+                  {stockRows.map((r, i) => (
+                    <tr key={`${r.sku}::${r.lotSerie || ''}::${i}`} className="border-t">
+                      <td className="p-2 font-mono text-xs">{r.sku || '-'}</td>
+                      <td className="p-2">{r.description || '-'}</td>
+                      <td className="p-2 text-right">{(Number(r.qtyCurrent ?? 0)).toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}</td>
+                      <td className="p-2">{r.lotSerie || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
