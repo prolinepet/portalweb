@@ -441,6 +441,7 @@ model Client {
   updatedAt DateTime         @updatedAt
   reps      UserClientRep[]
   items     ClientItem[]
+  itemStocks ClientItemStock[]
   cartItems ClientCartItem[]
   orders    SalesOrder[]
   orderTypes ClientOrderType[]
