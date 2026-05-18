@@ -27,6 +27,22 @@ function sha256Hex(input: string): string {
   return createHash('sha256').update(input).digest('hex');
 }
 
+async function resolveTrustedDeviceUserId(token: string): Promise<number | null> {
+  const t = String(token || '').trim();
+  if (!t) return null;
+  const tokenHash = sha256Hex(t);
+  const now = new Date();
+  const row = await prisma.trustedDevice
+    .findFirst({
+      where: { tokenHash, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+      select: { id: true, userId: true },
+    })
+    .catch(() => null);
+  if (!row?.id || !row?.userId) return null;
+  await prisma.trustedDevice.update({ where: { id: row.id }, data: { lastUsedAt: now } }).catch(() => {});
+  return Number(row.userId);
+}
+
 async function isTrustedDevice(userId: number, token: string): Promise<boolean> {
   const uid = Number(userId);
   const t = String(token || '').trim();
@@ -58,11 +74,28 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: 'E-mail', type: 'email' },
         password: { label: 'Senha', type: 'password' },
-        twoFactorCode: { label: '2FA Code', type: 'text' }
+        twoFactorCode: { label: '2FA Code', type: 'text' },
+        autoLogin: { label: 'Auto Login', type: 'text' }
       },
       async authorize(credentials, req) {
+        const cookieHeader = (req as any)?.headers?.cookie ?? (req as any)?.headers?.get?.('cookie') ?? null;
+        const cookies = parseCookieHeader(cookieHeader);
+        const trustedToken = cookies['trustedDevice'] || '';
+
+        const isAutoLogin = String((credentials as any)?.autoLogin || '') === '1';
+        if (isAutoLogin) {
+          const userId = await resolveTrustedDeviceUserId(trustedToken);
+          if (!userId) return null;
+          const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { id: true, name: true, email: true },
+          });
+          if (!user?.id) return null;
+          return { id: String(user.id), name: user.name, email: user.email } as any;
+        }
+
         if (!credentials?.email || !credentials?.password) return null;
-        
+
         const identifier = credentials.email;
         let user: any = null;
 
@@ -94,10 +127,7 @@ export const authOptions: NextAuthOptions = {
         if (user.twoFactorRequired && user.twoFactorSecret) {
           const code = credentials.twoFactorCode as string | undefined;
           if (!code) {
-            const cookieHeader = (req as any)?.headers?.cookie ?? (req as any)?.headers?.get?.('cookie') ?? null;
-            const cookies = parseCookieHeader(cookieHeader);
-            const token = cookies['trustedDevice'] || '';
-            const trusted = await isTrustedDevice(Number(user.id), token);
+            const trusted = await isTrustedDevice(Number(user.id), trustedToken);
             if (trusted) {
               return { id: String(user.id), name: user.name, email: user.email } as any;
             }
