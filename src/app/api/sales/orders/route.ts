@@ -3,6 +3,15 @@ import { prisma } from '../../../../lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../lib/auth';
 
+async function ensureUserAbbrevNameColumn(): Promise<void> {
+  const g = global as any;
+  if (g.__abbrevNameEnsured) return;
+  try {
+    await prisma.$executeRawUnsafe('ALTER TABLE `user` ADD COLUMN `abbrevName` CHAR(20) NULL');
+  } catch {}
+  g.__abbrevNameEnsured = true;
+}
+
 function normalizeDoc(doc: string): string {
   return (doc || '').replace(/\D+/g, '');
 }
@@ -82,6 +91,7 @@ function lineBase(
 
 export async function GET(request: Request) {
   try {
+    await ensureUserAbbrevNameColumn();
     const session = await getServerSession(authOptions);
     const userId = session?.user ? Number((session.user as any).id) : null;
     if (!userId) return NextResponse.json([]);
@@ -123,6 +133,7 @@ export async function GET(request: Request) {
       where,
       include: {
         entity: { select: { name: true } },
+        createdBy: { select: { abbrevName: true, name: true } },
         orderType: { select: { id: true, codtipoped: true, kind: true, descricao: true } },
         items: {
           include: {
