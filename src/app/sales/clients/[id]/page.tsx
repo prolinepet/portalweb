@@ -141,6 +141,8 @@ export default function ClientDetailsPage() {
   const [priceTablesLoading, setPriceTablesLoading] = useState(false);
   const [stockRows, setStockRows] = useState<StockRow[]>([]);
   const [stockLoading, setStockLoading] = useState(false);
+  const [stockQuery, setStockQuery] = useState("");
+  const [stockBalanceFilter, setStockBalanceFilter] = useState<"with" | "without" | "all">("all");
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -365,6 +367,19 @@ export default function ClientDetailsPage() {
       loadStock().catch(() => {});
     }
   }, [activeTab, id]);
+
+  const filteredStockRows = useMemo(() => {
+    const q = String(stockQuery || "").trim().toLowerCase();
+    return (stockRows || []).filter((r) => {
+      const qty = Number((r as any)?.qtyCurrent ?? 0) || 0;
+      if (stockBalanceFilter === "with" && qty <= 0) return false;
+      if (stockBalanceFilter === "without" && qty > 0) return false;
+      if (!q) return true;
+      const sku = String((r as any)?.sku || "").toLowerCase();
+      const desc = String((r as any)?.description || "").toLowerCase();
+      return sku.includes(q) || desc.includes(q);
+    });
+  }, [stockBalanceFilter, stockQuery, stockRows]);
 
   useEffect(() => {
     const loadUnlinked = async () => {
@@ -1068,15 +1083,51 @@ export default function ClientDetailsPage() {
 
         {activeTab === "stock" && (
           <div className="border rounded bg-white overflow-hidden">
-            <div className="px-3 py-2 border-b bg-gray-50 flex items-center">
-              <div className="text-sm text-gray-700">Estoque do cliente</div>
-              <div className="ml-auto text-xs text-gray-500">
-                {stockLoading ? "Carregando..." : `${stockRows.length} registro(s)`}
+            <div className="px-3 py-2 border-b bg-gray-50 flex flex-wrap items-center gap-3">
+              <input
+                className="w-full sm:w-[360px] px-3 py-2 border rounded text-sm bg-white"
+                value={stockQuery}
+                onChange={(e) => setStockQuery(e.target.value)}
+                placeholder="Pesquisar por item ou descrição"
+              />
+
+              <div className="flex items-center gap-4 text-sm text-gray-700">
+                <label className="inline-flex items-center gap-2 select-none">
+                  <input
+                    type="radio"
+                    name="stockBalanceFilter"
+                    checked={stockBalanceFilter === "with"}
+                    onChange={() => setStockBalanceFilter("with")}
+                  />
+                  Com saldo
+                </label>
+                <label className="inline-flex items-center gap-2 select-none">
+                  <input
+                    type="radio"
+                    name="stockBalanceFilter"
+                    checked={stockBalanceFilter === "without"}
+                    onChange={() => setStockBalanceFilter("without")}
+                  />
+                  Sem saldo
+                </label>
+                <label className="inline-flex items-center gap-2 select-none">
+                  <input
+                    type="radio"
+                    name="stockBalanceFilter"
+                    checked={stockBalanceFilter === "all"}
+                    onChange={() => setStockBalanceFilter("all")}
+                  />
+                  Todos
+                </label>
+              </div>
+
+              <div className="sm:ml-auto text-xs text-gray-500">
+                {stockLoading ? "Carregando..." : `${filteredStockRows.length} de ${stockRows.length} registro(s)`}
               </div>
             </div>
 
             <div className="sm:hidden divide-y">
-              {stockRows.map((r, i) => (
+              {filteredStockRows.map((r, i) => (
                 <div key={`${r.sku}::${r.lotSerie || ''}::${i}`} className="p-3">
                   <div className="text-sm font-semibold text-gray-900 font-mono">{r.sku || '-'}</div>
                   <div className="mt-1 text-xs text-gray-700">{r.description || '-'}</div>
@@ -1086,7 +1137,7 @@ export default function ClientDetailsPage() {
                   </div>
                 </div>
               ))}
-              {!stockLoading && stockRows.length === 0 && <div className="p-3 text-gray-500 text-sm">Sem estoque</div>}
+              {!stockLoading && filteredStockRows.length === 0 && <div className="p-3 text-gray-500 text-sm">Sem estoque</div>}
             </div>
 
             <div className="hidden sm:block overflow-x-auto">
@@ -1100,10 +1151,10 @@ export default function ClientDetailsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {!stockLoading && stockRows.length === 0 && (
+                  {!stockLoading && filteredStockRows.length === 0 && (
                     <tr><td className="p-3 text-gray-500" colSpan={4}>Sem estoque</td></tr>
                   )}
-                  {stockRows.map((r, i) => (
+                  {filteredStockRows.map((r, i) => (
                     <tr key={`${r.sku}::${r.lotSerie || ''}::${i}`} className="border-t">
                       <td className="p-2 font-mono text-xs">{r.sku || '-'}</td>
                       <td className="p-2">{r.description || '-'}</td>
