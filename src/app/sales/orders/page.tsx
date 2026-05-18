@@ -10,7 +10,7 @@ type SalesOrder = {
   orderDate: string;
   customerName: string;
   orderType?: { codtipoped: number; descricao: string; kind?: 'VENDA' | 'BONIFICACAO' | 'AMOSTRA' | null } | null;
-  entity?: { name: string };
+  createdBy?: { abbrevName?: string | null; name?: string | null } | null;
   subtotal: number;
   discountTotal: number;
   total: number;
@@ -249,7 +249,7 @@ export default function SalesOrdersPage() {
                 <div className="min-w-0">
                   <div className="font-mono text-xs text-gray-700">{o.code || o.id}</div>
                   <div className="text-sm font-medium text-gray-900 truncate">{o.customerName || '-'}</div>
-                  <div className="text-xs text-gray-600 truncate">{o.entity?.name || '-'}</div>
+                  <div className="text-xs text-gray-600 truncate">{o.createdBy?.abbrevName || '-'}</div>
                   <div className="text-xs text-gray-600 truncate">{o.orderType ? `${o.orderType.codtipoped} - ${o.orderType.descricao}` : '-'}</div>
                 </div>
                 <span className={`shrink-0 px-2 py-0.5 rounded text-xs ${statusColor(statusLabelPt(o.status))}`}>{statusLabelPt(o.status)}</span>
@@ -332,7 +332,7 @@ export default function SalesOrdersPage() {
             <thead className="bg-gray-100 text-gray-700">
               <tr>
                 <th className="text-left px-3 py-2">Número</th>
-                <th className="text-left px-3 py-2">Entidade</th>
+                <th className="text-left px-3 py-2">Nome Abrev</th>
                 <th className="text-left px-3 py-2">Cliente</th>
                 <th className="text-left px-3 py-2">Tipo de pedido</th>
                 <th className="text-left px-3 py-2">Data</th>
@@ -351,7 +351,7 @@ export default function SalesOrdersPage() {
               {!loading && filtered.map((o) => (
                 <tr key={o.id} className="border-t hover:bg-gray-50">
                   <td className="px-3 py-2 font-mono text-xs">{o.code || o.id}</td>
-                  <td className="px-3 py-2 text-xs text-gray-600">{o.entity?.name || '-'}</td>
+                  <td className="px-3 py-2 text-xs text-gray-600">{o.createdBy?.abbrevName || '-'}</td>
                   <td className="px-3 py-2">{o.customerName || '-'}</td>
                   <td className="px-3 py-2 text-xs text-gray-600">{o.orderType ? `${o.orderType.codtipoped} - ${o.orderType.descricao}` : '-'}</td>
                   <td className="px-3 py-2">{o.orderDate ? new Date(o.orderDate).toLocaleDateString('pt-BR') : '-'}</td>

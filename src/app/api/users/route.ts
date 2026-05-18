@@ -7,6 +7,15 @@ function normalizeDoc(doc: string): string {
   return (doc || '').replace(/\D+/g, '');
 }
 
+async function ensureUserAbbrevNameColumn(): Promise<void> {
+  const g = global as any;
+  if (g.__abbrevNameEnsured) return;
+  try {
+    await prisma.$executeRawUnsafe('ALTER TABLE `user` ADD COLUMN `abbrevName` CHAR(20) NULL');
+  } catch {}
+  g.__abbrevNameEnsured = true;
+}
+
 async function ensureSalesRepDefaults(userId: number) {
   const uid = Math.trunc(Number(userId));
   if (!uid || Number.isNaN(uid)) return;
@@ -67,6 +76,7 @@ async function ensureSalesRepDefaults(userId: number) {
 }
 
 export async function GET(request: Request) {
+  await ensureUserAbbrevNameColumn();
   const url = new URL(request.url);
   const salesRepAdmin = url.searchParams.get('salesRepAdmin');
   const onlyReps = !!(salesRepAdmin && ['1','true','yes'].includes(String(salesRepAdmin).toLowerCase()));
@@ -76,6 +86,7 @@ export async function GET(request: Request) {
     select: {
       id: true,
       name: true,
+      abbrevName: true,
       email: true,
       doc: true,
       salesRepAdmin: true,
@@ -92,6 +103,7 @@ export async function GET(request: Request) {
     users.map((u) => ({
       id: u.id,
       name: u.name,
+      abbrevName: u.abbrevName,
       email: u.email,
       doc: u.doc,
       salesRepAdmin: u.salesRepAdmin,
@@ -107,8 +119,11 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await ensureUserAbbrevNameColumn();
     const data = await request.json().catch(() => ({} as any));
     const name = String(data?.name || '').trim();
+    const abbrevNameRaw = data?.abbrevName == null ? null : String(data.abbrevName);
+    const abbrevName = abbrevNameRaw == null ? null : String(abbrevNameRaw).trim().slice(0, 20) || null;
     const emailRaw = String(data?.email ?? '').trim();
     const email = emailRaw ? emailRaw : null;
     const passwordStr = String(data?.password || '');
@@ -138,6 +153,7 @@ export async function POST(request: Request) {
       const existing = await prisma.user.findUnique({ where: { doc }, select: { id: true } }).catch(() => null);
       const update: any = {
         name,
+        abbrevName,
         email: finalEmail,
         password: String(hashed),
         erpIntegrationMode,
@@ -146,6 +162,7 @@ export async function POST(request: Request) {
 
       const create: any = {
         name,
+        abbrevName,
         email: finalEmail,
         password: String(hashed),
         doc,
@@ -160,6 +177,7 @@ export async function POST(request: Request) {
         select: {
           id: true,
           name: true,
+          abbrevName: true,
           email: true,
           doc: true,
           salesRepAdmin: true,
@@ -178,13 +196,14 @@ export async function POST(request: Request) {
     const created = await prisma.user.create({
       data: {
         name,
+        abbrevName,
         email: finalEmail,
         password: hashed,
         erpIntegrationMode,
         salesRepAdmin: Boolean(salesRepAdmin),
         isSalesAdmin: false,
       },
-      select: { id: true, name: true, email: true, createdAt: true, updatedAt: true, salesRepAdmin: true, isSalesAdmin: true, erpIntegrationMode: true },
+      select: { id: true, name: true, abbrevName: true, email: true, createdAt: true, updatedAt: true, salesRepAdmin: true, isSalesAdmin: true, erpIntegrationMode: true },
     });
     if (shouldEnsureRepDefaults) {
       await ensureSalesRepDefaults(Number(created.id)).catch(() => {});
@@ -199,12 +218,17 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    await ensureUserAbbrevNameColumn();
     const body = await request.json().catch(() => ({} as any));
     const id = Number(body?.id);
     if (!id || Number.isNaN(id)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
 
     const update: any = {};
     if (body.name !== undefined) update.name = String(body.name);
+    if (body.abbrevName !== undefined) {
+      const raw = body.abbrevName == null ? null : String(body.abbrevName);
+      update.abbrevName = raw == null ? null : String(raw).trim().slice(0, 20) || null;
+    }
     if (body.email !== undefined) update.email = body.email == null ? null : String(body.email);
     if (body.erpIntegrationMode !== undefined) update.erpIntegrationMode = String(body.erpIntegrationMode);
     if (body.salesRepAdmin !== undefined) update.salesRepAdmin = Boolean(body.salesRepAdmin);
@@ -221,6 +245,7 @@ export async function PATCH(request: Request) {
       select: {
         id: true,
         name: true,
+        abbrevName: true,
         email: true,
         doc: true,
         createdAt: true,
