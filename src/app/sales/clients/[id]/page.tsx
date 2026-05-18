@@ -142,7 +142,7 @@ export default function ClientDetailsPage() {
   const [stockRows, setStockRows] = useState<StockRow[]>([]);
   const [stockLoading, setStockLoading] = useState(false);
   const [stockQuery, setStockQuery] = useState("");
-  const [stockBalanceFilter, setStockBalanceFilter] = useState<"with" | "without" | "all">("all");
+  const [stockBalanceFilter, setStockBalanceFilter] = useState<"with" | "without" | "all">("with");
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
