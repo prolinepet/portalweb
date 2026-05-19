@@ -174,7 +174,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </button>
 
             <button 
-                onClick={() => signOut({ callbackUrl: "/login" })}
+                onClick={async () => {
+                  try {
+                    await fetch('/api/auth/trusted-device', { method: 'DELETE' });
+                  } catch {}
+                  await signOut({ callbackUrl: "/login" });
+                }}
                 className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-all shadow-sm ml-2"
                 title="Sair do sistema"
             >
