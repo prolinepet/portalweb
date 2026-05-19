@@ -281,7 +281,12 @@ export default function Sidebar({ perms, mobileOpen, setMobileOpen, pathname, us
       </nav>
       <div className="mt-auto p-2 border-t border-gray-950">
         <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={async () => {
+            try {
+              await fetch('/api/auth/trusted-device', { method: 'DELETE' });
+            } catch {}
+            await signOut({ callbackUrl: "/login" });
+          }}
           className={`w-full ${collapsed ? "px-0" : "px-3"} py-2 rounded text-sm text-gray-200 hover:bg-gray-700 flex items-center ${collapsed ? "justify-center" : "gap-2"}`}
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M16 13v-2H7V8l-5 4 5 4v-3h9zM20 3h-8v2h8v14h-8v2h8a2 2 0 002-2V5a2 2 0 00-2-2z"/></svg>
