@@ -25,6 +25,7 @@ export default function SalesOrdersPage() {
   const [status, setStatus] = useState<string>("");
   const [dateStart, setDateStart] = useState<string>("");
   const [dateEnd, setDateEnd] = useState<string>("");
+  const [showFilters, setShowFilters] = useState(true);
   const [selected, setSelected] = useState<SalesOrder | null>(null);
   const [integratingId, setIntegratingId] = useState<number | null>(null);
   const [erpModalOpen, setErpModalOpen] = useState(false);
@@ -193,49 +194,57 @@ export default function SalesOrdersPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Venda • Consulta de Pedidos</h1>
+      <div className="flex items-center gap-3">
+        <h1 className="text-xl font-semibold">Venda • Consulta de Pedidos</h1>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-gray-500">{filtered.length} registro(s)</span>
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className="px-3 py-1.5 text-xs border rounded bg-white hover:bg-gray-100"
+          >
+            Filtro
+          </button>
+          <Link href="/sales/orders/new" className="px-3 py-1.5 text-xs border rounded bg-white hover:bg-gray-100">Novo Pedido</Link>
+        </div>
+      </div>
       {error && <div className="text-sm text-red-600">{error}</div>}
 
       {/* Filtros */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-gray-50 p-3 rounded border border-gray-200">
-        <div>
-          <label className="text-xs text-gray-600">Buscar (Número ou Cliente)</label>
-          <input className="w-full mt-1 px-2 py-1.5 border rounded" placeholder="Ex: PED-0001 ou João" value={q} onChange={(e) => setQ(e.target.value)} />
+      {showFilters && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-gray-50 p-3 rounded border border-gray-200">
+          <div>
+            <label className="text-xs text-gray-600">Buscar (Número ou Cliente)</label>
+            <input className="w-full mt-1 px-2 py-1.5 border rounded" placeholder="Ex: PED-0001 ou João" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-gray-600">Situação</label>
+            <select className="w-full mt-1 px-2 py-1.5 border rounded" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">Todas</option>
+              <option value="Orçamento">Orçamento</option>
+              <option value="Aguardando Integração">Aguardando Integração</option>
+              <option value="Erro na integração">Erro na integração</option>
+              <option value="Integrado">Integrado</option>
+              <option value="Em fila produção">Em fila produção</option>
+              <option value="Em produção">Em produção</option>
+              <option value="Produzido/Estocado">Produzido/Estocado</option>
+              <option value="Faturado">Faturado</option>
+              <option value="Cancelado">Cancelado</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-600">Data inicial</label>
+            <input type="date" className="w-full mt-1 px-2 py-1.5 border rounded" value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-gray-600">Data final</label>
+            <input type="date" className="w-full mt-1 px-2 py-1.5 border rounded" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
+          </div>
         </div>
-        <div>
-          <label className="text-xs text-gray-600">Situação</label>
-          <select className="w-full mt-1 px-2 py-1.5 border rounded" value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">Todas</option>
-            <option value="Orçamento">Orçamento</option>
-            <option value="Aguardando Integração">Aguardando Integração</option>
-            <option value="Erro na integração">Erro na integração</option>
-            <option value="Integrado">Integrado</option>
-            <option value="Em fila produção">Em fila produção</option>
-            <option value="Em produção">Em produção</option>
-            <option value="Produzido/Estocado">Produzido/Estocado</option>
-            <option value="Faturado">Faturado</option>
-            <option value="Cancelado">Cancelado</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-xs text-gray-600">Data inicial</label>
-          <input type="date" className="w-full mt-1 px-2 py-1.5 border rounded" value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
-        </div>
-        <div>
-          <label className="text-xs text-gray-600">Data final</label>
-          <input type="date" className="w-full mt-1 px-2 py-1.5 border rounded" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
-        </div>
-      </div>
+      )}
 
       {/* Listagem */}
       <div className="bg-white rounded border border-gray-200 overflow-hidden">
-        <div className="px-3 py-2 border-b bg-gray-50 text-sm text-gray-700 flex items-center">
-          <span>Listagem de pedidos</span>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs text-gray-500">{filtered.length} registro(s)</span>
-            <Link href="/sales/orders/new" className="px-3 py-1.5 text-xs border rounded bg-white hover:bg-gray-100">Novo Pedido</Link>
-          </div>
-        </div>
         <div className="sm:hidden divide-y">
           {loading && (
             <div className="px-3 py-4 text-center text-gray-500 text-sm">Carregando...</div>
