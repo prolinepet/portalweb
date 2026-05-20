@@ -344,11 +344,11 @@ export default function SalesOrdersPage() {
               <tr>
                 <th className="text-left px-3 py-2">Número</th>
                 <th className="text-left px-3 py-2">Representante</th>
-                <th className="text-left px-3 py-2 w-24">Cód Cliente</th>
-                <th className="text-left px-3 py-2 w-48">Nome Abrev</th>
-                <th className="text-left px-3 py-2">Tipo de pedido</th>
+                <th className="text-left px-3 py-2 w-24">Cód Cli.</th>
+                <th className="text-left px-3 py-2 w-40">Nome Abrev</th>
+                <th className="text-left px-3 py-2">Tipo Ped</th>
                 <th className="text-left px-2 py-2 w-[70px]">Data</th>
-                <th className="text-right px-3 py-2">Total Com Imp R$</th>
+                <th className="text-right px-3 py-2">Tot Ped R$</th>
                 <th className="text-left px-3 py-2">Situação</th>
                 <th className="text-center px-3 py-2">Ações</th>
               </tr>
@@ -365,7 +365,7 @@ export default function SalesOrdersPage() {
                   <td className="px-3 py-2 font-mono text-xs">{o.code || o.id}</td>
                   <td className="px-3 py-2 text-xs text-gray-600">{o.createdBy?.abbrevName || '-'}</td>
                   <td className="px-3 py-2 text-xs text-gray-600 w-24">{o.client?.clientCode ?? '-'}</td>
-                  <td className="px-3 py-2 w-48 truncate">{o.client?.abbrevName || o.customerName || '-'}</td>
+                  <td className="px-3 py-2 w-40 truncate">{o.client?.abbrevName || o.customerName || '-'}</td>
                   <td className="px-3 py-2 text-xs text-gray-600">{o.orderType ? `${o.orderType.codtipoped} - ${o.orderType.descricao}` : '-'}</td>
                   <td className="px-2 py-2 whitespace-nowrap w-[70px]">{o.orderDate ? new Date(o.orderDate).toLocaleDateString('pt-BR') : '-'}</td>
                   <td className="px-3 py-2 text-right">
