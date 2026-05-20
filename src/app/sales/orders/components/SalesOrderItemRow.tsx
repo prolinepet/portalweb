@@ -27,17 +27,68 @@ export type OrderItem = {
 const ItemThumb = ({ sku }: { sku?: string | null }) => {
   const s = String(sku || '').trim();
   const [failed, setFailed] = useState(false);
+  const [open, setOpen] = useState(false);
   if (!s || failed) {
     return <div className="w-10 h-10 border rounded bg-white" />;
   }
+  const src = `/api/items/sku/${encodeURIComponent(s)}/thumbnail`;
   return (
-    <img
-      src={`/api/items/sku/${encodeURIComponent(s)}/thumbnail`}
-      alt=""
-      className="w-10 h-10 border rounded bg-white object-contain"
-      onError={() => setFailed(true)}
-      loading="lazy"
-    />
+    <>
+      <button
+        type="button"
+        title="Aumentar Foto"
+        className="group relative w-10 h-10 border rounded bg-white overflow-hidden cursor-zoom-in"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(true);
+        }}
+      >
+        <img
+          src={src}
+          alt=""
+          className="w-full h-full object-contain"
+          onError={() => setFailed(true)}
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
+        <div className="absolute bottom-0 right-0 m-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="p-0.5 rounded bg-white/90 border text-gray-700">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-3.5 h-3.5">
+              <circle cx="11" cy="11" r="7" strokeWidth="1.8" />
+              <path d="M20 20l-3.5-3.5" strokeWidth="1.8" strokeLinecap="round" />
+              <path d="M11 8v6" strokeWidth="1.8" strokeLinecap="round" />
+              <path d="M8 11h6" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </div>
+        </div>
+      </button>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="bg-white rounded shadow-lg max-w-[95vw] max-h-[95vh] overflow-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-3 py-2 border-b flex items-center gap-2">
+              <div className="text-sm font-medium">Foto</div>
+              <button
+                type="button"
+                className="ml-auto px-2 py-1 text-sm border rounded hover:bg-gray-50"
+                onClick={() => setOpen(false)}
+              >
+                Fechar
+              </button>
+            </div>
+            <div className="p-3">
+              <img src={src} alt="" className="max-w-none" />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
