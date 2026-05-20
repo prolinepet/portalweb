@@ -5,6 +5,17 @@ function normalizeDoc(doc: string): string {
   return (doc || '').replace(/\D+/g, '');
 }
 
+function parseClientCode(v: any): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? Math.trunc(v) : null;
+  const s = String(v).trim();
+  if (!s) return null;
+  const digits = s.replace(/\D/g, '');
+  if (!digits) return null;
+  const n = Number(digits);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
 async function ensurePaymentTermByCode(code: number): Promise<number | null> {
   const c = Number(code);
   if (!Number.isFinite(c) || c <= 0) return null;
@@ -245,6 +256,7 @@ export async function GET(_: Request, props: { params: Promise<{ id: string }> }
       where: { id: Math.trunc(id) },
       select: {
         id: true,
+        clientCode: true,
         doc: true,
         abbrevName: true,
         name: true,
@@ -284,6 +296,16 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     }
     const fields: any = {};
     if (body.doc !== undefined) fields.doc = normalizeDoc(String(body.doc || '')) || null;
+    if (body.clientCode !== undefined || body.codCliente !== undefined || body.codcliente !== undefined || body.codigoCliente !== undefined || body.codCli !== undefined || body.codcli !== undefined) {
+      fields.clientCode =
+        parseClientCode(body?.clientCode) ??
+        parseClientCode(body?.codCliente) ??
+        parseClientCode(body?.codcliente) ??
+        parseClientCode(body?.codigoCliente) ??
+        parseClientCode(body?.codCli) ??
+        parseClientCode(body?.codcli) ??
+        null;
+    }
     if (body.abbrevName !== undefined) {
       const raw = String(body.abbrevName || '').trim();
       fields.abbrevName = raw ? raw.slice(0, 20) : null;
@@ -346,6 +368,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         data,
         select: {
           id: true,
+          clientCode: true,
           doc: true,
           abbrevName: true,
           name: true,

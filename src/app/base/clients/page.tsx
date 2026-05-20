@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 type Client = {
   id: number;
+  clientCode?: number | null;
   doc: string;
   name: string;
   cep?: string;
@@ -37,7 +38,7 @@ export default function ClientsPage() {
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [showAdd, setShowAdd] = useState(false);
-  const [add, setAdd] = useState<Client>({ id: 0, doc: "", name: "", cep: "", logradouro: "", numero: "", bairro: "", cidade: "", estado: "", paymentTermId: null });
+  const [add, setAdd] = useState<Client>({ id: 0, clientCode: null, doc: "", name: "", cep: "", logradouro: "", numero: "", bairro: "", cidade: "", estado: "", paymentTermId: null });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState<Client | null>(null);
   const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
@@ -166,7 +167,7 @@ export default function ClientsPage() {
       };
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error(editingId ? 'Falha ao salvar alterações' : 'Falha ao incluir cliente');
-      setAdd({ id: 0, doc: "", name: "", cep: "", logradouro: "", numero: "", bairro: "", cidade: "", estado: "", paymentTermId: null });
+      setAdd({ id: 0, clientCode: null, doc: "", name: "", cep: "", logradouro: "", numero: "", bairro: "", cidade: "", estado: "", paymentTermId: null });
       setLinkedPaymentTerms([]);
       setEditingId(null);
       setShowAdd(false);
@@ -256,7 +257,7 @@ export default function ClientsPage() {
               const next = !s;
               if (next) {
                 setEditingId(null);
-                setAdd({ id: 0, doc: "", name: "", cep: "", logradouro: "", numero: "", bairro: "", cidade: "", estado: "", paymentTermId: null });
+                setAdd({ id: 0, clientCode: null, doc: "", name: "", cep: "", logradouro: "", numero: "", bairro: "", cidade: "", estado: "", paymentTermId: null });
               }
               return next;
             });
@@ -270,6 +271,19 @@ export default function ClientsPage() {
       {showAdd && (
         <div className="border rounded p-3 space-y-2 bg-gray-50">
           <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-[160px_1fr] items-center gap-3">
+              <label className="text-sm text-gray-700">Cód Cliente</label>
+              <input
+                value={add.clientCode == null ? "" : String(add.clientCode)}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  const digits = raw.replace(/\D+/g, "");
+                  setAdd((prev) => ({ ...prev, clientCode: digits ? Number(digits) : null }));
+                }}
+                inputMode="numeric"
+                className="border px-3 py-2 rounded w-48"
+              />
+            </div>
             <div className="grid grid-cols-[160px_1fr] items-center gap-3">
               <label className="text-sm text-gray-700">Cnpj/Cpf</label>
               <div className="flex items-center gap-2">
@@ -412,8 +426,9 @@ export default function ClientsPage() {
         <table className="min-w-full text-sm">
           <thead className="bg-gray-100">
             <tr>
+              <th className="text-left p-2 w-32">Cód Cliente</th>
               <th className="text-left p-2">Doc</th>
-              <th className="text-left p-2">Nome</th>
+              <th className="text-left p-2 w-48">Nome</th>
               <th className="text-left p-2">Cidade</th>
               <th className="text-left p-2">Estado</th>
               <th className="text-left p-2">Ações</th>
@@ -424,6 +439,21 @@ export default function ClientsPage() {
               const isEditing = editingId === c.id && !showAdd;
               return (
                 <tr key={c.id} className="border-t">
+                  <td className="p-2 w-32">
+                    {isEditing ? (
+                      <input
+                        value={editDraft?.clientCode == null ? "" : String(editDraft?.clientCode)}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D+/g, "");
+                          setEditDraft((prev) => ({ ...(prev as Client), clientCode: digits ? Number(digits) : null }));
+                        }}
+                        inputMode="numeric"
+                        className="border px-2 py-1 rounded w-32"
+                      />
+                    ) : (
+                      <span>{c.clientCode ?? ''}</span>
+                    )}
+                  </td>
                   <td className="p-2">
                     {isEditing ? (
                       <input value={editDraft?.doc || ''} onChange={(e) => setEditDraft((prev) => ({ ...(prev as Client), doc: e.target.value }))} className="border px-2 py-1 rounded w-40" />
@@ -431,9 +461,9 @@ export default function ClientsPage() {
                       <span>{maskDoc(c.doc || '')}</span>
                     )}
                   </td>
-                  <td className="p-2">
+                  <td className="p-2 w-48">
                     {isEditing ? (
-                      <input value={editDraft?.name || ''} onChange={(e) => setEditDraft((prev) => ({ ...(prev as Client), name: e.target.value }))} className="border px-2 py-1 rounded w-64" />
+                      <input value={editDraft?.name || ''} onChange={(e) => setEditDraft((prev) => ({ ...(prev as Client), name: e.target.value }))} className="border px-2 py-1 rounded w-48" />
                     ) : (
                       <span>{c.name}</span>
                     )}

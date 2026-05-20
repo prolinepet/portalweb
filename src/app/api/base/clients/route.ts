@@ -7,6 +7,17 @@ function normalizeDoc(doc: string): string {
   return (doc || '').replace(/\D+/g, '');
 }
 
+function parseClientCode(v: any): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? Math.trunc(v) : null;
+  const s = String(v).trim();
+  if (!s) return null;
+  const digits = s.replace(/\D/g, '');
+  if (!digits) return null;
+  const n = Number(digits);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
 async function ensurePaymentTermByCode(code: number): Promise<number | null> {
   const c = Number(code);
   if (!Number.isFinite(c) || c <= 0) return null;
@@ -187,6 +198,7 @@ export async function GET(request: Request) {
       ];
       if (digits) or.push({ doc: { contains: digits } });
       if (idCandidate !== null) or.push({ id: idCandidate });
+      if (idCandidate !== null) or.push({ clientCode: idCandidate });
       where.OR = or;
     }
 
@@ -195,6 +207,7 @@ export async function GET(request: Request) {
       orderBy: { name: 'asc' },
       select: {
         id: true,
+        clientCode: true,
         doc: true,
         abbrevName: true,
         name: true,
@@ -215,6 +228,7 @@ export async function GET(request: Request) {
 
     const out = clients.map((c) => ({
       id: c.id,
+      clientCode: c.clientCode,
       doc: c.doc,
       abbrevName: c.abbrevName,
       name: c.name,
@@ -241,6 +255,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const clientCode =
+      parseClientCode(body?.clientCode) ??
+      parseClientCode(body?.codCliente) ??
+      parseClientCode(body?.codcliente) ??
+      parseClientCode(body?.codigoCliente) ??
+      parseClientCode(body?.codCli) ??
+      parseClientCode(body?.codcli) ??
+      null;
     const doc = normalizeDoc(String(body?.doc || '')) || null;
     const abbrevNameRaw = String(body?.abbrevName || '').trim();
     const abbrevName = abbrevNameRaw ? abbrevNameRaw.slice(0, 20) : null;
@@ -290,6 +312,7 @@ export async function POST(request: Request) {
 
     const created = await prisma.$transaction(async (tx) => {
       const baseData: any = {
+        clientCode,
         abbrevName,
         name,
         cep,
@@ -311,11 +334,11 @@ export async function POST(request: Request) {
             where: { doc },
             update: baseData,
             create: { ...baseData, doc },
-            select: { id: true, doc: true, abbrevName: true, name: true, cep: true, logradouro: true, numero: true, bairro: true, cidade: true, estado: true, paymentTermId: true },
+            select: { id: true, clientCode: true, doc: true, abbrevName: true, name: true, cep: true, logradouro: true, numero: true, bairro: true, cidade: true, estado: true, paymentTermId: true },
           })
         : await tx.client.create({
             data: { ...baseData, doc: null },
-            select: { id: true, doc: true, abbrevName: true, name: true, cep: true, logradouro: true, numero: true, bairro: true, cidade: true, estado: true, paymentTermId: true },
+            select: { id: true, clientCode: true, doc: true, abbrevName: true, name: true, cep: true, logradouro: true, numero: true, bairro: true, cidade: true, estado: true, paymentTermId: true },
           });
 
       if (syncPaymentTermIds !== null) {

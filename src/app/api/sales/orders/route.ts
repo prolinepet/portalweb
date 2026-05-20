@@ -134,6 +134,7 @@ export async function GET(request: Request) {
       include: {
         entity: { select: { name: true } },
         createdBy: { select: { abbrevName: true, name: true } },
+        client: { select: { clientCode: true, abbrevName: true, name: true } },
         orderType: { select: { id: true, codtipoped: true, kind: true, descricao: true } },
         items: {
           include: {

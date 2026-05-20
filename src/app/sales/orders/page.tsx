@@ -9,6 +9,7 @@ type SalesOrder = {
   status: string;
   orderDate: string;
   customerName: string;
+  client?: { clientCode?: number | null; abbrevName?: string | null; name?: string | null } | null;
   orderType?: { codtipoped: number; descricao: string; kind?: 'VENDA' | 'BONIFICACAO' | 'AMOSTRA' | null } | null;
   createdBy?: { abbrevName?: string | null; name?: string | null } | null;
   subtotal: number;
@@ -257,7 +258,8 @@ export default function SalesOrdersPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-mono text-xs text-gray-700">{o.code || o.id}</div>
-                  <div className="text-sm font-medium text-gray-900 truncate">{o.customerName || '-'}</div>
+                  <div className="text-sm font-medium text-gray-900 truncate">{o.client?.abbrevName || o.customerName || '-'}</div>
+                  <div className="text-xs text-gray-600 truncate">Cód Cliente: {o.client?.clientCode ?? '-'}</div>
                   <div className="text-xs text-gray-600 truncate">{o.createdBy?.abbrevName || '-'}</div>
                   <div className="text-xs text-gray-600 truncate">{o.orderType ? `${o.orderType.codtipoped} - ${o.orderType.descricao}` : '-'}</div>
                 </div>
@@ -338,13 +340,14 @@ export default function SalesOrdersPage() {
 
         <div className="hidden sm:block overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-100 text-gray-700 text-[0.65rem]">
+            <thead className="bg-gray-100 text-gray-700">
               <tr>
                 <th className="text-left px-3 py-2">Número</th>
                 <th className="text-left px-3 py-2">Representante</th>
-                <th className="text-left px-3 py-2">Cliente</th>
+                <th className="text-left px-3 py-2 w-32">Cód Cliente</th>
+                <th className="text-left px-3 py-2">Nome Abrev</th>
                 <th className="text-left px-3 py-2">Tipo de pedido</th>
-                <th className="text-left px-3 py-2">Data</th>
+                <th className="text-left px-2 py-2 w-[70px]">Data</th>
                 <th className="text-right px-3 py-2">Total Com Imp R$</th>
                 <th className="text-left px-3 py-2">Situação</th>
                 <th className="text-center px-3 py-2">Ações</th>
@@ -352,18 +355,19 @@ export default function SalesOrdersPage() {
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={8} className="px-3 py-4 text-center text-gray-500">Carregando...</td></tr>
+                <tr><td colSpan={9} className="px-3 py-4 text-center text-gray-500">Carregando...</td></tr>
               )}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={8} className="px-3 py-4 text-center text-gray-500">Nenhum pedido encontrado.</td></tr>
+                <tr><td colSpan={9} className="px-3 py-4 text-center text-gray-500">Nenhum pedido encontrado.</td></tr>
               )}
               {!loading && filtered.map((o) => (
                 <tr key={o.id} className="border-t hover:bg-gray-50">
                   <td className="px-3 py-2 font-mono text-xs">{o.code || o.id}</td>
                   <td className="px-3 py-2 text-xs text-gray-600">{o.createdBy?.abbrevName || '-'}</td>
-                  <td className="px-3 py-2">{o.customerName || '-'}</td>
+                  <td className="px-3 py-2 text-xs text-gray-600 w-32">{o.client?.clientCode ?? '-'}</td>
+                  <td className="px-3 py-2">{o.client?.abbrevName || o.customerName || '-'}</td>
                   <td className="px-3 py-2 text-xs text-gray-600">{o.orderType ? `${o.orderType.codtipoped} - ${o.orderType.descricao}` : '-'}</td>
-                  <td className="px-3 py-2">{o.orderDate ? new Date(o.orderDate).toLocaleDateString('pt-BR') : '-'}</td>
+                  <td className="px-2 py-2 whitespace-nowrap w-[70px]">{o.orderDate ? new Date(o.orderDate).toLocaleDateString('pt-BR') : '-'}</td>
                   <td className="px-3 py-2 text-right">
                     {calcTotal(o).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </td>

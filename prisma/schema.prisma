@@ -419,6 +419,7 @@ model EntityModuleItem {
 
 model Client {
   id         Int     @id @default(autoincrement())
+  clientCode Int?    @db.Int
   doc        String? @unique
   abbrevName String? @db.Char(20)
   name       String

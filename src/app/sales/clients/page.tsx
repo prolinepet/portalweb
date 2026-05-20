@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 
 type Client = {
   id: number;
+  clientCode?: number | null;
   doc?: string | null;
   abbrevName?: string | null;
   name: string;
@@ -83,6 +84,7 @@ export default function SalesClientsPage() {
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-gray-900 break-words">{c.name}</div>
+                  <div className="mt-1 text-xs text-gray-600 font-mono">{c.clientCode ?? "-"}</div>
                   <div className="mt-1 text-xs text-gray-600 font-mono">{maskDoc(c.doc) || "-"}</div>
                   <div className="mt-1 text-xs text-gray-600">
                     {(c.cidade || "-")}{c.estado ? ` • ${c.estado}` : ""}
@@ -97,9 +99,10 @@ export default function SalesClientsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
+                <th className="text-left p-2 font-medium text-gray-600 w-32">Cód Cliente</th>
                 <th className="text-left p-2 font-medium text-gray-600">Doc</th>
                 <th className="text-left p-2 font-medium text-gray-600">Nome Abreviado</th>
-                <th className="text-left p-2 font-medium text-gray-600">Nome</th>
+                <th className="text-left p-2 font-medium text-gray-600 w-[360px]">Nome</th>
                 <th className="text-left p-2 font-medium text-gray-600">Cidade</th>
                 <th className="text-left p-2 font-medium text-gray-600">Estado</th>
               </tr>
@@ -116,9 +119,10 @@ export default function SalesClientsPage() {
                     if (e.key === "Enter" || e.key === " ") openClient(c.id);
                   }}
                 >
+                  <td className="p-2 text-gray-700 font-mono text-xs w-32">{c.clientCode ?? ""}</td>
                   <td className="p-2 text-gray-700 font-mono text-xs">{maskDoc(c.doc)}</td>
                   <td className="p-2 text-gray-700">{c.abbrevName || "-"}</td>
-                  <td className="p-2 text-gray-900 font-medium">{c.name}</td>
+                  <td className="p-2 text-gray-900 font-medium w-[360px] max-w-[360px] truncate">{c.name}</td>
                   <td className="p-2 text-gray-600">{c.cidade || "-"}</td>
                   <td className="p-2 text-gray-600">{c.estado || "-"}</td>
                 </tr>
