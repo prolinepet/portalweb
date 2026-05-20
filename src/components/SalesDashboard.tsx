@@ -2,6 +2,27 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 
+//#region debug-point sales-dashboard-loop-telemetry
+const DBG_URL = (typeof window !== 'undefined' && (process.env.NODE_ENV || '').toLowerCase() !== 'production')
+  ? 'http://127.0.0.1:7777/event'
+  : '';
+function dbgReport(event: Record<string, any>) {
+  if (!DBG_URL) return;
+  try {
+    fetch(DBG_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'sales-dashboard-loop',
+        ts: Date.now(),
+        ...event,
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {}
+}
+//#endregion debug-point sales-dashboard-loop-telemetry
+
 type EntityEntry = {
   id: number;
   name: string;
@@ -204,6 +225,8 @@ export default function SalesDashboard() {
   const [isSalesAdmin, setIsSalesAdmin] = useState(false);
   const [activeGroupTab, setActiveGroupTab] = useState<'FAMILY' | 'CUSTOMER' | 'REP' | 'REGION'>('REP');
   const [data, setData] = useState<DashboardData | null>(null);
+  const dbgRunIdRef = useRef(`pre-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  const dbgSeqRef = useRef(0);
 
   const months = [
     { value: '1', label: 'Janeiro' },
@@ -224,6 +247,15 @@ export default function SalesDashboard() {
 
   useEffect(() => {
     const loadFilters = async () => {
+      //#region debug-point sales-dashboard-loop-loadfilters
+      dbgReport({
+        hypothesisId: 'H2',
+        runId: dbgRunIdRef.current,
+        name: 'sales_dashboard.loadFilters.start',
+        seq: ++dbgSeqRef.current,
+        sessionUserId,
+      });
+      //#endregion debug-point sales-dashboard-loop-loadfilters
       setLoading(true);
       try {
         const [permsRes, usersRes] = await Promise.all([
@@ -256,6 +288,15 @@ export default function SalesDashboard() {
         }
       } finally {
         setLoading(false);
+        //#region debug-point sales-dashboard-loop-loadfilters
+        dbgReport({
+          hypothesisId: 'H2',
+          runId: dbgRunIdRef.current,
+          name: 'sales_dashboard.loadFilters.end',
+          seq: ++dbgSeqRef.current,
+          sessionUserId,
+        });
+        //#endregion debug-point sales-dashboard-loop-loadfilters
       }
     };
 
@@ -279,12 +320,21 @@ export default function SalesDashboard() {
     return out;
   }, [isSalesAdmin, repOptions, data]);
 
+  const repAllowedKey = useMemo(() => {
+    if (!isSalesAdmin) return repOptions.map((o) => o.value).sort().join('|');
+    return repOptionsForUi.map((o) => o.value).sort().join('|');
+  }, [isSalesAdmin, repOptions, repOptionsForUi]);
+
   useEffect(() => {
     if (!isSalesAdmin) return;
     if (repOptionsForUi.length === 0) return;
-    const allowed = new Set(repOptionsForUi.map((o) => o.value));
-    setSelectedReps((prev) => prev.filter((v) => allowed.has(String(v))));
-  }, [isSalesAdmin, repOptionsForUi]);
+    const allowed = new Set(repAllowedKey ? repAllowedKey.split('|') : []);
+    setSelectedReps((prev) => {
+      const next = prev.filter((v) => allowed.has(String(v)));
+      if (next.length === prev.length && next.every((v, i) => v === prev[i])) return prev;
+      return next;
+    });
+  }, [isSalesAdmin, repOptionsForUi.length, repAllowedKey]);
 
   const regionOptions: MultiOpt[] = useMemo(() => {
     return [
@@ -301,6 +351,25 @@ export default function SalesDashboard() {
 
   useEffect(() => {
     const load = async () => {
+      //#region debug-point sales-dashboard-loop-loaddata
+      const allRepsSelectedDbg = isSalesAdmin && repOptionsForUi.length > 0 && selectedReps.length === repOptionsForUi.length;
+      dbgReport({
+        hypothesisId: 'H1',
+        runId: dbgRunIdRef.current,
+        name: 'sales_dashboard.load.start',
+        seq: ++dbgSeqRef.current,
+        year,
+        month,
+        entityId,
+        isSalesAdmin,
+        repOptionsForUiLen: repOptionsForUi.length,
+        selectedRepsLen: selectedReps.length,
+        selectedRegionsLen: selectedRegions.length,
+        allRepsSelected: allRepsSelectedDbg,
+        selectedReps: selectedReps.slice(0, 50),
+        selectedRegions,
+      });
+      //#endregion debug-point sales-dashboard-loop-loaddata
       setDataLoading(true);
       setDataError(null);
       try {
@@ -314,18 +383,63 @@ export default function SalesDashboard() {
         }
         for (const rg of selectedRegions) params.append('region', String(rg));
 
-        const res = await fetch(`/api/sales/dashboard/vendas?${params.toString()}`, { cache: 'no-store' });
+        const url = `/api/sales/dashboard/vendas?${params.toString()}`;
+        //#region debug-point sales-dashboard-loop-loaddata
+        dbgReport({
+          hypothesisId: 'H3',
+          runId: dbgRunIdRef.current,
+          name: 'sales_dashboard.fetch',
+          seq: ++dbgSeqRef.current,
+          url,
+        });
+        //#endregion debug-point sales-dashboard-loop-loaddata
+        const res = await fetch(url, { cache: 'no-store' });
+        //#region debug-point sales-dashboard-loop-loaddata
+        dbgReport({
+          hypothesisId: 'H3',
+          runId: dbgRunIdRef.current,
+          name: 'sales_dashboard.fetch.response',
+          seq: ++dbgSeqRef.current,
+          status: res.status,
+          ok: res.ok,
+        });
+        //#endregion debug-point sales-dashboard-loop-loaddata
         if (!res.ok) {
           const j = await res.json().catch(() => null as any);
           throw new Error(String(j?.error || `Falha ao carregar (HTTP ${res.status})`));
         }
         const j = (await res.json().catch(() => null)) as DashboardData | null;
+        //#region debug-point sales-dashboard-loop-loaddata
+        dbgReport({
+          hypothesisId: 'H1',
+          runId: dbgRunIdRef.current,
+          name: 'sales_dashboard.load.data',
+          seq: ++dbgSeqRef.current,
+          hasData: Boolean(j),
+          groups: j?.groups
+            ? {
+                REP: Array.isArray(j.groups.REP) ? j.groups.REP.length : null,
+                CUSTOMER: Array.isArray(j.groups.CUSTOMER) ? j.groups.CUSTOMER.length : null,
+                REGION: Array.isArray(j.groups.REGION) ? j.groups.REGION.length : null,
+                FAMILY: Array.isArray(j.groups.FAMILY) ? j.groups.FAMILY.length : null,
+              }
+            : null,
+        });
+        //#endregion debug-point sales-dashboard-loop-loaddata
         setData(j);
       } catch (e: any) {
         setData(null);
         setDataError(String(e?.message || e));
       } finally {
         setDataLoading(false);
+        //#region debug-point sales-dashboard-loop-loaddata
+        dbgReport({
+          hypothesisId: 'H1',
+          runId: dbgRunIdRef.current,
+          name: 'sales_dashboard.load.end',
+          seq: ++dbgSeqRef.current,
+        });
+        //#endregion debug-point sales-dashboard-loop-loaddata
       }
     };
 
