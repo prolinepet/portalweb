@@ -5,7 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 
 type Client = { 
   id: number; 
+  clientCode?: number | null;
   doc?: string | null; 
+  abbrevName?: string | null;
   name: string; 
   cep?: string | null; 
   logradouro?: string | null; 
@@ -564,6 +566,7 @@ export default function ClientDetailsPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="flex flex-col xl:flex-row justify-between gap-4 flex-1 text-sm">
               <div className="flex flex-col gap-2">
+                <div className="whitespace-nowrap"><span className="text-gray-600">Cód/Nome Abrev:</span> <span className="font-medium ml-1">{client.clientCode ?? '-'} - {client.abbrevName || '-'}</span></div>
                 <div className="whitespace-nowrap"><span className="text-gray-600">CPF/CNPJ:</span> <span className="font-medium ml-1">{formatDoc(client.doc)}</span></div>
                 <div className="whitespace-nowrap"><span className="text-gray-600">Nome:</span> <span className="font-medium ml-1">{client.name}</span></div>
                 <div className="flex gap-4">
