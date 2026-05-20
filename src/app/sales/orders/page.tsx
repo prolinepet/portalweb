@@ -25,7 +25,7 @@ export default function SalesOrdersPage() {
   const [status, setStatus] = useState<string>("");
   const [dateStart, setDateStart] = useState<string>("");
   const [dateEnd, setDateEnd] = useState<string>("");
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState<SalesOrder | null>(null);
   const [integratingId, setIntegratingId] = useState<number | null>(null);
   const [erpModalOpen, setErpModalOpen] = useState(false);
@@ -338,7 +338,7 @@ export default function SalesOrdersPage() {
 
         <div className="hidden sm:block overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-100 text-gray-700">
+            <thead className="bg-gray-100 text-gray-700 text-[0.65rem]">
               <tr>
                 <th className="text-left px-3 py-2">Número</th>
                 <th className="text-left px-3 py-2">Representante</th>
