@@ -1578,25 +1578,6 @@ export default function SalesOrderMaintenancePage() {
                     }} disabled={!isHeaderEditing} />
                     <input type="date" className="mt-1 hidden sm:block w-full min-w-0 max-w-full px-2 py-1 border rounded" value={hdrDraft.deliveryDate ?? ''} onChange={(e) => setHdrDraft((d) => ({ ...d, deliveryDate: e.target.value }))} disabled={!isHeaderEditing} />
                   </div>
-                  <div className={`md:col-span-6 ${!isHeaderEditing ? "opacity-75 pointer-events-none" : ""}`}>
-                     <AsyncSelect
-                        label="Cliente Remessa Triangular"
-                        value={hdrDraft.triangularCustomerName ?? ''}
-                        onChange={(val) => setHdrDraft((d) => ({ ...d, triangularCustomerName: val }))}
-                        onSelectObj={(item) => {
-                           setHdrDraft((d) => ({ ...d, triangularCustomerName: item.name, triangularCustomerDoc: item.doc }));
-                        }}
-                        fetchUrl={(q) => `/api/base/clients?q=${q}`}
-                        placeholder="Pesquise por nome ou documento"
-                        getLabel={(item) => item.name}
-                        renderOption={(item) => (
-                          <div>
-                            <div className="font-medium">{item.name}</div>
-                            <div className="text-xs text-gray-500">{item.doc}</div>
-                          </div>
-                        )}
-                      />
-                  </div>
                 </div>
 
                 {/* Totais */}

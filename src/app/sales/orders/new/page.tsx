@@ -1154,25 +1154,6 @@ function NewSalesOrderContent() {
                 />
               </div>
 
-              <div className="md:col-span-6">
-                <AsyncSelect
-                  label="Cliente Remessa Triangular"
-                  value={order.triangularCustomerName || ''}
-                  onChange={(val) => setOrder(prev => ({ ...prev, triangularCustomerName: val }))}
-                  onSelectObj={(c) => setOrder(prev => ({ ...prev, triangularCustomerName: c.name, triangularCustomerDoc: c.doc }))}
-                  fetchUrl={(q) => `/api/base/clients?q=${q}`}
-                  placeholder="Busque por nome ou documento"
-                  getLabel={(c) => c.name}
-                  renderOption={(c) => (
-                    <div>
-                      <div className="font-medium">{c.name}</div>
-                      <div className="text-xs text-gray-500">{c.doc}</div>
-                    </div>
-                  )}
-                />
-              </div>
-              <div className="md:col-span-6"></div>
-
               <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <span className="text-gray-600">Total Sem Imp R$</span>
