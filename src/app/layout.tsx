@@ -15,6 +15,7 @@ export default function RootLayout({
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/icons/icon-192.png" />
       </head>
       <body className="min-h-screen bg-gray-50 text-gray-900">
         <Providers>
