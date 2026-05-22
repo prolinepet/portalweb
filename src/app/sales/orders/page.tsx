@@ -27,6 +27,7 @@ export default function SalesOrdersPage() {
   const [dateStart, setDateStart] = useState<string>("");
   const [dateEnd, setDateEnd] = useState<string>("");
   const [showFilters, setShowFilters] = useState(false);
+  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<SalesOrder | null>(null);
   const [integratingId, setIntegratingId] = useState<number | null>(null);
   const [erpModalOpen, setErpModalOpen] = useState(false);
@@ -148,6 +149,21 @@ export default function SalesOrdersPage() {
       });
   }, [orders, q, status, dateStart, dateEnd]);
 
+  const pageSize = 10;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [q, status, dateStart, dateEnd]);
+
+  useEffect(() => {
+    setPage((p) => Math.min(Math.max(1, p), pageCount));
+  }, [pageCount]);
+
   const calcTotal = (o: SalesOrder) => {
     return (o.items || []).reduce((acc, item) => {
       const total = item.quantity * item.unitPrice;
@@ -197,7 +213,53 @@ export default function SalesOrdersPage() {
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <h1 className="text-xl font-semibold">Venda • Consulta de Pedidos</h1>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex-1 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading || page <= 1}
+            onClick={() => setPage(1)}
+            title="Primeira página"
+          >
+            «
+          </button>
+          <button
+            type="button"
+            className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading || page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            title="Página anterior"
+          >
+            ‹
+          </button>
+          <span className="text-xs text-gray-600 whitespace-nowrap">
+            Página {page} de {pageCount}
+          </span>
+          <button
+            type="button"
+            className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading || page >= pageCount}
+            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+            title="Próxima página"
+          >
+            ›
+          </button>
+          <button
+            type="button"
+            className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading || page >= pageCount}
+            onClick={() => setPage(pageCount)}
+            title="Última página"
+          >
+            »
+          </button>
+          <span className="hidden sm:inline text-xs text-gray-500 whitespace-nowrap">
+            {filtered.length === 0
+              ? '0 de 0'
+              : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, filtered.length)} de ${filtered.length}`}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500">{filtered.length} registro(s)</span>
           <button
             type="button"
@@ -253,7 +315,7 @@ export default function SalesOrdersPage() {
           {!loading && filtered.length === 0 && (
             <div className="px-3 py-4 text-center text-gray-500 text-sm">Nenhum pedido encontrado.</div>
           )}
-          {!loading && filtered.map((o) => (
+          {!loading && paged.map((o) => (
             <div key={o.id} className="px-3 py-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -360,7 +422,7 @@ export default function SalesOrdersPage() {
               {!loading && filtered.length === 0 && (
                 <tr><td colSpan={9} className="px-3 py-4 text-center text-gray-500">Nenhum pedido encontrado.</td></tr>
               )}
-              {!loading && filtered.map((o) => (
+              {!loading && paged.map((o) => (
                 <tr key={o.id} className="border-t hover:bg-gray-50">
                   <td className="px-3 py-2 font-mono text-xs">{o.code || o.id}</td>
                   <td className="px-3 py-2 text-xs text-gray-600">{o.createdBy?.abbrevName || '-'}</td>
