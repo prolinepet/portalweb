@@ -216,48 +216,53 @@ export default function SalesOrdersPage() {
         <div className="flex-1 flex items-center justify-center gap-2">
           <button
             type="button"
-            className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-gray-300 bg-white text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed"
             disabled={loading || page <= 1}
             onClick={() => setPage(1)}
             title="Primeira página"
           >
-            «
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
+              <path d="M11 19l-7-7 7-7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M20 19l-7-7 7-7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
           <button
             type="button"
-            className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-gray-300 bg-white text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed"
             disabled={loading || page <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             title="Página anterior"
           >
-            ‹
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
+              <path d="M15 19l-7-7 7-7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
           <span className="text-xs text-gray-600 whitespace-nowrap">
             Página {page} de {pageCount}
           </span>
           <button
             type="button"
-            className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-gray-300 bg-white text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed"
             disabled={loading || page >= pageCount}
             onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
             title="Próxima página"
           >
-            ›
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
+              <path d="M9 5l7 7-7 7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
           <button
             type="button"
-            className="px-2 py-1 text-xs border rounded bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-gray-300 bg-white text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed"
             disabled={loading || page >= pageCount}
             onClick={() => setPage(pageCount)}
             title="Última página"
           >
-            »
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
+              <path d="M4 19l7-7-7-7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M13 19l7-7-7-7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
-          <span className="hidden sm:inline text-xs text-gray-500 whitespace-nowrap">
-            {filtered.length === 0
-              ? '0 de 0'
-              : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, filtered.length)} de ${filtered.length}`}
-          </span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500">{filtered.length} registro(s)</span>
