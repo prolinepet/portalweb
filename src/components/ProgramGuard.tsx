@@ -25,6 +25,7 @@ function pathToProgramCodes(pathname: string): string[] {
   if (pathname.startsWith("/base/items")) return ["ITEM_MAINTENANCE"];
   if (pathname.startsWith("/base/price-tables")) return ["PRICE_TABLE_ADMIN", "PRICE_TABLE_LIST", "PRICE_TABLE_MAINTENANCE"];
   if (pathname.startsWith("/base/order-types")) return ["ORDER_TYPE_ADMIN", "ORDER_TYPE_LIST", "ORDER_TYPE_MAINTENANCE"];
+  if (pathname.startsWith("/logistics/processes")) return ["PROCESSOS_LOGISTICOS"];
   // SAC
   if (pathname.startsWith("/sac/complaints/maintenance")) return ["SAC_COMPLAINT_MAINTENANCE"];
   if (pathname.startsWith("/sac/complaints/search")) return ["SAC_COMPLAINT_SEARCH"];

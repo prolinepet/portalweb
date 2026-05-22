@@ -30,6 +30,7 @@ model User {
   assignedWorkOrders WorkOrder[]
   userInventoryItemPrices UserInventoryItemPrice[]
   trustedDevices     TrustedDevice[]
+  logisticsPhaseUsers LogisticPhaseNotifiedUser[]
 
   // Gestão FinTI Relations
   gestaoFintiCategoriasCriadas       GestaoFintiCategoria[]   @relation("GestaoFintiCategoriaCriadoPor")
@@ -50,6 +51,55 @@ model User {
   gestaoFintiConfiguracoesAtualizadas GestaoFintiConfiguracao[] @relation("GestaoFintiConfiguracaoAtualizadoPor")
 
   @@map("user")
+}
+
+model LogisticProcess {
+  id          Int                   @id @default(autoincrement())
+  code        Int                   @unique
+  description String
+  isActive    Boolean               @default(true)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  phases      LogisticProcessPhase[]
+
+  @@index([description])
+  @@map("logisticprocess")
+}
+
+model LogisticProcessPhase {
+  id          Int                        @id @default(autoincrement())
+  processId   Int
+  code        Int
+  description String
+  isAuto      Boolean                    @default(false)
+  sequence    Int                        @default(1)
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+  process     LogisticProcess            @relation(fields: [processId], references: [id], onDelete: Cascade)
+  notifiedUsers LogisticPhaseNotifiedUser[]
+
+  @@unique([processId, code])
+  @@index([processId])
+  @@index([processId, sequence])
+  @@map("logisticprocessphase")
+}
+
+model LogisticPhaseNotifiedUser {
+  id          Int                 @id @default(autoincrement())
+  phaseId     Int
+  userId      Int
+  allowReturn Boolean             @default(false)
+  allowNext   Boolean             @default(false)
+  permissions Json?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  phase       LogisticProcessPhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([phaseId, userId])
+  @@index([phaseId])
+  @@index([userId])
+  @@map("logisticphaseuser")
 }
 
 model TrustedDevice {

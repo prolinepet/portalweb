@@ -65,6 +65,9 @@ const Icon = {
   salesProductionSchedule: (
     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M7 2h2v2h6V2h2v2h3v16H4V4h3V2zm0 6h10v2H7V8zm0 4h10v2H7v-2zm0 4h7v2H7v-2z"/></svg>
   ),
+  logisticsProcesses: (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M3 7h13v10H3V7zm2 2v6h9V9H5zm12 3h2l2 3v2h-4v-5zm-1 7a2 2 0 11.001 3.999A2 2 0 0116 19zm-9 0a2 2 0 11.001 3.999A2 2 0 017 19z"/></svg>
+  ),
 };
 
 function programHref(code: string): string | null {
@@ -88,6 +91,7 @@ function programHref(code: string): string | null {
     case 'ITEM_MAINTENANCE': return '/base/items';
     case 'PRICE_TABLE_ADMIN': return '/base/price-tables';
     case 'ORDER_TYPE_ADMIN': return '/base/order-types';
+    case 'PROCESSOS_LOGISTICOS': return '/logistics/processes';
     // SAC
     case 'SAC_COMPLAINT_MAINTENANCE': return '/sac/complaints/maintenance';
     case 'SAC_COMPLAINT_SEARCH': return '/sac/complaints/search';
@@ -247,6 +251,7 @@ export default function Sidebar({ perms, mobileOpen, setMobileOpen, pathname, us
                         case 'ITEM_MAINTENANCE': return Icon.inventory;
                         case 'PRICE_TABLE_ADMIN': return Icon.reports;
                         case 'ORDER_TYPE_ADMIN': return Icon.reports;
+                        case 'PROCESSOS_LOGISTICOS': return Icon.logisticsProcesses;
                         case 'SAC_STANDARD_OCCURRENCE': return Icon.settings;
                         // Gestão FinTI
                         case 'DESPESAS': return Icon.reports;
