@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../../../../../lib/auth';
-import { prisma } from '../../../../../../../lib/prisma';
-import { isProgramAllowed } from '../../../../../../../lib/isProgramAllowed';
+import { authOptions } from '../../../../../../lib/auth';
+import { prisma } from '../../../../../../lib/prisma';
+import { isProgramAllowed } from '../../../../../../lib/isProgramAllowed';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -148,4 +148,3 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
 }
-
