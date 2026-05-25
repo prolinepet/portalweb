@@ -472,14 +472,15 @@ export default function LogisticsPanelPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Painel Logístico</h1>
-
-      <div className="flex items-center gap-2 border-b">
-        <button onClick={() => setTab("processos")} className={`px-3 py-2 text-sm ${tab === "processos" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}>Processos</button>
-        <button onClick={() => setTab("pre-carga")} className={`px-3 py-2 text-sm ${tab === "pre-carga" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}>Pré-Carga</button>
-        <button onClick={() => setTab("descarga")} className={`px-3 py-2 text-sm ${tab === "descarga" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}>Descarga</button>
-        <button onClick={() => setTab("pre-devolucao")} className={`px-3 py-2 text-sm ${tab === "pre-devolucao" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}>Pré-Devolução</button>
+    <div className="space-y-2">
+      <div className="flex items-end justify-between gap-4 border-b">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setTab("processos")} className={`px-3 py-2 text-sm ${tab === "processos" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}>Processos</button>
+          <button onClick={() => setTab("pre-carga")} className={`px-3 py-2 text-sm ${tab === "pre-carga" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}>Pré-Carga</button>
+          <button onClick={() => setTab("descarga")} className={`px-3 py-2 text-sm ${tab === "descarga" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}>Descarga</button>
+          <button onClick={() => setTab("pre-devolucao")} className={`px-3 py-2 text-sm ${tab === "pre-devolucao" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}>Pré-Devolução</button>
+        </div>
+        <div className="text-xl font-semibold pb-2">Painel Logístico</div>
       </div>
 
       {tab !== "pre-carga" && (
@@ -487,7 +488,7 @@ export default function LogisticsPanelPage() {
       )}
 
       {tab === "pre-carga" && (
-          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-2">
           <div className="bg-white rounded border p-3">
             <div className="flex items-center justify-between mb-2">
               <div className="font-medium">Pré Cargas</div>
@@ -625,7 +626,7 @@ export default function LogisticsPanelPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[120px_520px_220px] gap-3">
+            <div className="grid grid-cols-1 lg:grid-cols-[120px_1fr_220px] gap-3">
               <div className="space-y-2">
                 <button onClick={() => setShowEstabModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">Estabelecimento</button>
                 <button onClick={() => setShowUfModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">Estado(UF)</button>
@@ -635,7 +636,7 @@ export default function LogisticsPanelPage() {
               <div className="space-y-2">
                 <div className="grid grid-cols-[80px_130px_auto_130px] items-center gap-1">
                   <div className="text-xs text-gray-600">Dt Entrega Cli:</div>
-                  <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-full border rounded px-1.5 py-1 text-xs h-8" />
+                  <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-full md:w-[140px] border rounded px-1.5 py-1 text-xs h-8" />
                   <div className="flex items-center justify-center gap-1">
                     <button className="w-8 h-8 border rounded text-sm bg-gray-50 cursor-default" title="Botão sem ação" tabIndex={-1} type="button">
                       {"<<"}
@@ -644,22 +645,22 @@ export default function LogisticsPanelPage() {
                       {">>"}
                     </button>
                   </div>
-                  <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-full border rounded px-1.5 py-1 text-xs h-8" />
+                  <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-full md:w-[140px] border rounded px-1.5 py-1 text-xs h-8" />
                 </div>
 
                 <div className="grid grid-cols-[80px_1fr] items-center gap-1">
                   <div className="text-xs text-gray-600">Nome Cliente:</div>
-                  <input value={filterNomeCliente} onChange={(e) => setFilterNomeCliente(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
+                  <input value={filterNomeCliente} onChange={(e) => setFilterNomeCliente(e.target.value)} className="w-full md:w-[260px] border rounded px-2 py-1 text-xs h-8" />
                 </div>
 
                 <div className="grid grid-cols-[80px_1fr] items-center gap-1">
                   <div className="text-xs text-gray-600">Pedido Cliente:</div>
-                  <input value={filterPedidoCliente} onChange={(e) => setFilterPedidoCliente(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
+                  <input value={filterPedidoCliente} onChange={(e) => setFilterPedidoCliente(e.target.value)} className="w-full md:w-[520px] border rounded px-2 py-1 text-xs h-8" />
                 </div>
 
                 <div className="grid grid-cols-[80px_1fr] items-center gap-1">
                   <div className="text-xs text-gray-600">Item/Desc It:</div>
-                  <input value={filterItemDesc} onChange={(e) => setFilterItemDesc(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
+                  <input value={filterItemDesc} onChange={(e) => setFilterItemDesc(e.target.value)} className="w-full md:w-[520px] border rounded px-2 py-1 text-xs h-8" />
                 </div>
               </div>
 
