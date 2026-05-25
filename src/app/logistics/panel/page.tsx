@@ -60,9 +60,8 @@ function addDays(ymd: string, deltaDays: number): string {
 
 export default function LogisticsPanelPage() {
   const [tab, setTab] = useState<TabKey>("pre-carga");
-  const [dateStart, setDateStart] = useState<string>(() => "2023-01-01");
-  const [dateEnd, setDateEnd] = useState<string>(() => "9999-12-31");
-  const [q, setQ] = useState("");
+  const [dateStart, setDateStart] = useState<string>(() => addDays(toYmd(new Date()), -30));
+  const [dateEnd, setDateEnd] = useState<string>(() => addDays(toYmd(new Date()), 10));
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [items, setItems] = useState<PreCargaItem[]>([]);
@@ -93,8 +92,6 @@ export default function LogisticsPanelPage() {
       const qs = new URLSearchParams();
       if (dateStart) qs.set("dateStart", dateStart);
       if (dateEnd) qs.set("dateEnd", dateEnd);
-      const quick = (q || "").trim();
-      if (quick) qs.set("q", quick);
       const res = await fetch(`/api/logistics/panel/pre-carga/items?${qs.toString()}`, { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
@@ -122,7 +119,7 @@ export default function LogisticsPanelPage() {
     } finally {
       setLoading(false);
     }
-  }, [dateStart, dateEnd, q]);
+  }, [dateStart, dateEnd]);
 
   const loadPreCargas = useCallback(async () => {
     setErr(null);
@@ -267,9 +264,9 @@ export default function LogisticsPanelPage() {
 
   useEffect(() => {
     if (!dateStart && !dateEnd) {
-      const now = new Date();
-      setDateStart(toYmd(new Date(now.getFullYear(), 0, 1)));
-      setDateEnd("9999-12-31");
+      const today = toYmd(new Date());
+      setDateStart(addDays(today, -30));
+      setDateEnd(addDays(today, 10));
     }
   }, [dateStart, dateEnd]);
 
@@ -623,101 +620,89 @@ export default function LogisticsPanelPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[160px_1fr_280px] gap-3">
+            <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr_240px] gap-3">
               <div className="space-y-2">
-                <button onClick={() => setShowEstabModal(true)} className="w-full text-xs px-2 py-1.5 border rounded bg-gray-50">Estabelecimento</button>
-                <button onClick={() => setShowUfModal(true)} className="w-full text-xs px-2 py-1.5 border rounded bg-gray-50">Estado(UF)</button>
-                <button onClick={() => setShowCityModal(true)} className="w-full text-xs px-2 py-1.5 border rounded bg-gray-50">Cidade</button>
+                <button onClick={() => setShowEstabModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">Estabelecimento</button>
+                <button onClick={() => setShowUfModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">Estado(UF)</button>
+                <button onClick={() => setShowCityModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">Cidade</button>
               </div>
 
               <div className="space-y-2">
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-2 items-end">
                   <div>
                     <div className="text-xs text-gray-600 mb-1">Dt Entr Cli (de)</div>
-                    <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+                    <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
                   </div>
                   <div className="flex items-center justify-center gap-1 pb-0.5">
                     <button
-                      className="w-8 h-8 border rounded text-sm"
-                      title="Voltar 1 dia"
-                      onClick={() => {
-                        setDateStart((prev) => addDays(prev, -1));
-                        setDateEnd((prev) => addDays(prev, -1));
-                      }}
-                      disabled={loading}
+                      className="w-8 h-8 border rounded text-sm bg-gray-50 cursor-default"
+                      title="Botão sem ação"
+                      tabIndex={-1}
+                      type="button"
                     >
-                      ‹
+                      {"<<"}
                     </button>
                     <button
-                      className="w-8 h-8 border rounded text-sm"
-                      title="Avançar 1 dia"
-                      onClick={() => {
-                        setDateStart((prev) => addDays(prev, 1));
-                        setDateEnd((prev) => addDays(prev, 1));
-                      }}
-                      disabled={loading}
+                      className="w-8 h-8 border rounded text-sm bg-gray-50 cursor-default"
+                      title="Botão sem ação"
+                      tabIndex={-1}
+                      type="button"
                     >
-                      ›
+                      {">>"}
                     </button>
                   </div>
                   <div>
                     <div className="text-xs text-gray-600 mb-1">Dt Entr Cli (até)</div>
-                    <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+                    <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <div>
                     <div className="text-xs text-gray-600 mb-1">Nome Cliente</div>
-                    <input value={filterNomeCliente} onChange={(e) => setFilterNomeCliente(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+                    <input value={filterNomeCliente} onChange={(e) => setFilterNomeCliente(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
                   </div>
                   <div>
                     <div className="text-xs text-gray-600 mb-1">Pedido Cliente</div>
-                    <input value={filterPedidoCliente} onChange={(e) => setFilterPedidoCliente(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+                    <input value={filterPedidoCliente} onChange={(e) => setFilterPedidoCliente(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <div>
-                    <div className="text-xs text-gray-600 mb-1">Item/Desc It</div>
-                    <input value={filterItemDesc} onChange={(e) => setFilterItemDesc(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
-                  </div>
-                  <div>
-                    <div className="text-xs text-gray-600 mb-1">Filtro</div>
-                    <input value={q} onChange={(e) => setQ(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
-                  </div>
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">Item/Desc It</div>
+                  <input value={filterItemDesc} onChange={(e) => setFilterItemDesc(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <div className="border rounded p-2">
                   <div className="text-xs text-gray-600 mb-2">Tipo Pedido</div>
-                  <label className="text-sm flex items-center gap-2">
+                  <label className="text-xs flex items-center gap-2">
                     <input type="checkbox" checked={kVenda} onChange={(e) => setKVenda(e.target.checked)} /> Venda
                   </label>
-                  <label className="text-sm flex items-center gap-2">
+                  <label className="text-xs flex items-center gap-2">
                     <input type="checkbox" checked={kBon} onChange={(e) => setKBon(e.target.checked)} /> Bonificação
                   </label>
-                  <label className="text-sm flex items-center gap-2">
+                  <label className="text-xs flex items-center gap-2">
                     <input type="checkbox" checked={kAmostra} onChange={(e) => setKAmostra(e.target.checked)} /> Amostra
                   </label>
-                  <label className="text-sm flex items-center gap-2 mt-2">
+                  <label className="text-xs flex items-center gap-2 mt-2">
                     <input type="checkbox" checked={apenasAprovados} onChange={(e) => setApenasAprovados(e.target.checked)} /> Apenas Aprovados
                   </label>
                 </div>
 
                 <div className="border rounded p-2">
                   <div className="text-xs text-gray-600 mb-2">Agrupamento</div>
-                  <label className="text-sm flex items-center gap-2">
+                  <label className="text-xs flex items-center gap-2">
                     <input type="checkbox" defaultChecked /> Estado(UF)
                   </label>
-                  <label className="text-sm flex items-center gap-2">
+                  <label className="text-xs flex items-center gap-2">
                     <input type="checkbox" /> Cidade
                   </label>
-                  <label className="text-sm flex items-center gap-2">
+                  <label className="text-xs flex items-center gap-2">
                     <input type="checkbox" /> Dt Entrega Cli
                   </label>
-                  <label className="text-sm flex items-center gap-2">
+                  <label className="text-xs flex items-center gap-2">
                     <input type="checkbox" /> Cliente
                   </label>
                 </div>
