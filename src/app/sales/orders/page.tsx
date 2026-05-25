@@ -258,6 +258,11 @@ export default function SalesOrdersPage() {
     }, 0);
   };
 
+  const canGenerateBonus = (o: SalesOrder) => {
+    const kind = String(o?.orderType?.kind || '').trim().toUpperCase();
+    return kind !== 'BONIFICACAO' && kind !== 'AMOSTRA';
+  };
+
   const IconBtn = ({ title, onClick, children, disabled = false }: any) => (
     <button
       title={title}
@@ -437,7 +442,7 @@ export default function SalesOrdersPage() {
                 <div className="inline-flex">
                   <IconBtn title="Visualizar" onClick={() => setSelected(o)}><EyeIcon /></IconBtn>
                   <IconBtn title="Detalhes" onClick={() => { window.location.href = `/sales/orders/${o.id}`; }}> <FileIcon /> </IconBtn>
-                  <IconBtn title="Gerar Bonificação" onClick={() => openBonusModal(o)}><GiftIcon /></IconBtn>
+                  <IconBtn title="Gerar Bonificação" disabled={!canGenerateBonus(o)} onClick={() => openBonusModal(o)}><GiftIcon /></IconBtn>
                   <IconBtn
                     title="Enviar para ERP"
                     disabled={integratingId === o.id || !['Orçamento', 'Erro na integração'].includes(statusLabelPt(o.status))}
@@ -542,7 +547,7 @@ export default function SalesOrdersPage() {
                     <div className="inline-flex">
                       <IconBtn title="Visualizar" onClick={() => setSelected(o)}><EyeIcon /></IconBtn>
                       <IconBtn title="Detalhes" onClick={() => { window.location.href = `/sales/orders/${o.id}`; }}> <FileIcon /> </IconBtn>
-                      <IconBtn title="Gerar Bonificação" onClick={() => openBonusModal(o)}><GiftIcon /></IconBtn>
+                      <IconBtn title="Gerar Bonificação" disabled={!canGenerateBonus(o)} onClick={() => openBonusModal(o)}><GiftIcon /></IconBtn>
                       <IconBtn 
                         title="Enviar para ERP" 
                         disabled={integratingId === o.id || !['Orçamento', 'Erro na integração'].includes(statusLabelPt(o.status))}
