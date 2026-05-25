@@ -18,6 +18,13 @@ type PreCargaItem = {
   sdoPed: number;
 };
 
+type PreCarga = {
+  id: number;
+  dtPrevCarreg: string | null;
+  cifFob: string | null;
+  isFinalized: boolean;
+};
+
 type TabKey = "processos" | "pre-carga" | "descarga" | "pre-devolucao";
 
 function pad2(n: number): string {
@@ -36,6 +43,12 @@ export default function LogisticsPanelPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [items, setItems] = useState<PreCargaItem[]>([]);
+  const [preCargas, setPreCargas] = useState<PreCarga[]>([]);
+  const [selectedPreCargaId, setSelectedPreCargaId] = useState<number | null>(null);
+  const [includeFinalized, setIncludeFinalized] = useState(false);
+  const [preCargaMode, setPreCargaMode] = useState<"view" | "create" | "edit">("view");
+  const [preCargaDtPrev, setPreCargaDtPrev] = useState<string>("");
+  const [preCargaCifFob, setPreCargaCifFob] = useState<"CIF" | "FOB" | "">("");
 
   const loadPreCarga = useCallback(async () => {
     setLoading(true);
@@ -73,10 +86,146 @@ export default function LogisticsPanelPage() {
     }
   }, [dateStart, dateEnd, q]);
 
+  const loadPreCargas = useCallback(async () => {
+    setErr(null);
+    try {
+      const qs = new URLSearchParams();
+      if (includeFinalized) qs.set("includeFinalized", "1");
+      const res = await fetch(`/api/logistics/panel/pre-carga?${qs.toString()}`, { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+      const normalized: PreCarga[] = (Array.isArray(data?.preCargas) ? data.preCargas : []).map((r: any) => ({
+        id: Number(r?.id),
+        dtPrevCarreg: r?.dtPrevCarreg == null ? null : String(r.dtPrevCarreg),
+        cifFob: r?.cifFob == null ? null : String(r.cifFob),
+        isFinalized: Boolean(r?.isFinalized),
+      }));
+      setPreCargas(normalized.filter((x) => Number.isFinite(x.id) && x.id > 0));
+      setSelectedPreCargaId((prev) => {
+        const still = prev != null && normalized.some((x) => x.id === prev);
+        return still ? prev : normalized[0]?.id ?? null;
+      });
+    } catch (e: any) {
+      setPreCargas([]);
+      setSelectedPreCargaId(null);
+      setErr(e?.message || String(e));
+    }
+  }, [includeFinalized]);
+
   useEffect(() => {
     if (tab !== "pre-carga") return;
     void loadPreCarga();
-  }, [tab, loadPreCarga]);
+    void loadPreCargas();
+  }, [tab, loadPreCarga, loadPreCargas]);
+
+  const selectedPreCarga = useMemo(() => preCargas.find((p) => p.id === selectedPreCargaId) || null, [preCargas, selectedPreCargaId]);
+
+  useEffect(() => {
+    if (preCargaMode !== "view") return;
+    if (!selectedPreCarga) {
+      setPreCargaDtPrev("");
+      setPreCargaCifFob("");
+      return;
+    }
+    const dt = selectedPreCarga.dtPrevCarreg ? selectedPreCarga.dtPrevCarreg.slice(0, 10) : "";
+    setPreCargaDtPrev(dt);
+    const cf = String(selectedPreCarga.cifFob || "").toUpperCase();
+    setPreCargaCifFob(cf === "CIF" || cf === "FOB" ? (cf as any) : "");
+  }, [selectedPreCarga, preCargaMode]);
+
+  const ensurePreCargaFields = (): string | null => {
+    if (!preCargaDtPrev) return "Informe Dt Prev Carreg.";
+    if (!preCargaCifFob) return "Informe CIF/FOB.";
+    return null;
+  };
+
+  const startCreatePreCarga = () => {
+    setPreCargaMode("create");
+    setSelectedPreCargaId(null);
+    setPreCargaDtPrev("");
+    setPreCargaCifFob("");
+  };
+
+  const startEditPreCarga = () => {
+    if (!selectedPreCarga) {
+      alert("Selecione uma pré-carga.");
+      return;
+    }
+    setPreCargaMode("edit");
+  };
+
+  const cancelPreCargaEdit = () => {
+    setPreCargaMode("view");
+  };
+
+  const savePreCarga = async () => {
+    const msg = ensurePreCargaFields();
+    if (msg) {
+      alert(msg);
+      return;
+    }
+    setLoading(true);
+    setErr(null);
+    try {
+      if (preCargaMode === "create") {
+        const res = await fetch("/api/logistics/panel/pre-carga", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dtPrevCarreg: preCargaDtPrev, cifFob: preCargaCifFob }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+        const createdId = Number(data?.preCarga?.id);
+        await loadPreCargas();
+        setSelectedPreCargaId(Number.isFinite(createdId) && createdId > 0 ? createdId : null);
+        setPreCargaMode("view");
+        return;
+      }
+      if (preCargaMode === "edit") {
+        if (!selectedPreCarga) {
+          alert("Selecione uma pré-carga.");
+          return;
+        }
+        const res = await fetch(`/api/logistics/panel/pre-carga/${selectedPreCarga.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dtPrevCarreg: preCargaDtPrev, cifFob: preCargaCifFob }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+        await loadPreCargas();
+        setPreCargaMode("view");
+      }
+    } catch (e: any) {
+      setErr(e?.message || String(e));
+      alert(e?.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deletePreCarga = async () => {
+    if (!selectedPreCarga) {
+      alert("Selecione uma pré-carga.");
+      return;
+    }
+    if (!confirm(`Confirma excluir a Pré-Carga ${selectedPreCarga.id}?`)) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/logistics/panel/pre-carga/${selectedPreCarga.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+      setPreCargaMode("view");
+      setSelectedPreCargaId(null);
+      await loadPreCargas();
+    } catch (e: any) {
+      setErr(e?.message || String(e));
+      alert(e?.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!dateStart && !dateEnd) {
@@ -110,10 +259,129 @@ export default function LogisticsPanelPage() {
       )}
 
       {tab === "pre-carga" && (
-        <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
           <div className="bg-white rounded border p-3">
-            <div className="font-medium mb-2">Pré Cargas</div>
-            <div className="text-sm text-gray-600">Não disponível nesta versão.</div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-medium">Pré Cargas</div>
+              <div className="flex items-center gap-1">
+                <button
+                  title={preCargaMode === "create" ? "Salvar inclusão" : "Incluir pré-carga"}
+                  onClick={() => (preCargaMode === "create" ? void savePreCarga() : startCreatePreCarga())}
+                  className="w-8 h-8 inline-flex items-center justify-center rounded border bg-gray-900 text-white disabled:opacity-50"
+                  disabled={loading || preCargaMode === "edit"}
+                >
+                  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M11 5h2v14h-2V5zm-6 6h14v2H5v-2z"/></svg>
+                </button>
+                <button
+                  title={preCargaMode === "edit" ? "Salvar alteração" : "Editar pré-carga"}
+                  onClick={() => (preCargaMode === "edit" ? void savePreCarga() : startEditPreCarga())}
+                  className="w-8 h-8 inline-flex items-center justify-center rounded border text-blue-700 border-blue-300 hover:bg-blue-50 disabled:opacity-50"
+                  disabled={loading || preCargaMode === "create"}
+                >
+                  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M3 17.25V21h3.75L17.8 9.95l-3.75-3.75L3 17.25zm18-11.5a1 1 0 000-1.41l-1.59-1.59a1 1 0 00-1.41 0l-1.13 1.13 3.75 3.75L21 5.75z"/></svg>
+                </button>
+                <button
+                  title="Cancelar inclusão/alteração"
+                  onClick={cancelPreCargaEdit}
+                  className="w-8 h-8 inline-flex items-center justify-center rounded border text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  disabled={loading || preCargaMode === "view"}
+                >
+                  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M18.3 5.71L12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.29 19.71 2.88 18.3 9.17 12 2.88 5.71 4.29 4.29l6.3 6.3 6.3-6.3 1.41 1.42z"/></svg>
+                </button>
+                <button
+                  title="Excluir pré-carga"
+                  onClick={() => void deletePreCarga()}
+                  className="w-8 h-8 inline-flex items-center justify-center rounded border text-red-700 border-red-300 hover:bg-red-50 disabled:opacity-50"
+                  disabled={loading || preCargaMode !== "view" || !selectedPreCarga}
+                >
+                  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M6 7h12v14H6V7zm3-4h6l1 1h4v2H4V4h4l1-1z"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div>
+                <div className="text-xs text-gray-600 mb-1">Nr. Pré-Carreg</div>
+                <input
+                  value={preCargaMode === "create" ? "" : selectedPreCarga ? String(selectedPreCarga.id) : ""}
+                  placeholder={preCargaMode === "create" ? "(novo)" : ""}
+                  className="w-full border rounded px-2 py-1 text-sm bg-gray-50"
+                  disabled
+                />
+              </div>
+              <div>
+                <div className="text-xs text-gray-600 mb-1">Dt Prev Carreg</div>
+                <input
+                  type="date"
+                  value={preCargaDtPrev}
+                  onChange={(e) => setPreCargaDtPrev(e.target.value)}
+                  className="w-full border rounded px-2 py-1 text-sm disabled:bg-gray-50"
+                  disabled={preCargaMode === "view" || loading}
+                />
+              </div>
+              <div>
+                <div className="text-xs text-gray-600 mb-1">CIF/FOB</div>
+                <select
+                  value={preCargaCifFob}
+                  onChange={(e) => setPreCargaCifFob((e.target.value || "") as any)}
+                  className="w-full border rounded px-2 py-1 text-sm disabled:bg-gray-50"
+                  disabled={preCargaMode === "view" || loading}
+                >
+                  <option value=""></option>
+                  <option value="CIF">CIF</option>
+                  <option value="FOB">FOB</option>
+                </select>
+              </div>
+
+              <label className="text-xs flex items-center gap-2 mt-1">
+                <input
+                  type="checkbox"
+                  checked={includeFinalized}
+                  onChange={(e) => setIncludeFinalized(e.target.checked)}
+                  disabled={loading || preCargaMode !== "view"}
+                />
+                Lista Finalizados
+              </label>
+            </div>
+
+            <div className="mt-3 border rounded overflow-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="text-left p-2 w-16">Pré</th>
+                    <th className="text-left p-2">Dt Prev</th>
+                    <th className="text-left p-2 w-16">CIF</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preCargas.length === 0 && (
+                    <tr>
+                      <td className="p-3 text-center text-gray-500" colSpan={3}>
+                        Sem pré-cargas.
+                      </td>
+                    </tr>
+                  )}
+                  {preCargas.map((p) => {
+                    const dt = p.dtPrevCarreg ? p.dtPrevCarreg.slice(0, 10) : "";
+                    const active = selectedPreCargaId === p.id;
+                    return (
+                      <tr
+                        key={p.id}
+                        className={`border-b cursor-pointer ${active ? "bg-blue-50" : "hover:bg-gray-50"}`}
+                        onClick={() => {
+                          if (preCargaMode !== "view") return;
+                          setSelectedPreCargaId(p.id);
+                        }}
+                      >
+                        <td className="p-2 font-mono text-xs">{p.id}</td>
+                        <td className="p-2">{dt}</td>
+                        <td className="p-2">{(p.cifFob || "").toUpperCase()}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div className="bg-white rounded border p-3 space-y-3">
@@ -190,4 +458,3 @@ export default function LogisticsPanelPage() {
     </div>
   );
 }
-

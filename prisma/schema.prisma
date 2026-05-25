@@ -104,6 +104,21 @@ model LogisticPhaseNotifiedUser {
   @@map("logisticphaseuser")
 }
 
+model LogisticPreCarga {
+  id           Int      @id @default(autoincrement())
+  entityId     Int
+  dtPrevCarreg DateTime?
+  cifFob       String?  @db.Char(3)
+  isFinalized  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  entity Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([entityId, isFinalized, dtPrevCarreg])
+  @@map("logisticprecarga")
+}
+
 model TrustedDevice {
   id         Int      @id @default(autoincrement())
   userId     Int
@@ -248,6 +263,7 @@ model Entity {
   userEntities    UserEntity[]
   salesOrders     SalesOrder[]
   salesDashboardSnapshots SalesDashboardSnapshot[]
+  logisticPreCargas LogisticPreCarga[]
 
   @@map("entity")
 }
