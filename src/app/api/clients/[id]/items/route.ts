@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../../lib/prisma';
 
+async function ensureSalesOrderItemSdoPedColumn(): Promise<void> {
+  const g = global as any;
+  if (g.__salesOrderItemSdoPedEnsured) return;
+  try {
+    await prisma.$executeRawUnsafe('ALTER TABLE `salesorderitem` ADD COLUMN `sdoPed` FLOAT NOT NULL DEFAULT 0');
+  } catch {}
+  g.__salesOrderItemSdoPedEnsured = true;
+}
+
 function normalizeDoc(doc: string): string {
   return (doc || '').replace(/\D+/g, '');
 }
@@ -8,6 +17,7 @@ function normalizeDoc(doc: string): string {
 export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
+    await ensureSalesOrderItemSdoPedColumn();
     const clientId = Number(params.id);
     if (!Number.isFinite(clientId) || clientId <= 0) return NextResponse.json([]);
 

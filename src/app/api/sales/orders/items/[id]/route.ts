@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../../../lib/prisma';
 
+async function ensureSalesOrderItemSdoPedColumn(): Promise<void> {
+  const g = global as any;
+  if (g.__salesOrderItemSdoPedEnsured) return;
+  try {
+    await prisma.$executeRawUnsafe('ALTER TABLE `salesorderitem` ADD COLUMN `sdoPed` FLOAT NOT NULL DEFAULT 0');
+  } catch {}
+  g.__salesOrderItemSdoPedEnsured = true;
+}
+
 function parseIdParam(raw: unknown): number | null {
   const s = String(raw ?? '').trim();
   if (!/^\d+$/.test(s)) return null;
@@ -40,6 +49,7 @@ function lineBase(
 export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
+    await ensureSalesOrderItemSdoPedColumn();
     const id = parseIdParam(params.id);
     if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
     const item = await prisma.salesOrderItem.findUnique({
@@ -56,6 +66,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
 export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
+    await ensureSalesOrderItemSdoPedColumn();
     const id = parseIdParam(params.id);
     if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
     const body = await request.json();
@@ -159,6 +170,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
+    await ensureSalesOrderItemSdoPedColumn();
     const id = parseIdParam(params.id);
     if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
 

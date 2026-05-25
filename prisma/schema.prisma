@@ -235,6 +235,7 @@ model Entity {
   id              Int            @id @default(autoincrement())
   cnpj            String         @unique
   name            String
+  codEstab        String?        @db.Char(5)
   isActive        Boolean        @default(true)
   parentId        Int?
   createdAt       DateTime       @default(now())
@@ -437,6 +438,7 @@ model SalesOrderItem {
   discountPct           Float          @default(0)
   discountValue         Float          @default(0)
   lineTotal             Float          @default(0)
+  sdoPed                Float          @default(0)
   // Medidas e características
   width                 Int?
   length                Int?

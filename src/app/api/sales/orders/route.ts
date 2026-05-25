@@ -6,6 +6,15 @@ import { authOptions } from '../../../../lib/auth';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+async function ensureSalesOrderItemSdoPedColumn(): Promise<void> {
+  const g = global as any;
+  if (g.__salesOrderItemSdoPedEnsured) return;
+  try {
+    await prisma.$executeRawUnsafe('ALTER TABLE `salesorderitem` ADD COLUMN `sdoPed` FLOAT NOT NULL DEFAULT 0');
+  } catch {}
+  g.__salesOrderItemSdoPedEnsured = true;
+}
+
 async function ensureUserAbbrevNameColumn(): Promise<void> {
   const g = global as any;
   if (g.__abbrevNameEnsured) return;
@@ -94,6 +103,7 @@ function lineBase(
 
 export async function GET(request: Request) {
   try {
+    await ensureSalesOrderItemSdoPedColumn();
     await ensureUserAbbrevNameColumn();
     const session = await getServerSession(authOptions);
     const userId = session?.user ? Number((session.user as any).id) : null;
@@ -160,6 +170,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await ensureSalesOrderItemSdoPedColumn();
     const body = await request.json();
     const session = await getServerSession(authOptions);
     const createdById = session?.user ? Number((session.user as any).id) : undefined;

@@ -1,7 +1,7 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
-type Entity = { id: number; name: string; cnpj: string };
+type Entity = { id: number; name: string; cnpj: string; codEstab?: string | null };
 type ModuleItem = { id: number; code: string; name: string; linked: number | boolean };
 type ProgramItem = { id: number; code: string; name: string; allowed: number };
 
@@ -15,9 +15,11 @@ export default function AdminEntitiesPage() {
   const [err, setErr] = useState<string | null>(null);
   const [cnpjInput, setCnpjInput] = useState("");
   const [nameInput, setNameInput] = useState("");
+  const [codEstabInput, setCodEstabInput] = useState("");
   const [editMode, setEditMode] = useState(false);
   const [editCnpj, setEditCnpj] = useState("");
   const [editName, setEditName] = useState("");
+  const [editCodEstab, setEditCodEstab] = useState("");
 
   const selectedEntity = useMemo(() => entities.find(e => e.id === selectedEntityId) || null, [entities, selectedEntityId]);
   const selectedModule = useMemo(() => modules.find(m => m.id === selectedModuleId) || null, [modules, selectedModuleId]);
@@ -33,6 +35,7 @@ export default function AdminEntitiesPage() {
           id: Number(e?.id),
           name: String(e?.name || ''),
           cnpj: String(e?.cnpj || ''),
+          codEstab: e?.codEstab == null ? null : String(e?.codEstab),
         }))
         .filter((e: any) => Number.isFinite(e.id) && e.id > 0);
       setEntities(normalized);
@@ -185,10 +188,10 @@ export default function AdminEntitiesPage() {
     if (!c || !n) { setErr('Informe CNPJ e Nome'); return; }
     setLoading(true); setErr(null);
     try {
-      const res = await fetch('/api/admin/entities', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cnpj: c, name: n }) });
+      const res = await fetch('/api/admin/entities', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cnpj: c, name: n, codEstab: codEstabInput.trim() || null }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
-      setCnpjInput(''); setNameInput('');
+      setCnpjInput(''); setNameInput(''); setCodEstabInput('');
       await loadEntities();
     } catch (e: any) { setErr(e?.message || String(e)); } finally { setLoading(false); }
   };
@@ -215,6 +218,7 @@ export default function AdminEntitiesPage() {
     if (!selectedEntity) return;
     setEditCnpj(selectedEntity.cnpj);
     setEditName(selectedEntity.name);
+    setEditCodEstab(selectedEntity.codEstab == null ? '' : String(selectedEntity.codEstab));
     setEditMode(true);
   };
 
@@ -222,6 +226,7 @@ export default function AdminEntitiesPage() {
     setEditMode(false);
     setEditCnpj("");
     setEditName("");
+    setEditCodEstab("");
   };
 
   const updateEntity = async () => {
@@ -230,7 +235,7 @@ export default function AdminEntitiesPage() {
     if (!c || !n) { setErr('Informe CNPJ e Nome'); return; }
     setLoading(true); setErr(null);
     try {
-      const res = await fetch(`/api/admin/entities/${selectedEntityId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cnpj: c, name: n }) });
+      const res = await fetch(`/api/admin/entities/${selectedEntityId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cnpj: c, name: n, codEstab: editCodEstab.trim() || null }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
       setEditMode(false);
@@ -269,6 +274,7 @@ export default function AdminEntitiesPage() {
           <div className="mt-4 space-y-2">
             <div className="text-sm font-medium">Cadastrar Entidade</div>
             <input value={cnpjInput} onChange={e=>setCnpjInput(e.target.value)} placeholder="CNPJ" className="w-full border rounded px-2 py-1 text-sm" />
+            <input value={codEstabInput} onChange={e=>setCodEstabInput(e.target.value)} placeholder="Cód Estab" maxLength={5} className="w-full border rounded px-2 py-1 text-sm" />
             <div className="flex items-center gap-2">
               <input value={nameInput} onChange={e=>setNameInput(e.target.value)} placeholder="Nome" className="flex-1 border rounded px-2 py-1 text-sm" />
               <button onClick={lookupCnpj} className="text-xs px-2 py-1 border rounded">Buscar CNPJ</button>
@@ -280,6 +286,7 @@ export default function AdminEntitiesPage() {
             <div className="mt-4 space-y-2">
               <div className="text-sm font-medium">Editar Entidade selecionada</div>
               <input value={editCnpj} onChange={e=>setEditCnpj(e.target.value)} placeholder="CNPJ" className="w-full border rounded px-2 py-1 text-sm" />
+              <input value={editCodEstab} onChange={e=>setEditCodEstab(e.target.value)} placeholder="Cód Estab" maxLength={5} className="w-full border rounded px-2 py-1 text-sm" />
               <input value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Nome" className="w-full border rounded px-2 py-1 text-sm" />
               <div className="flex items-center gap-2">
                 <button onClick={updateEntity} className="text-xs px-3 py-1 bg-blue-600 text-white rounded">Salvar alterações</button>

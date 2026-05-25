@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../../lib/prisma';
 
+async function ensureSalesOrderItemSdoPedColumn(): Promise<void> {
+  const g = global as any;
+  if (g.__salesOrderItemSdoPedEnsured) return;
+  try {
+    await prisma.$executeRawUnsafe('ALTER TABLE `salesorderitem` ADD COLUMN `sdoPed` FLOAT NOT NULL DEFAULT 0');
+  } catch {}
+  g.__salesOrderItemSdoPedEnsured = true;
+}
+
 function computeWeightKg(it: { width?: number | null; length?: number | null; grammage?: number | null; quantity?: number | null }, unitWeightKg?: number | null): number {
   const q = Number(it.quantity ?? 0);
   const uw = Number(unitWeightKg ?? 0);
@@ -31,6 +40,7 @@ function lineBase(
 
 export async function POST(request: Request) {
   try {
+    await ensureSalesOrderItemSdoPedColumn();
     const body = await request.json();
     const orderId = Number(body.orderId);
     if (!Number.isFinite(orderId) || orderId <= 0) return NextResponse.json({ error: 'orderId obrigatório' }, { status: 400 });

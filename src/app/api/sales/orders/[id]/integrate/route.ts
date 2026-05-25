@@ -3,6 +3,15 @@ import { prisma } from '../../../../../../lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../../../lib/auth';
 
+async function ensureSalesOrderItemSdoPedColumn(): Promise<void> {
+  const g = global as any;
+  if (g.__salesOrderItemSdoPedEnsured) return;
+  try {
+    await prisma.$executeRawUnsafe('ALTER TABLE `salesorderitem` ADD COLUMN `sdoPed` FLOAT NOT NULL DEFAULT 0');
+  } catch {}
+  g.__salesOrderItemSdoPedEnsured = true;
+}
+
 function formatDiscountPct(v: any): string {
   const n = Number(v ?? 0);
   return Number.isFinite(n) && n > 0 ? n.toFixed(2) : '0';
@@ -42,6 +51,7 @@ function extractMessages(data: any): string[] {
 export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
     const params = await props.params;
     try {
+      await ensureSalesOrderItemSdoPedColumn();
       const session = await getServerSession(authOptions);
       const userId = session?.user ? Number((session.user as any).id) : null;
       if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -4,6 +4,15 @@ import { authOptions } from '../../../../../lib/auth';
 import { prisma } from '../../../../../lib/prisma';
 import { isProgramAllowed } from '../../../../../lib/isProgramAllowed';
 
+async function ensureEntityCodEstabColumn(): Promise<void> {
+  const g = global as any;
+  if (g.__entityCodEstabEnsured) return;
+  try {
+    await prisma.$executeRawUnsafe('ALTER TABLE `entity` ADD COLUMN `codEstab` CHAR(5) NULL');
+  } catch {}
+  g.__entityCodEstabEnsured = true;
+}
+
 export async function DELETE(_req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
@@ -38,6 +47,7 @@ export async function DELETE(_req: Request, props: { params: Promise<{ id: strin
 export async function PUT(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
+    await ensureEntityCodEstabColumn();
     const session = await getServerSession(authOptions);
     const uid = session?.user ? Number((session.user as any).id) : undefined;
     const entityId = (session as any)?.entityId ?? (session as any)?.activeEntityId ?? null;
@@ -53,11 +63,13 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
     const body = await request.json();
     const cnpj = String(body.cnpj || '').trim();
     const name = String(body.name || '').trim();
+    const codEstab = body.codEstab == null ? null : String(body.codEstab || '').trim();
     if (!cnpj || !name) return NextResponse.json({ error: 'CNPJ e Nome obrigatórios' }, { status: 400 });
+    if (codEstab != null && codEstab.length > 5) return NextResponse.json({ error: 'Cód Estab inválido' }, { status: 400 });
     const dup = await prisma.entity.findFirst({ where: { cnpj, id: { not: id } }, select: { id: true } });
     if (dup) return NextResponse.json({ error: 'CNPJ já cadastrado em outra entidade' }, { status: 409 });
 
-    await prisma.entity.update({ where: { id }, data: { cnpj, name } });
+    await prisma.entity.update({ where: { id }, data: { cnpj, name, codEstab: codEstab || null } });
     return NextResponse.json({ ok: true, id });
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
