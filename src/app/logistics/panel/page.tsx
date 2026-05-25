@@ -626,18 +626,18 @@ export default function LogisticsPanelPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[120px_1fr_220px] gap-3">
-              <div className="space-y-2">
+            <div className="flex flex-col lg:flex-row gap-3">
+              <div className="space-y-2 lg:w-[120px] lg:shrink-0">
                 <button onClick={() => setShowEstabModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">Estabelecimento</button>
                 <button onClick={() => setShowUfModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">Estado(UF)</button>
                 <button onClick={() => setShowCityModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">Cidade</button>
               </div>
 
-              <div className="space-y-2">
-                <div className="grid grid-cols-[80px_130px_auto_130px] items-center gap-1">
-                  <div className="text-xs text-gray-600">Dt Entrega Cli:</div>
-                  <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-full md:w-[140px] border rounded px-1.5 py-1 text-xs h-8" />
-                  <div className="flex items-center justify-center gap-1">
+              <div className="space-y-2 lg:w-[640px] lg:shrink-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="text-xs text-gray-600 w-[80px] shrink-0">Dt Entrega Cli:</div>
+                  <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-[140px] border rounded px-1.5 py-1 text-xs h-8" />
+                  <div className="flex items-center gap-1">
                     <button className="w-8 h-8 border rounded text-sm bg-gray-50 cursor-default" title="Botão sem ação" tabIndex={-1} type="button">
                       {"<<"}
                     </button>
@@ -645,7 +645,7 @@ export default function LogisticsPanelPage() {
                       {">>"}
                     </button>
                   </div>
-                  <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-full md:w-[140px] border rounded px-1.5 py-1 text-xs h-8" />
+                  <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-[140px] border rounded px-1.5 py-1 text-xs h-8" />
                 </div>
 
                 <div className="grid grid-cols-[80px_1fr] items-center gap-1">
@@ -664,7 +664,7 @@ export default function LogisticsPanelPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 lg:w-[220px] lg:shrink-0">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="border rounded p-2">
                     <div className="text-xs text-gray-600 mb-2">Tipo Pedido</div>
