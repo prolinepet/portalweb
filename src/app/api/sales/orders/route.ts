@@ -134,7 +134,7 @@ export async function GET(request: Request) {
       include: {
         entity: { select: { name: true } },
         createdBy: { select: { abbrevName: true, name: true } },
-        client: { select: { clientCode: true, abbrevName: true, name: true } },
+        client: { select: { id: true, clientCode: true, abbrevName: true, name: true } },
         orderType: { select: { id: true, codtipoped: true, kind: true, descricao: true } },
         items: {
           include: {
@@ -158,6 +158,368 @@ export async function POST(request: Request) {
     const body = await request.json();
     const session = await getServerSession(authOptions);
     const createdById = session?.user ? Number((session.user as any).id) : undefined;
+
+    const bonusFromOrderIdRaw = (body as any)?.bonusFromOrderId;
+    const bonusOrderTypeIdRaw = (body as any)?.bonusOrderTypeId;
+    const bonusPercentRaw = (body as any)?.bonusPercent;
+    const isBonusRequest = bonusFromOrderIdRaw != null || bonusOrderTypeIdRaw != null || bonusPercentRaw != null;
+    if (isBonusRequest) {
+      const baseOrderId = Number(bonusFromOrderIdRaw);
+      const bonusOrderTypeId = Number(bonusOrderTypeIdRaw);
+      const percent =
+        typeof bonusPercentRaw === 'string'
+          ? Number(String(bonusPercentRaw).trim().replace(',', '.'))
+          : Number(bonusPercentRaw);
+
+      if (!Number.isFinite(baseOrderId) || baseOrderId <= 0) {
+        return NextResponse.json({ error: 'Pedido base inválido' }, { status: 400 });
+      }
+      if (!Number.isFinite(bonusOrderTypeId) || bonusOrderTypeId <= 0) {
+        return NextResponse.json({ error: 'Tipo de pedido (bonificação) inválido' }, { status: 400 });
+      }
+      if (!Number.isFinite(percent) || percent <= 0) {
+        return NextResponse.json({ error: 'Percentual inválido' }, { status: 400 });
+      }
+
+      const base = await prisma.salesOrder.findUnique({
+        where: { id: Math.trunc(baseOrderId) },
+        select: {
+          id: true,
+          code: true,
+          customerName: true,
+          customerDoc: true,
+          clientId: true,
+          entityId: true,
+          items: {
+            select: {
+              inventoryItemId: true,
+              sku: true,
+              name: true,
+              quantity: true,
+              unit: true,
+              width: true,
+              length: true,
+              grammage: true,
+              diameter: true,
+              tube: true,
+              weightKg: true,
+              creases: true,
+              clientOrderNumber: true,
+              clientOrderItemNumber: true,
+              itemDeliveryDate: true,
+              internalResin: true,
+              externalResin: true,
+            },
+          },
+          client: { select: { id: true, name: true, doc: true } },
+        },
+      });
+      if (!base) return NextResponse.json({ error: 'Pedido base não encontrado' }, { status: 404 });
+
+      const clientId = Number((base as any)?.clientId ?? (base as any)?.client?.id);
+      if (!Number.isFinite(clientId) || clientId <= 0) {
+        return NextResponse.json({ error: 'Pedido base sem cliente vinculado' }, { status: 400 });
+      }
+
+      const allowedOrderType = await prisma.orderType.findFirst({
+        where: {
+          id: Math.trunc(bonusOrderTypeId),
+          situacao: 1,
+          kind: 'BONIFICACAO',
+          priceTables: {
+            some: {
+              priceTable: {
+                clients: { some: { clientId: Math.trunc(clientId) } },
+                situacao: 1,
+              },
+            },
+          },
+        },
+        select: { id: true },
+      });
+      if (!allowedOrderType?.id) {
+        return NextResponse.json({ error: 'Tipo de pedido de bonificação não permitido para este cliente' }, { status: 400 });
+      }
+
+      const [clientLinks, typeLinks] = await Promise.all([
+        prisma.clientPriceTable.findMany({
+          where: { clientId: Math.trunc(clientId) },
+          select: { priceTableId: true },
+        }),
+        prisma.orderTypePriceTable.findMany({
+          where: { orderTypeId: Math.trunc(bonusOrderTypeId) },
+          select: { priceTableId: true },
+        }),
+      ]);
+      const clientPtIds = new Set(clientLinks.map((l) => Number(l.priceTableId)));
+      const allowedPtIds = Array.from(new Set(typeLinks.map((l) => Number(l.priceTableId)).filter((id) => clientPtIds.has(id)))).filter(
+        (n) => Number.isFinite(n) && n > 0
+      );
+      if (allowedPtIds.length === 0) {
+        return NextResponse.json({ error: 'Nenhuma tabela de preço disponível para o tipo de bonificação' }, { status: 400 });
+      }
+
+      const baseItems = Array.isArray((base as any)?.items) ? ((base as any).items as any[]) : [];
+      const invIds = Array.from(
+        new Set(
+          baseItems
+            .map((it) => Number(it?.inventoryItemId))
+            .filter((n) => Number.isFinite(n) && n > 0)
+            .map((n) => Math.trunc(n))
+        )
+      );
+      if (invIds.length === 0) {
+        return NextResponse.json({ error: 'Pedido base sem itens bonificáveis' }, { status: 400 });
+      }
+
+      const invMap = new Map<number, { priceBy?: string | null; unitWeightKg?: number | null }>();
+      const invInfo = await prisma.inventoryItem.findMany({
+        where: { id: { in: invIds } },
+        select: { id: true, unitWeightKg: true, commercialFamily: { select: { priceBy: true } } },
+      });
+      for (const it of invInfo) {
+        const id = Number(it.id);
+        if (!Number.isFinite(id) || id <= 0) continue;
+        invMap.set(id, {
+          priceBy: it.commercialFamily?.priceBy != null ? String(it.commercialFamily.priceBy) : null,
+          unitWeightKg: it.unitWeightKg != null ? Number(it.unitWeightKg) : null,
+        });
+      }
+
+      const ptRows = await prisma.priceTableItem.findMany({
+        where: { priceTableId: { in: allowedPtIds }, inventoryItemId: { in: invIds } },
+        select: { inventoryItemId: true, priceTableId: true, unitPrice: true },
+      });
+      const priceByInvId = new Map<number, { unitPrice: number; priceTableId: number }>();
+      for (const r of ptRows) {
+        const invId = Number((r as any)?.inventoryItemId);
+        if (!Number.isFinite(invId) || invId <= 0) continue;
+        const unitPrice = Number((r as any)?.unitPrice ?? 0);
+        const ptId = Number((r as any)?.priceTableId ?? 0);
+        const existing = priceByInvId.get(invId);
+        const exPtId = Number(existing?.priceTableId ?? 0);
+        const shouldReplace =
+          !existing ||
+          unitPrice < existing.unitPrice ||
+          (unitPrice === existing.unitPrice &&
+            Number.isFinite(ptId) &&
+            ptId > 0 &&
+            (!Number.isFinite(exPtId) || exPtId <= 0 || ptId < exPtId));
+        if (shouldReplace) priceByInvId.set(invId, { unitPrice, priceTableId: ptId });
+      }
+
+      const missingPriceSkus = baseItems
+        .filter((it) => {
+          const invId = Number(it?.inventoryItemId);
+          if (!Number.isFinite(invId) || invId <= 0) return true;
+          return !priceByInvId.has(Math.trunc(invId));
+        })
+        .slice(0, 12)
+        .map((it) => String(it?.sku || it?.name || 'Item'));
+      if (missingPriceSkus.length > 0) {
+        return NextResponse.json(
+          { error: `Sem preço na tabela do tipo de bonificação para: ${missingPriceSkus.join(', ')}` },
+          { status: 400 }
+        );
+      }
+
+      const normalizedItems = baseItems
+        .map((it) => {
+          const baseQty = Number(it?.quantity ?? 0);
+          const invId = Number(it?.inventoryItemId);
+          if (!Number.isFinite(baseQty) || baseQty <= 0) return null;
+          if (!Number.isFinite(invId) || invId <= 0) return null;
+          const newQty = Math.trunc((baseQty * percent) / 100);
+          if (!Number.isFinite(newQty) || newQty <= 0) return null;
+          const price = Number(priceByInvId.get(Math.trunc(invId))?.unitPrice ?? 0);
+
+          const invInfo = invMap.get(Math.trunc(invId));
+          const priceBy = invInfo?.priceBy ?? null;
+          const unitWeightKg = invInfo?.unitWeightKg ?? null;
+
+          const baseLine = lineBase(
+            {
+              quantity: newQty,
+              unitPrice: price,
+              width: it?.width != null ? Number(it.width) : undefined,
+              length: it?.length != null ? Number(it.length) : undefined,
+              grammage: it?.grammage != null ? Number(it.grammage) : undefined,
+            },
+            priceBy,
+            unitWeightKg
+          );
+          return {
+            inventoryItemId: Math.trunc(invId),
+            sku: it?.sku || undefined,
+            name: String(it?.name || 'Produto'),
+            quantity: Math.trunc(newQty),
+            unit: it?.unit || undefined,
+            unitPrice: price,
+            discountPct: 0,
+            discountValue: 0,
+            width: it?.width != null ? Number(it.width) : undefined,
+            length: it?.length != null ? Number(it.length) : undefined,
+            grammage: it?.grammage != null ? Number(it.grammage) : undefined,
+            diameter: it?.diameter != null ? Number(it.diameter) : undefined,
+            tube: it?.tube != null ? Number(it.tube) : undefined,
+            weightKg: it?.weightKg != null ? Number(it.weightKg) : undefined,
+            creases: it?.creases !== undefined ? it.creases : undefined,
+            clientOrderNumber: it?.clientOrderNumber || undefined,
+            clientOrderItemNumber: it?.clientOrderItemNumber != null ? Number(it.clientOrderItemNumber) : undefined,
+            itemDeliveryDate: it?.itemDeliveryDate ? new Date(it.itemDeliveryDate) : undefined,
+            internalResin: !!it?.internalResin,
+            externalResin: !!it?.externalResin,
+            lineTotal: Math.max(0, baseLine),
+          };
+        })
+        .filter(Boolean) as any[];
+
+      if (normalizedItems.length === 0) {
+        return NextResponse.json({ error: 'Nenhum item atingiu a quantidade mínima com o percentual informado' }, { status: 400 });
+      }
+
+      const subtotal = normalizedItems.reduce((acc: number, i: any) => {
+        const invInfo = i.inventoryItemId ? invMap.get(i.inventoryItemId) : undefined;
+        const priceBy = invInfo?.priceBy ?? null;
+        const unitWeightKg = invInfo?.unitWeightKg ?? null;
+        return acc + lineBase(i, priceBy, unitWeightKg);
+      }, 0);
+      const discountTotal = 0;
+      const total = subtotal;
+
+      const baseCustomerName = String((base as any)?.customerName || (base as any)?.client?.name || '').trim();
+      if (!baseCustomerName) return NextResponse.json({ error: 'Pedido base sem cliente válido' }, { status: 400 });
+      const baseCustomerDocRaw = String((base as any)?.customerDoc || (base as any)?.client?.doc || '').trim();
+      const customerDocNorm = baseCustomerDocRaw ? normalizeDoc(baseCustomerDocRaw) : undefined;
+
+      let entityId: number | undefined = (base as any)?.entityId ?? undefined;
+      if (!entityId && createdById) {
+        const u = await prisma.user.findUnique({ where: { id: createdById }, select: { lastEntityId: true } });
+        if (u?.lastEntityId) entityId = u.lastEntityId;
+      }
+      if (!entityId && createdById) {
+        const links = await prisma.userEntity.findMany({
+          where: { userId: createdById },
+          select: { entityId: true },
+          take: 2,
+        });
+        if (links.length === 1 && links[0]?.entityId) {
+          entityId = links[0].entityId;
+          await prisma.user.update({ where: { id: createdById }, data: { lastEntityId: entityId } }).catch(() => {});
+        }
+      }
+
+      const baseOrderCreateData = {
+        entityId,
+        customerName: baseCustomerName,
+        customerDoc: customerDocNorm || undefined,
+        orderTypeId: Math.trunc(bonusOrderTypeId),
+        clientId: Math.trunc(clientId),
+        paymentTerms: null,
+        createdById: createdById,
+        subtotal,
+        discountTotal,
+        total,
+        items: { create: normalizedItems },
+      } as const;
+
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const code = await generateNextSalesOrderCode(prisma);
+        const orderCreateData = { ...baseOrderCreateData, code } as const;
+
+        try {
+          const created = await prisma.salesOrder.create({
+            data: orderCreateData,
+            include: { items: true },
+          });
+          return NextResponse.json(created, { status: 201 });
+        } catch (e: any) {
+          if (isUniqueSalesOrderCodeError(e)) continue;
+
+          const msg = String(e?.message || e);
+          if (!msg.includes('Could not figure out an ID in create')) throw e;
+
+          try {
+            const createdId = await prisma.$transaction(async (tx) => {
+              const nextOrderIdRows = await tx.$queryRawUnsafe<any[]>('SELECT COALESCE(MAX(id), 0) + 1 as id FROM salesorder');
+              const nextOrderId = nextOrderIdRows?.[0]?.id ? Number(nextOrderIdRows[0].id) : null;
+              if (!nextOrderId || !Number.isFinite(nextOrderId) || nextOrderId <= 0) return null;
+
+              await tx.$executeRawUnsafe(
+                `INSERT INTO salesorder
+                  (id, code, entityId, customerName, customerDoc, orderTypeId, clientId, paymentTerms, createdById, subtotal, discountTotal, total, createdAt, updatedAt)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                Math.trunc(nextOrderId),
+                code,
+                entityId ?? null,
+                baseCustomerName,
+                customerDocNorm || null,
+                Math.trunc(bonusOrderTypeId),
+                Math.trunc(clientId),
+                null,
+                createdById ?? null,
+                subtotal,
+                discountTotal,
+                total,
+              );
+
+              const id = Math.trunc(nextOrderId);
+
+              const nextItemIdRows = await tx.$queryRawUnsafe<any[]>('SELECT COALESCE(MAX(id), 0) + 1 as id FROM salesorderitem');
+              let nextItemId = nextItemIdRows?.[0]?.id ? Number(nextItemIdRows[0].id) : null;
+              if (!nextItemId || !Number.isFinite(nextItemId) || nextItemId <= 0) return null;
+
+              for (const it of normalizedItems as any[]) {
+                const creasesJson = it.creases !== undefined ? JSON.stringify(it.creases) : null;
+                await tx.$executeRawUnsafe(
+                  `INSERT INTO salesorderitem
+                    (id, orderId, inventoryItemId, sku, name, quantity, unit, unitPrice, discountPct, discountValue, lineTotal, width, length, grammage, diameter, tube, weightKg, creases, clientOrderNumber, clientOrderItemNumber, itemDeliveryDate, internalResin, externalResin)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  Math.trunc(nextItemId),
+                  Math.trunc(id),
+                  it.inventoryItemId ?? null,
+                  it.sku ?? null,
+                  it.name,
+                  Math.trunc(Number(it.quantity ?? 1)),
+                  it.unit ?? null,
+                  Number(it.unitPrice ?? 0),
+                  Number(it.discountPct ?? 0),
+                  Number(it.discountValue ?? 0),
+                  Number(it.lineTotal ?? 0),
+                  it.width ?? null,
+                  it.length ?? null,
+                  it.grammage ?? null,
+                  it.diameter ?? null,
+                  it.tube ?? null,
+                  it.weightKg ?? null,
+                  creasesJson,
+                  it.clientOrderNumber ?? null,
+                  it.clientOrderItemNumber ?? null,
+                  it.itemDeliveryDate instanceof Date ? it.itemDeliveryDate : it.itemDeliveryDate ? new Date(it.itemDeliveryDate) : null,
+                  it.internalResin ? 1 : 0,
+                  it.externalResin ? 1 : 0,
+                );
+                nextItemId += 1;
+              }
+
+              return Math.trunc(id);
+            });
+
+            if (!createdId || !Number.isFinite(createdId)) {
+              return NextResponse.json({ error: 'Falha ao obter ID do pedido após criação (fallback)' }, { status: 500 });
+            }
+
+            return NextResponse.json({ id: createdId }, { status: 201 });
+          } catch (fallbackErr: any) {
+            if (isUniqueSalesOrderCodeError(fallbackErr)) continue;
+            throw fallbackErr;
+          }
+        }
+      }
+
+      return NextResponse.json({ error: 'Falha ao gerar número do pedido' }, { status: 500 });
+    }
+
     const {
       customerName,
       customerDoc,

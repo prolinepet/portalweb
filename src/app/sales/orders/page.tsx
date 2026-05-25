@@ -9,7 +9,8 @@ type SalesOrder = {
   status: string;
   orderDate: string;
   customerName: string;
-  client?: { clientCode?: number | null; abbrevName?: string | null; name?: string | null } | null;
+  clientId?: number | null;
+  client?: { id: number; clientCode?: number | null; abbrevName?: string | null; name?: string | null } | null;
   orderType?: { codtipoped: number; descricao: string; kind?: 'VENDA' | 'BONIFICACAO' | 'AMOSTRA' | null } | null;
   createdBy?: { abbrevName?: string | null; name?: string | null } | null;
   subtotal: number;
@@ -17,6 +18,8 @@ type SalesOrder = {
   total: number;
   items?: OrderItem[];
 };
+
+type OrderTypeOption = { id: number; codtipoped: number; descricao: string; kind?: 'VENDA' | 'BONIFICACAO' | 'AMOSTRA' | null; situacao: number };
 
 export default function SalesOrdersPage() {
   const [orders, setOrders] = useState<SalesOrder[]>([]);
@@ -33,6 +36,13 @@ export default function SalesOrdersPage() {
   const [erpModalOpen, setErpModalOpen] = useState(false);
   const [erpModalTitle, setErpModalTitle] = useState('');
   const [erpModalMessages, setErpModalMessages] = useState<string[]>([]);
+  const [bonusBaseOrder, setBonusBaseOrder] = useState<SalesOrder | null>(null);
+  const [bonusModalOpen, setBonusModalOpen] = useState(false);
+  const [bonusOrderTypes, setBonusOrderTypes] = useState<OrderTypeOption[]>([]);
+  const [bonusOrderTypesLoading, setBonusOrderTypesLoading] = useState(false);
+  const [bonusOrderTypeId, setBonusOrderTypeId] = useState<number | null>(null);
+  const [bonusPercent, setBonusPercent] = useState<string>('10');
+  const [bonusCreating, setBonusCreating] = useState(false);
 
   const openErpModal = (title: string, messages: string[]) => {
     setErpModalTitle(String(title || 'Retorno ERP'));
@@ -64,6 +74,81 @@ export default function SalesOrdersPage() {
       setError(String(err?.message || err));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadBonusOrderTypes = async (clientId: number) => {
+    if (!Number.isFinite(clientId) || clientId <= 0) {
+      setBonusOrderTypes([]);
+      setBonusOrderTypeId(null);
+      return;
+    }
+    setBonusOrderTypesLoading(true);
+    try {
+      const res = await fetch(`/api/base/clients/${encodeURIComponent(String(Math.trunc(clientId)))}/order-types`, { cache: 'no-store' });
+      const data = await res.json().catch(() => []);
+      const list = Array.isArray(data) ? (data as OrderTypeOption[]) : [];
+      const onlyBonus = list.filter((ot) => ot && ot.situacao === 1 && String((ot as any)?.kind || '').toUpperCase() === 'BONIFICACAO');
+      setBonusOrderTypes(onlyBonus);
+      setBonusOrderTypeId((prev) => {
+        const stillValid = prev != null && onlyBonus.some((ot) => Number(ot.id) === Number(prev));
+        if (stillValid) return prev;
+        if (onlyBonus.length === 1) return Number(onlyBonus[0].id);
+        return null;
+      });
+    } catch {
+      setBonusOrderTypes([]);
+      setBonusOrderTypeId(null);
+    } finally {
+      setBonusOrderTypesLoading(false);
+    }
+  };
+
+  const openBonusModal = async () => {
+    if (!bonusBaseOrder) return alert('Selecione um pedido na listagem.');
+    const clientId = Number((bonusBaseOrder as any)?.client?.id ?? (bonusBaseOrder as any)?.clientId);
+    if (!Number.isFinite(clientId) || clientId <= 0) return alert('Pedido selecionado sem cliente vinculado.');
+    setBonusPercent('10');
+    await loadBonusOrderTypes(clientId);
+    setBonusModalOpen(true);
+  };
+
+  const createBonusOrder = async () => {
+    if (!bonusBaseOrder) return;
+    const otId = Number(bonusOrderTypeId);
+    if (!Number.isFinite(otId) || otId <= 0) return alert('Selecione o tipo de pedido (Bonificação).');
+    const pct = Number(String(bonusPercent || '').trim().replace(',', '.'));
+    if (!Number.isFinite(pct) || pct <= 0) return alert('Percentual inválido.');
+    try {
+      setBonusCreating(true);
+      const res = await fetch('/api/sales/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bonusFromOrderId: bonusBaseOrder.id,
+          bonusOrderTypeId: Math.trunc(otId),
+          bonusPercent: pct,
+        }),
+      });
+      const data = await res.json().catch(() => null as any);
+      if (!res.ok) throw new Error(data?.error || 'Falha ao criar pedido de bonificação');
+      const newId = Number(data?.id);
+      if (Number.isFinite(newId) && newId > 0) {
+        setBonusModalOpen(false);
+        window.location.href = `/sales/orders/${newId}`;
+        return;
+      }
+      const createdId = Number(data?.id ?? data?.order?.id ?? data?.result?.id);
+      if (Number.isFinite(createdId) && createdId > 0) {
+        setBonusModalOpen(false);
+        window.location.href = `/sales/orders/${createdId}`;
+        return;
+      }
+      throw new Error('Pedido criado, mas não foi possível obter o ID.');
+    } catch (e: any) {
+      alert(String(e?.message || e));
+    } finally {
+      setBonusCreating(false);
     }
   };
 
@@ -273,6 +358,14 @@ export default function SalesOrdersPage() {
           >
             Filtro
           </button>
+          <button
+            type="button"
+            onClick={openBonusModal}
+            disabled={!bonusBaseOrder}
+            className="px-3 py-1.5 text-xs border rounded bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Gerar Bonificação
+          </button>
           <Link href="/sales/orders/new" className="px-3 py-1.5 text-xs border rounded bg-white hover:bg-gray-100">Novo Pedido</Link>
         </div>
       </div>
@@ -321,7 +414,11 @@ export default function SalesOrdersPage() {
             <div className="px-3 py-4 text-center text-gray-500 text-sm">Nenhum pedido encontrado.</div>
           )}
           {!loading && paged.map((o) => (
-            <div key={o.id} className="px-3 py-3">
+            <div
+              key={o.id}
+              className={`px-3 py-3 cursor-pointer ${bonusBaseOrder?.id === o.id ? 'bg-blue-50' : ''}`}
+              onClick={() => setBonusBaseOrder(o)}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-mono text-xs text-gray-700">{o.code || o.id}</div>
@@ -339,7 +436,7 @@ export default function SalesOrdersPage() {
               </div>
 
               <div className="mt-2 flex items-center justify-end">
-                <div className="inline-flex">
+                <div className="inline-flex" onClick={(e) => e.stopPropagation()}>
                   <IconBtn title="Visualizar" onClick={() => setSelected(o)}><EyeIcon /></IconBtn>
                   <IconBtn title="Detalhes" onClick={() => { window.location.href = `/sales/orders/${o.id}`; }}> <FileIcon /> </IconBtn>
                   <IconBtn
@@ -428,7 +525,11 @@ export default function SalesOrdersPage() {
                 <tr><td colSpan={9} className="px-3 py-4 text-center text-gray-500">Nenhum pedido encontrado.</td></tr>
               )}
               {!loading && paged.map((o) => (
-                <tr key={o.id} className="border-t hover:bg-gray-50">
+                <tr
+                  key={o.id}
+                  className={`border-t hover:bg-gray-50 cursor-pointer ${bonusBaseOrder?.id === o.id ? 'bg-blue-50' : ''}`}
+                  onClick={() => setBonusBaseOrder(o)}
+                >
                   <td className="px-3 py-2 font-mono text-xs">{o.code || o.id}</td>
                   <td className="px-3 py-2 text-xs text-gray-600">{o.createdBy?.abbrevName || '-'}</td>
                   <td className="px-3 py-2 text-xs text-gray-600 w-24">{o.client?.clientCode ?? '-'}</td>
@@ -440,7 +541,7 @@ export default function SalesOrdersPage() {
                   </td>
                   <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs ${statusColor(statusLabelPt(o.status))}`}>{statusLabelPt(o.status)}</span></td>
                   <td className="px-3 py-2 text-center">
-                    <div className="inline-flex">
+                    <div className="inline-flex" onClick={(e) => e.stopPropagation()}>
                       <IconBtn title="Visualizar" onClick={() => setSelected(o)}><EyeIcon /></IconBtn>
                       <IconBtn title="Detalhes" onClick={() => { window.location.href = `/sales/orders/${o.id}`; }}> <FileIcon /> </IconBtn>
                       <IconBtn 
@@ -544,6 +645,73 @@ export default function SalesOrdersPage() {
             </div>
             <div className="px-4 py-3 border-t text-right">
               <button className="px-3 py-1.5 border rounded hover:bg-gray-100" onClick={() => setSelected(null)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bonusModalOpen && bonusBaseOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center" onClick={() => setBonusModalOpen(false)}>
+          <div className="bg-white w-full max-w-xl rounded shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b flex items-center">
+              <div className="font-semibold">Gerar Bonificação</div>
+              <button className="ml-auto text-gray-500 hover:text-black" onClick={() => setBonusModalOpen(false)} aria-label="Fechar">×</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <div className="text-xs text-gray-600">Pedido base</div>
+                <div className="mt-1 font-mono text-xs text-gray-800">{bonusBaseOrder.code || bonusBaseOrder.id}</div>
+                <div className="mt-1 text-sm text-gray-900">
+                  {(bonusBaseOrder.client?.clientCode ?? '-') + ' - ' + (bonusBaseOrder.client?.abbrevName || bonusBaseOrder.customerName || '-')}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-600">Tipo de pedido (Bonificação)</label>
+                <select
+                  className="mt-1 w-full px-2 py-1.5 border rounded"
+                  value={bonusOrderTypeId != null ? String(bonusOrderTypeId) : ''}
+                  onChange={(e) => setBonusOrderTypeId(e.target.value ? Number(e.target.value) : null)}
+                  disabled={bonusOrderTypesLoading || bonusOrderTypes.length === 0}
+                >
+                  <option value="">
+                    {bonusOrderTypesLoading ? 'Carregando...' : bonusOrderTypes.length === 0 ? 'Nenhum tipo de bonificação disponível' : 'Selecione...'}
+                  </option>
+                  {bonusOrderTypes
+                    .slice()
+                    .sort((a, b) => String(a.descricao || '').localeCompare(String(b.descricao || ''), 'pt-BR'))
+                    .map((ot) => (
+                      <option key={ot.id} value={String(ot.id)}>
+                        {ot.codtipoped} - {ot.descricao}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-600">Percentual (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  className="mt-1 w-full px-2 py-1.5 border rounded"
+                  value={bonusPercent}
+                  onChange={(e) => setBonusPercent(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t text-right space-x-2">
+              <button
+                className="px-3 py-1.5 border rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={bonusCreating}
+                onClick={createBonusOrder}
+              >
+                Criar pedido
+              </button>
+              <button className="px-3 py-1.5 border rounded hover:bg-gray-100" onClick={() => setBonusModalOpen(false)} disabled={bonusCreating}>
+                Cancelar
+              </button>
             </div>
           </div>
         </div>
