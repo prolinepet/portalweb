@@ -82,6 +82,7 @@ export async function GET(request: Request) {
         code: true,
         status: true,
         createdAt: true,
+        deliveryDate: true,
         customerName: true,
         customerDoc: true,
         entity: { select: { id: true, name: true, codEstab: true } },
@@ -96,6 +97,10 @@ export async function GET(request: Request) {
             quantity: true,
             unit: true,
             sdoPed: true,
+            clientOrderNumber: true,
+            clientOrderItemNumber: true,
+            itemDeliveryDate: true,
+            inventoryItem: { select: { quantity: true } },
           },
         },
       },
@@ -106,37 +111,41 @@ export async function GET(request: Request) {
     const integratedOrders = orders.filter((o) => statusRank(o.status) >= 3);
     const items = integratedOrders.flatMap((o) => {
       const customerLabel = o.client?.abbrevName || o.customerName || o.client?.name || '';
-      const customerCode = o.client?.clientCode != null ? Number(o.client.clientCode) : null;
       const customerCity = o.client?.cidade || null;
       const customerUf = o.client?.estado || null;
       const estab = o.entity?.codEstab || null;
-      return (o.items || []).map((it) => ({
-        orderId: o.id,
-        orderCode: o.code,
-        status: o.status,
-        createdAt: o.createdAt,
-        entityId: o.entity?.id ?? null,
-        estab,
-        customerCode,
-        customerName: customerLabel,
-        customerCity,
-        customerUf,
-        orderType: o.orderType
-          ? { id: o.orderType.id, code: o.orderType.codtipoped, description: o.orderType.descricao, kind: o.orderType.kind }
-          : null,
-        itemId: it.id,
-        inventoryItemId: it.inventoryItemId,
-        sku: it.sku,
-        itemName: it.name,
-        quantity: it.quantity,
-        unit: it.unit,
-        sdoPed: Number(it.sdoPed ?? 0),
-      }));
+      const kind = o.orderType?.kind ?? null;
+
+      return (o.items || []).map((it) => {
+        const dtEntrCli = it.itemDeliveryDate ?? o.deliveryDate ?? null;
+        const sdoPed = Number(it.sdoPed ?? 0);
+        const sdoEst = Number((it as any)?.inventoryItem?.quantity ?? 0);
+        const qtdProg = 0;
+        const diverg = sdoPed - qtdProg;
+
+        return {
+          uf: customerUf,
+          cidade: customerCity,
+          dtEntrCli,
+          cliente: customerLabel,
+          estab,
+          pedCli: it.clientOrderNumber ?? null,
+          aprovacao: 'Sim',
+          seq: it.clientOrderItemNumber ?? null,
+          codItem: it.sku ?? null,
+          sdoPed,
+          sdoEst,
+          qtdProg,
+          diverg,
+          descricao: it.name,
+          orderTypeKind: kind,
+        };
+      });
     });
 
     const filtered = q
       ? items.filter((r) => {
-          const hay = `${r.orderCode ?? ''} ${r.customerCode ?? ''} ${r.customerName ?? ''} ${r.sku ?? ''} ${r.itemName ?? ''}`.toLowerCase();
+          const hay = `${r.estab ?? ''} ${r.uf ?? ''} ${r.cidade ?? ''} ${r.cliente ?? ''} ${r.pedCli ?? ''} ${r.codItem ?? ''} ${r.descricao ?? ''}`.toLowerCase();
           return hay.includes(q);
         })
       : items;

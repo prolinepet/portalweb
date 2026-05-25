@@ -2,20 +2,21 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 type PreCargaItem = {
-  orderId: number;
-  orderCode: string | null;
-  status: string | null;
-  createdAt: string;
+  uf: string | null;
+  cidade: string | null;
+  dtEntrCli: string | null;
+  cliente: string;
   estab: string | null;
-  customerCode: number | null;
-  customerName: string;
-  customerCity: string | null;
-  customerUf: string | null;
-  sku: string | null;
-  itemName: string;
-  quantity: number;
-  unit: string | null;
+  pedCli: string | null;
+  aprovacao: string | null;
+  seq: number | null;
+  codItem: string | null;
   sdoPed: number;
+  sdoEst: number;
+  qtdProg: number;
+  diverg: number;
+  descricao: string;
+  orderTypeKind: string | null;
 };
 
 type PreCarga = {
@@ -25,6 +26,8 @@ type PreCarga = {
   isFinalized: boolean;
 };
 
+type CheckRow = { key: string; label: string };
+
 type TabKey = "processos" | "pre-carga" | "descarga" | "pre-devolucao";
 
 function pad2(n: number): string {
@@ -33,6 +36,26 @@ function pad2(n: number): string {
 
 function toYmd(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function uniqSorted<T>(arr: T[], toKey: (v: T) => string): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const v of arr) {
+    const k = toKey(v);
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(v);
+  }
+  return out;
+}
+
+function addDays(ymd: string, deltaDays: number): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return ymd;
+  const d = new Date(`${ymd}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return ymd;
+  d.setDate(d.getDate() + deltaDays);
+  return toYmd(d);
 }
 
 export default function LogisticsPanelPage() {
@@ -49,6 +72,19 @@ export default function LogisticsPanelPage() {
   const [preCargaMode, setPreCargaMode] = useState<"view" | "create" | "edit">("view");
   const [preCargaDtPrev, setPreCargaDtPrev] = useState<string>("");
   const [preCargaCifFob, setPreCargaCifFob] = useState<"CIF" | "FOB" | "">("");
+  const [fEstabs, setFEstabs] = useState<Record<string, boolean>>({});
+  const [fUfs, setFUfs] = useState<Record<string, boolean>>({});
+  const [fCities, setFCities] = useState<Record<string, boolean>>({});
+  const [showEstabModal, setShowEstabModal] = useState(false);
+  const [showUfModal, setShowUfModal] = useState(false);
+  const [showCityModal, setShowCityModal] = useState(false);
+  const [filterNomeCliente, setFilterNomeCliente] = useState("");
+  const [filterPedidoCliente, setFilterPedidoCliente] = useState("");
+  const [filterItemDesc, setFilterItemDesc] = useState("");
+  const [kVenda, setKVenda] = useState(true);
+  const [kBon, setKBon] = useState(true);
+  const [kAmostra, setKAmostra] = useState(true);
+  const [apenasAprovados, setApenasAprovados] = useState(false);
 
   const loadPreCarga = useCallback(async () => {
     setLoading(true);
@@ -57,27 +93,29 @@ export default function LogisticsPanelPage() {
       const qs = new URLSearchParams();
       if (dateStart) qs.set("dateStart", dateStart);
       if (dateEnd) qs.set("dateEnd", dateEnd);
-      if (q.trim()) qs.set("q", q.trim());
+      const quick = (q || "").trim();
+      if (quick) qs.set("q", quick);
       const res = await fetch(`/api/logistics/panel/pre-carga/items?${qs.toString()}`, { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
       const normalized: PreCargaItem[] = (Array.isArray(data?.items) ? data.items : []).map((r: any) => ({
-        orderId: Number(r?.orderId),
-        orderCode: r?.orderCode == null ? null : String(r.orderCode),
-        status: r?.status == null ? null : String(r.status),
-        createdAt: String(r?.createdAt || ""),
+        uf: r?.uf == null ? null : String(r.uf),
+        cidade: r?.cidade == null ? null : String(r.cidade),
+        dtEntrCli: r?.dtEntrCli == null ? null : String(r.dtEntrCli),
+        cliente: String(r?.cliente || ""),
         estab: r?.estab == null ? null : String(r.estab),
-        customerCode: r?.customerCode == null ? null : Number(r.customerCode),
-        customerName: String(r?.customerName || ""),
-        customerCity: r?.customerCity == null ? null : String(r.customerCity),
-        customerUf: r?.customerUf == null ? null : String(r.customerUf),
-        sku: r?.sku == null ? null : String(r.sku),
-        itemName: String(r?.itemName || ""),
-        quantity: Number(r?.quantity || 0),
-        unit: r?.unit == null ? null : String(r.unit),
+        pedCli: r?.pedCli == null ? null : String(r.pedCli),
+        aprovacao: r?.aprovacao == null ? null : String(r.aprovacao),
+        seq: r?.seq == null ? null : Number(r.seq),
+        codItem: r?.codItem == null ? null : String(r.codItem),
         sdoPed: Number(r?.sdoPed || 0),
+        sdoEst: Number(r?.sdoEst || 0),
+        qtdProg: Number(r?.qtdProg || 0),
+        diverg: Number(r?.diverg || 0),
+        descricao: String(r?.descricao || ""),
+        orderTypeKind: r?.orderTypeKind == null ? null : String(r.orderTypeKind),
       }));
-      setItems(normalized.filter((x) => Number.isFinite(x.orderId) && x.orderId > 0));
+      setItems(normalized);
     } catch (e: any) {
       setErr(e?.message || String(e));
       setItems([]);
@@ -236,12 +274,205 @@ export default function LogisticsPanelPage() {
   }, [dateStart, dateEnd]);
 
   const totals = useMemo(() => {
-    const countOrders = new Set(items.map((i) => i.orderId)).size;
     const countItems = items.length;
-    const sumQtd = items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
-    const sumSdo = items.reduce((acc, it) => acc + (Number(it.sdoPed) || 0), 0);
-    return { countOrders, countItems, sumQtd, sumSdo };
+    const sumQtdProg = items.reduce((acc, it) => acc + (Number(it.qtdProg) || 0), 0);
+    const sumSdoPed = items.reduce((acc, it) => acc + (Number(it.sdoPed) || 0), 0);
+    return { countItems, sumQtdProg, sumSdoPed };
   }, [items]);
+
+  const estabsAvailable = useMemo(() => {
+    const rows: CheckRow[] = items
+      .map((it) => String(it.estab || "").trim())
+      .filter((s) => !!s)
+      .map((s) => ({ key: s, label: s }));
+    return uniqSorted(rows, (r) => r.key).sort((a, b) => a.label.localeCompare(b.label));
+  }, [items]);
+
+  const ufsAvailable = useMemo(() => {
+    const rows: CheckRow[] = items
+      .map((it) => String(it.uf || "").trim().toUpperCase())
+      .filter((s) => !!s)
+      .map((s) => ({ key: s, label: s }));
+    return uniqSorted(rows, (r) => r.key).sort((a, b) => a.label.localeCompare(b.label));
+  }, [items]);
+
+  const citiesAvailable = useMemo(() => {
+    const rows: CheckRow[] = items
+      .map((it) => {
+        const uf = String(it.uf || "").trim().toUpperCase();
+        const city = String(it.cidade || "").trim();
+        if (!uf || !city) return null;
+        return { key: `${uf}|${city}`, label: `${uf}    ${city}` };
+      })
+      .filter(Boolean) as CheckRow[];
+    return uniqSorted(rows, (r) => r.key).sort((a, b) => a.label.localeCompare(b.label));
+  }, [items]);
+
+  const kindAllowed = useCallback(
+    (k: string | null) => {
+      const kk = String(k || "").trim().toUpperCase();
+      if (kk === "BONIFICACAO") return kBon;
+      if (kk === "AMOSTRA") return kAmostra;
+      return kVenda;
+    },
+    [kVenda, kBon, kAmostra]
+  );
+
+  const filteredItems = useMemo(() => {
+    const nameQ = filterNomeCliente.trim().toLowerCase();
+    const pedCliQ = filterPedidoCliente.trim().toLowerCase();
+    const itemQ = filterItemDesc.trim().toLowerCase();
+
+    const useEstab = Object.keys(fEstabs).length > 0;
+    const useUf = Object.keys(fUfs).length > 0;
+    const useCity = Object.keys(fCities).length > 0;
+
+    return items.filter((it) => {
+      if (!kindAllowed(it.orderTypeKind)) return false;
+
+      if (useEstab) {
+        const k = String(it.estab || "").trim();
+        if (!fEstabs[k]) return false;
+      }
+      if (useUf) {
+        const k = String(it.uf || "").trim().toUpperCase();
+        if (!fUfs[k]) return false;
+      }
+      if (useCity) {
+        const k = `${String(it.uf || "").trim().toUpperCase()}|${String(it.cidade || "").trim()}`;
+        if (!fCities[k]) return false;
+      }
+
+      if (apenasAprovados) {
+        const ap = String(it.aprovacao || "").trim().toUpperCase();
+        if (ap !== "SIM") return false;
+      }
+
+      if (nameQ) {
+        if (!String(it.cliente || "").toLowerCase().includes(nameQ)) return false;
+      }
+      if (pedCliQ) {
+        if (!String(it.pedCli || "").toLowerCase().includes(pedCliQ)) return false;
+      }
+      if (itemQ) {
+        const hay = `${it.codItem || ""} ${it.descricao || ""}`.toLowerCase();
+        if (!hay.includes(itemQ)) return false;
+      }
+
+      return true;
+    });
+  }, [items, fEstabs, fUfs, fCities, filterNomeCliente, filterPedidoCliente, filterItemDesc, kindAllowed, apenasAprovados]);
+
+  const FilterModal = ({
+    title,
+    rows,
+    value,
+    setValue,
+    onClose,
+    withSearch = false,
+    showMarkButtons = false,
+  }: {
+    title: string;
+    rows: CheckRow[];
+    value: Record<string, boolean>;
+    setValue: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+    onClose: () => void;
+    withSearch?: boolean;
+    showMarkButtons?: boolean;
+  }) => {
+    const [search, setSearch] = useState("");
+    const filtered = useMemo(() => {
+      const s = search.trim().toLowerCase();
+      if (!s) return rows;
+      return rows.filter((r) => r.label.toLowerCase().includes(s));
+    }, [rows, search]);
+
+    const allChecked = Object.keys(value).length === 0;
+    const isChecked = (k: string) => (allChecked ? true : Boolean(value[k]));
+
+    const toggle = (k: string, checked: boolean) => {
+      setValue((prev) => {
+        const next = { ...prev };
+        if (Object.keys(prev).length === 0) {
+          for (const r of rows) next[r.key] = true;
+        }
+        next[k] = checked;
+        const anyFalse = rows.some((r) => next[r.key] === false);
+        const anyTrue = rows.some((r) => next[r.key] === true);
+        if (!anyFalse && anyTrue) return {};
+        return next;
+      });
+    };
+
+    const markAll = () => setValue({});
+    const unmarkAll = () =>
+      setValue(() => {
+        const next: Record<string, boolean> = {};
+        for (const r of rows) next[r.key] = false;
+        return next;
+      });
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="bg-white rounded border w-full max-w-md shadow">
+          <div className="p-3 border-b font-medium">{title}</div>
+          <div className="p-3 space-y-2">
+            {withSearch && (
+              <div className="flex items-center gap-2">
+                {showMarkButtons && (
+                  <>
+                    <button onClick={markAll} className="text-xs px-2 py-1 border rounded">
+                      Marcar Todos
+                    </button>
+                    <button onClick={unmarkAll} className="text-xs px-2 py-1 border rounded">
+                      Desmarcar Todos
+                    </button>
+                  </>
+                )}
+                <div className="flex items-center gap-1 ml-auto">
+                  <div className="text-xs text-gray-600">Pesq.</div>
+                  <input value={search} onChange={(e) => setSearch(e.target.value)} className="border rounded px-2 py-1 text-sm w-40" />
+                </div>
+              </div>
+            )}
+
+            <div className="border rounded max-h-64 overflow-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="p-2 w-10"></th>
+                    <th className="p-2 text-left">{title.replace("Filtro Por ", "")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((r) => (
+                    <tr key={r.key} className="border-b">
+                      <td className="p-2">
+                        <input type="checkbox" checked={isChecked(r.key)} onChange={(e) => toggle(r.key, e.target.checked)} />
+                      </td>
+                      <td className="p-2">{r.label}</td>
+                    </tr>
+                  ))}
+                  {filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={2} className="p-3 text-center text-gray-500">
+                        Nenhum item.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="p-3 border-t flex justify-start">
+            <button onClick={onClose} className="text-xs px-3 py-1.5 border rounded">
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -388,65 +619,161 @@ export default function LogisticsPanelPage() {
             <div className="flex items-center justify-between gap-3">
               <div className="font-medium">Itens Pré-Carga</div>
               <div className="text-xs text-gray-600">
-                Pedidos: {totals.countOrders} • Itens: {totals.countItems} • Qtd: {totals.sumQtd} • Sdo Ped: {totals.sumSdo}
+                Itens: {totals.countItems} • Qtd Prog: {totals.sumQtdProg} • Sdo Ped: {totals.sumSdoPed}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-              <div>
-                <div className="text-xs text-gray-600 mb-1">Dt Entr Cli (de)</div>
-                <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+            <div className="grid grid-cols-1 lg:grid-cols-[160px_1fr_280px] gap-3">
+              <div className="space-y-2">
+                <button onClick={() => setShowEstabModal(true)} className="w-full text-xs px-2 py-1.5 border rounded bg-gray-50">Estabelecimento</button>
+                <button onClick={() => setShowUfModal(true)} className="w-full text-xs px-2 py-1.5 border rounded bg-gray-50">Estado(UF)</button>
+                <button onClick={() => setShowCityModal(true)} className="w-full text-xs px-2 py-1.5 border rounded bg-gray-50">Cidade</button>
               </div>
-              <div>
-                <div className="text-xs text-gray-600 mb-1">Dt Entr Cli (até)</div>
-                <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
-              </div>
-              <div className="md:col-span-2">
-                <div className="text-xs text-gray-600 mb-1">Filtro</div>
-                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Pedido / Cliente / SKU / Item" className="w-full border rounded px-2 py-1 text-sm" />
-              </div>
-            </div>
 
-            <div className="flex items-center gap-2">
-              <button onClick={loadPreCarga} className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded disabled:opacity-50" disabled={loading}>Aplicar Filtro</button>
-              {loading && <div className="text-xs text-gray-500">Carregando...</div>}
-              {err && <div className="text-xs text-red-600">{err}</div>}
+              <div className="space-y-2">
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-2 items-end">
+                  <div>
+                    <div className="text-xs text-gray-600 mb-1">Dt Entr Cli (de)</div>
+                    <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+                  </div>
+                  <div className="flex items-center justify-center gap-1 pb-0.5">
+                    <button
+                      className="w-8 h-8 border rounded text-sm"
+                      title="Voltar 1 dia"
+                      onClick={() => {
+                        setDateStart((prev) => addDays(prev, -1));
+                        setDateEnd((prev) => addDays(prev, -1));
+                      }}
+                      disabled={loading}
+                    >
+                      ‹
+                    </button>
+                    <button
+                      className="w-8 h-8 border rounded text-sm"
+                      title="Avançar 1 dia"
+                      onClick={() => {
+                        setDateStart((prev) => addDays(prev, 1));
+                        setDateEnd((prev) => addDays(prev, 1));
+                      }}
+                      disabled={loading}
+                    >
+                      ›
+                    </button>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-600 mb-1">Dt Entr Cli (até)</div>
+                    <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div>
+                    <div className="text-xs text-gray-600 mb-1">Nome Cliente</div>
+                    <input value={filterNomeCliente} onChange={(e) => setFilterNomeCliente(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-600 mb-1">Pedido Cliente</div>
+                    <input value={filterPedidoCliente} onChange={(e) => setFilterPedidoCliente(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div>
+                    <div className="text-xs text-gray-600 mb-1">Item/Desc It</div>
+                    <input value={filterItemDesc} onChange={(e) => setFilterItemDesc(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-600 mb-1">Filtro</div>
+                    <input value={q} onChange={(e) => setQ(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="border rounded p-2">
+                  <div className="text-xs text-gray-600 mb-2">Tipo Pedido</div>
+                  <label className="text-sm flex items-center gap-2">
+                    <input type="checkbox" checked={kVenda} onChange={(e) => setKVenda(e.target.checked)} /> Venda
+                  </label>
+                  <label className="text-sm flex items-center gap-2">
+                    <input type="checkbox" checked={kBon} onChange={(e) => setKBon(e.target.checked)} /> Bonificação
+                  </label>
+                  <label className="text-sm flex items-center gap-2">
+                    <input type="checkbox" checked={kAmostra} onChange={(e) => setKAmostra(e.target.checked)} /> Amostra
+                  </label>
+                  <label className="text-sm flex items-center gap-2 mt-2">
+                    <input type="checkbox" checked={apenasAprovados} onChange={(e) => setApenasAprovados(e.target.checked)} /> Apenas Aprovados
+                  </label>
+                </div>
+
+                <div className="border rounded p-2">
+                  <div className="text-xs text-gray-600 mb-2">Agrupamento</div>
+                  <label className="text-sm flex items-center gap-2">
+                    <input type="checkbox" defaultChecked /> Estado(UF)
+                  </label>
+                  <label className="text-sm flex items-center gap-2">
+                    <input type="checkbox" /> Cidade
+                  </label>
+                  <label className="text-sm flex items-center gap-2">
+                    <input type="checkbox" /> Dt Entrega Cli
+                  </label>
+                  <label className="text-sm flex items-center gap-2">
+                    <input type="checkbox" /> Cliente
+                  </label>
+                </div>
+
+                <button onClick={loadPreCarga} className="text-xs px-3 py-2 bg-gray-200 rounded border disabled:opacity-50" disabled={loading}>
+                  Aplica Filtro
+                </button>
+                {loading && <div className="text-xs text-gray-500">Carregando...</div>}
+                {err && <div className="text-xs text-red-600">{err}</div>}
+              </div>
             </div>
 
             <div className="border rounded overflow-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b">
-                    <th className="text-left p-2 w-24">Estab</th>
-                    <th className="text-left p-2 w-28">Pedido</th>
-                    <th className="text-left p-2 w-20">Cód Cli</th>
-                    <th className="text-left p-2">Cliente</th>
-                    <th className="text-left p-2 w-20">UF</th>
-                    <th className="text-left p-2 w-28">SKU</th>
-                    <th className="text-left p-2">Item</th>
-                    <th className="text-right p-2 w-24">Qtd</th>
+                    <th className="text-left p-2 w-16">UF</th>
+                    <th className="text-left p-2 w-48">Cidade</th>
+                    <th className="text-left p-2 w-28">Dt Entr Cli</th>
+                    <th className="text-left p-2 w-72">Cliente</th>
+                    <th className="text-left p-2 w-20">Estab</th>
+                    <th className="text-left p-2 w-28">Ped Cli</th>
+                    <th className="text-left p-2 w-24">Aprovação</th>
+                    <th className="text-right p-2 w-16">Seq</th>
+                    <th className="text-left p-2 w-24">Cód Item</th>
                     <th className="text-right p-2 w-24">Sdo Ped</th>
+                    <th className="text-right p-2 w-24">Sdo Est</th>
+                    <th className="text-right p-2 w-24">Qtd Prog</th>
+                    <th className="text-right p-2 w-20">Diverg</th>
+                    <th className="text-left p-2 min-w-[360px]">Descrição</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.length === 0 && (
+                  {filteredItems.length === 0 && (
                     <tr>
-                      <td className="p-3 text-center text-gray-500" colSpan={9}>
+                      <td className="p-3 text-center text-gray-500" colSpan={14}>
                         Nenhum item encontrado.
                       </td>
                     </tr>
                   )}
-                  {items.map((it) => (
-                    <tr key={`${it.orderId}-${it.sku || it.itemName}-${it.quantity}-${it.sdoPed}`} className="border-b hover:bg-gray-50">
+                  {filteredItems.map((it, idx) => (
+                    <tr key={`${idx}-${it.uf}-${it.cidade}-${it.estab}-${it.pedCli}-${it.codItem}-${it.sdoPed}`} className="border-b hover:bg-gray-50">
+                      <td className="p-2">{it.uf || "-"}</td>
+                      <td className="p-2">{it.cidade || "-"}</td>
+                      <td className="p-2">{it.dtEntrCli ? it.dtEntrCli.slice(0, 10) : "-"}</td>
+                      <td className="p-2">{it.cliente}</td>
                       <td className="p-2">{it.estab || "-"}</td>
-                      <td className="p-2 font-mono text-xs">{it.orderCode || it.orderId}</td>
-                      <td className="p-2">{it.customerCode ?? "-"}</td>
-                      <td className="p-2">{it.customerName}</td>
-                      <td className="p-2">{it.customerUf || "-"}</td>
-                      <td className="p-2 font-mono text-xs">{it.sku || "-"}</td>
-                      <td className="p-2">{it.itemName}</td>
-                      <td className="p-2 text-right">{it.quantity}</td>
+                      <td className="p-2 font-mono text-xs">{it.pedCli || "-"}</td>
+                      <td className="p-2">{it.aprovacao || "-"}</td>
+                      <td className="p-2 text-right">{it.seq ?? "-"}</td>
+                      <td className="p-2 font-mono text-xs">{it.codItem || "-"}</td>
                       <td className="p-2 text-right">{it.sdoPed}</td>
+                      <td className="p-2 text-right">{it.sdoEst}</td>
+                      <td className="p-2 text-right">{it.qtdProg}</td>
+                      <td className="p-2 text-right">{it.diverg}</td>
+                      <td className="p-2">{it.descricao}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -454,6 +781,32 @@ export default function LogisticsPanelPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showEstabModal && (
+        <FilterModal title="Filtro Por Estabelecimento" rows={estabsAvailable} value={fEstabs} setValue={setFEstabs} onClose={() => setShowEstabModal(false)} />
+      )}
+      {showUfModal && (
+        <FilterModal
+          title="Filtro Por Estado(UF)"
+          rows={ufsAvailable}
+          value={fUfs}
+          setValue={setFUfs}
+          onClose={() => setShowUfModal(false)}
+          withSearch
+          showMarkButtons
+        />
+      )}
+      {showCityModal && (
+        <FilterModal
+          title="Filtro Por Estado(UF) / Cidade"
+          rows={citiesAvailable}
+          value={fCities}
+          setValue={setFCities}
+          onClose={() => setShowCityModal(false)}
+          withSearch
+          showMarkButtons
+        />
       )}
     </div>
   );
