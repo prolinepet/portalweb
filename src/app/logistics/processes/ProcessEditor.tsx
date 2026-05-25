@@ -20,6 +20,8 @@ type Phase = {
   code: number;
   description: string;
   isAuto: boolean;
+  isCarga: boolean;
+  isDescarga: boolean;
   sequence: number;
   notifiedUsers?: NotifiedUser[];
 };
@@ -194,11 +196,15 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
   const [phaseCode, setPhaseCode] = useState<string>("");
   const [phaseDesc, setPhaseDesc] = useState<string>("");
   const [phaseAuto, setPhaseAuto] = useState<boolean>(false);
+  const [phaseCarga, setPhaseCarga] = useState<boolean>(false);
+  const [phaseDescarga, setPhaseDescarga] = useState<boolean>(false);
   const openPhaseModal = (p?: Phase) => {
     setPhaseEditingId(p?.id ?? null);
     setPhaseCode(p ? String(p.code ?? "") : "");
     setPhaseDesc(p ? String(p.description ?? "") : "");
     setPhaseAuto(Boolean(p?.isAuto));
+    setPhaseCarga(Boolean(p?.isCarga));
+    setPhaseDescarga(Boolean(p?.isDescarga));
     setPhaseModalOpen(true);
   };
   const savePhase = async () => {
@@ -207,9 +213,12 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
       code: Number(phaseCode),
       description: phaseDesc.trim(),
       isAuto: phaseAuto,
+      isCarga: phaseCarga,
+      isDescarga: phaseDescarga,
     };
     if (!payload.code || Number.isNaN(payload.code)) return alert("Cód Fase inválido");
     if (!payload.description) return alert("Descrição da fase é obrigatória");
+    if (!payload.isCarga && !payload.isDescarga) return alert('Marque "Carga" e/ou "Descarga".');
     try {
       setSaving(true);
       let res: Response;
@@ -633,6 +642,18 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
                     <input type="checkbox" checked={phaseAuto} onChange={(e) => setPhaseAuto(e.target.checked)} />
                     Fase Auto?
                   </label>
+                </div>
+                <div className="col-span-12">
+                  <div className="flex flex-wrap gap-6">
+                    <label className="inline-flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={phaseCarga} onChange={(e) => setPhaseCarga(e.target.checked)} />
+                      Carga
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={phaseDescarga} onChange={(e) => setPhaseDescarga(e.target.checked)} />
+                      Descarga
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>

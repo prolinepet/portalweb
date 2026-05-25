@@ -72,6 +72,8 @@ model LogisticProcessPhase {
   code        Int
   description String
   isAuto      Boolean                    @default(false)
+  isCarga     Boolean                    @default(false)
+  isDescarga  Boolean                    @default(false)
   sequence    Int                        @default(1)
   createdAt   DateTime                   @default(now())
   updatedAt   DateTime                   @updatedAt

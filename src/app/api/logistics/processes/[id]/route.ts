@@ -29,6 +29,8 @@ async function ensureLogisticsTables(): Promise<void> {
         \`code\` INT NOT NULL,
         \`description\` VARCHAR(255) NOT NULL,
         \`isAuto\` TINYINT(1) NOT NULL DEFAULT 0,
+        \`isCarga\` TINYINT(1) NOT NULL DEFAULT 0,
+        \`isDescarga\` TINYINT(1) NOT NULL DEFAULT 0,
         \`sequence\` INT NOT NULL DEFAULT 1,
         \`createdAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         \`updatedAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -37,6 +39,18 @@ async function ensureLogisticsTables(): Promise<void> {
         KEY \`logisticprocessphase_process_seq_idx\` (\`processId\`, \`sequence\`),
         CONSTRAINT \`logisticprocessphase_process_fk\` FOREIGN KEY (\`processId\`) REFERENCES \`logisticprocess\`(\`id\`) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
+    );
+  } catch {}
+
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE \`logisticprocessphase\` ADD COLUMN \`isCarga\` TINYINT(1) NOT NULL DEFAULT 0;`
+    );
+  } catch {}
+
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE \`logisticprocessphase\` ADD COLUMN \`isDescarga\` TINYINT(1) NOT NULL DEFAULT 0;`
     );
   } catch {}
   try {
@@ -148,4 +162,3 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
 }
-

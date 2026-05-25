@@ -26,9 +26,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const code = Number(body?.code);
     const description = String(body?.description || '').trim();
     const isAuto = Boolean(body?.isAuto);
+    const isCarga = Boolean(body?.isCarga);
+    const isDescarga = Boolean(body?.isDescarga);
 
     if (!Number.isFinite(code) || code <= 0) return NextResponse.json({ error: 'Cód Fase inválido' }, { status: 400 });
     if (!description) return NextResponse.json({ error: 'Descrição da fase é obrigatória' }, { status: 400 });
+    if (!isCarga && !isDescarga) return NextResponse.json({ error: 'Marque Carga e/ou Descarga.' }, { status: 400 });
 
     const last = await prisma.logisticProcessPhase.findFirst({
       where: { processId: Math.trunc(processId) },
@@ -43,9 +46,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         code: Math.trunc(code),
         description,
         isAuto,
+        isCarga,
+        isDescarga,
         sequence: nextSeq,
       },
-      select: { id: true, processId: true, code: true, description: true, isAuto: true, sequence: true },
+      select: { id: true, processId: true, code: true, description: true, isAuto: true, isCarga: true, isDescarga: true, sequence: true },
     });
     return NextResponse.json(created);
   } catch (err: any) {
@@ -56,4 +61,3 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-

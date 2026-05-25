@@ -26,14 +26,17 @@ export async function PUT(req: Request, { params }: { params: { phaseId: string 
     const code = Number(body?.code);
     const description = String(body?.description || '').trim();
     const isAuto = Boolean(body?.isAuto);
+    const isCarga = Boolean(body?.isCarga);
+    const isDescarga = Boolean(body?.isDescarga);
 
     if (!Number.isFinite(code) || code <= 0) return NextResponse.json({ error: 'Cód Fase inválido' }, { status: 400 });
     if (!description) return NextResponse.json({ error: 'Descrição da fase é obrigatória' }, { status: 400 });
+    if (!isCarga && !isDescarga) return NextResponse.json({ error: 'Marque Carga e/ou Descarga.' }, { status: 400 });
 
     const updated = await prisma.logisticProcessPhase.update({
       where: { id: Math.trunc(id) },
-      data: { code: Math.trunc(code), description, isAuto },
-      select: { id: true, processId: true, code: true, description: true, isAuto: true, sequence: true },
+      data: { code: Math.trunc(code), description, isAuto, isCarga, isDescarga },
+      select: { id: true, processId: true, code: true, description: true, isAuto: true, isCarga: true, isDescarga: true, sequence: true },
     });
     return NextResponse.json(updated);
   } catch (err: any) {
@@ -75,4 +78,3 @@ export async function DELETE(req: Request, { params }: { params: { phaseId: stri
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
 }
-
