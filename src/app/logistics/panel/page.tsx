@@ -487,78 +487,84 @@ export default function LogisticsPanelPage() {
       )}
 
       {tab === "pre-carga" && (
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
           <div className="bg-white rounded border p-3">
             <div className="flex items-center justify-between mb-2">
               <div className="font-medium">Pré Cargas</div>
-              <div className="flex items-center gap-1">
-                <button
-                  title={preCargaMode === "create" ? "Salvar inclusão" : "Incluir pré-carga"}
-                  onClick={() => (preCargaMode === "create" ? void savePreCarga() : startCreatePreCarga())}
-                  className="w-8 h-8 inline-flex items-center justify-center rounded border bg-gray-900 text-white disabled:opacity-50"
-                  disabled={loading || preCargaMode === "edit"}
-                >
-                  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M11 5h2v14h-2V5zm-6 6h14v2H5v-2z"/></svg>
-                </button>
-                <button
-                  title={preCargaMode === "edit" ? "Salvar alteração" : "Editar pré-carga"}
-                  onClick={() => (preCargaMode === "edit" ? void savePreCarga() : startEditPreCarga())}
-                  className="w-8 h-8 inline-flex items-center justify-center rounded border text-blue-700 border-blue-300 hover:bg-blue-50 disabled:opacity-50"
-                  disabled={loading || preCargaMode === "create"}
-                >
-                  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M3 17.25V21h3.75L17.8 9.95l-3.75-3.75L3 17.25zm18-11.5a1 1 0 000-1.41l-1.59-1.59a1 1 0 00-1.41 0l-1.13 1.13 3.75 3.75L21 5.75z"/></svg>
-                </button>
-                <button
-                  title="Cancelar inclusão/alteração"
-                  onClick={cancelPreCargaEdit}
-                  className="w-8 h-8 inline-flex items-center justify-center rounded border text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                  disabled={loading || preCargaMode === "view"}
-                >
-                  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M18.3 5.71L12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.29 19.71 2.88 18.3 9.17 12 2.88 5.71 4.29 4.29l6.3 6.3 6.3-6.3 1.41 1.42z"/></svg>
-                </button>
-                <button
-                  title="Excluir pré-carga"
-                  onClick={() => void deletePreCarga()}
-                  className="w-8 h-8 inline-flex items-center justify-center rounded border text-red-700 border-red-300 hover:bg-red-50 disabled:opacity-50"
-                  disabled={loading || preCargaMode !== "view" || !selectedPreCarga}
-                >
-                  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M6 7h12v14H6V7zm3-4h6l1 1h4v2H4V4h4l1-1z"/></svg>
-                </button>
-              </div>
+              <div className="h-6 w-24 bg-gray-900 rounded-sm" />
             </div>
 
             <div className="space-y-2">
-              <div>
-                <div className="text-xs text-gray-600 mb-1">Nr. Pré-Carreg</div>
-                <input
-                  value={preCargaMode === "create" ? "" : selectedPreCarga ? String(selectedPreCarga.id) : ""}
-                  placeholder={preCargaMode === "create" ? "(novo)" : ""}
-                  className="w-full border rounded px-2 py-1 text-sm bg-gray-50"
-                  disabled
-                />
+              <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">Nr. Pré-Carreg</div>
+                  <input
+                    value={preCargaMode === "create" ? "" : selectedPreCarga ? String(selectedPreCarga.id) : ""}
+                    placeholder={preCargaMode === "create" ? "(novo)" : ""}
+                    className="w-full h-8 border rounded px-2 py-1 text-sm bg-gray-50"
+                    disabled
+                  />
+                </div>
+                <div className="flex items-center gap-1 pb-0.5">
+                  <button
+                    title={preCargaMode === "create" ? "Salvar inclusão" : "Incluir pré-carga"}
+                    onClick={() => (preCargaMode === "create" ? void savePreCarga() : startCreatePreCarga())}
+                    className="w-9 h-9 inline-flex items-center justify-center rounded border bg-gray-900 text-white disabled:opacity-50"
+                    disabled={loading || preCargaMode === "edit"}
+                  >
+                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M11 5h2v14h-2V5zm-6 6h14v2H5v-2z"/></svg>
+                  </button>
+                  <button
+                    title={preCargaMode === "edit" ? "Salvar alteração" : "Editar pré-carga"}
+                    onClick={() => (preCargaMode === "edit" ? void savePreCarga() : startEditPreCarga())}
+                    className="w-9 h-9 inline-flex items-center justify-center rounded border text-blue-700 border-blue-300 hover:bg-blue-50 disabled:opacity-50"
+                    disabled={loading || preCargaMode === "create"}
+                  >
+                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M3 17.25V21h3.75L17.8 9.95l-3.75-3.75L3 17.25zm18-11.5a1 1 0 000-1.41l-1.59-1.59a1 1 0 00-1.41 0l-1.13 1.13 3.75 3.75L21 5.75z"/></svg>
+                  </button>
+                  <button
+                    title="Cancelar inclusão/alteração"
+                    onClick={cancelPreCargaEdit}
+                    className="w-9 h-9 inline-flex items-center justify-center rounded border text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    disabled={loading || preCargaMode === "view"}
+                  >
+                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M18.3 5.71L12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.29 19.71 2.88 18.3 9.17 12 2.88 5.71 4.29 4.29l6.3 6.3 6.3-6.3 1.41 1.42z"/></svg>
+                  </button>
+                  <button
+                    title="Excluir pré-carga"
+                    onClick={() => void deletePreCarga()}
+                    className="w-9 h-9 inline-flex items-center justify-center rounded border text-red-700 border-red-300 hover:bg-red-50 disabled:opacity-50"
+                    disabled={loading || preCargaMode !== "view" || !selectedPreCarga}
+                  >
+                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M6 7h12v14H6V7zm3-4h6l1 1h4v2H4V4h4l1-1z"/></svg>
+                  </button>
+                </div>
               </div>
-              <div>
-                <div className="text-xs text-gray-600 mb-1">Dt Prev Carreg</div>
-                <input
-                  type="date"
-                  value={preCargaDtPrev}
-                  onChange={(e) => setPreCargaDtPrev(e.target.value)}
-                  className="w-full border rounded px-2 py-1 text-sm disabled:bg-gray-50"
-                  disabled={preCargaMode === "view" || loading}
-                />
-              </div>
-              <div>
-                <div className="text-xs text-gray-600 mb-1">CIF/FOB</div>
-                <select
-                  value={preCargaCifFob}
-                  onChange={(e) => setPreCargaCifFob((e.target.value || "") as any)}
-                  className="w-full border rounded px-2 py-1 text-sm disabled:bg-gray-50"
-                  disabled={preCargaMode === "view" || loading}
-                >
-                  <option value=""></option>
-                  <option value="CIF">CIF</option>
-                  <option value="FOB">FOB</option>
-                </select>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">Dt Prev Carreg</div>
+                  <input
+                    type="date"
+                    value={preCargaDtPrev}
+                    onChange={(e) => setPreCargaDtPrev(e.target.value)}
+                    className="w-full h-8 border rounded px-2 py-1 text-sm disabled:bg-gray-50"
+                    disabled={preCargaMode === "view" || loading}
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">CIF/FOB</div>
+                  <select
+                    value={preCargaCifFob}
+                    onChange={(e) => setPreCargaCifFob((e.target.value || "") as any)}
+                    className="w-full h-8 border rounded px-2 py-1 text-sm disabled:bg-gray-50"
+                    disabled={preCargaMode === "view" || loading}
+                  >
+                    <option value=""></option>
+                    <option value="CIF">CIF</option>
+                    <option value="FOB">FOB</option>
+                  </select>
+                </div>
               </div>
 
               <label className="text-xs flex items-center gap-2 mt-1">
@@ -620,7 +626,7 @@ export default function LogisticsPanelPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[120px_520px_240px] gap-3">
+            <div className="grid grid-cols-1 lg:grid-cols-[120px_520px_220px] gap-3">
               <div className="space-y-2">
                 <button onClick={() => setShowEstabModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">Estabelecimento</button>
                 <button onClick={() => setShowUfModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">Estado(UF)</button>
@@ -628,83 +634,69 @@ export default function LogisticsPanelPage() {
               </div>
 
               <div className="space-y-2">
-                <div className="grid grid-cols-1 md:grid-cols-[210px_auto_210px] gap-2 items-end">
-                  <div>
-                    <div className="text-xs text-gray-600 mb-1">Dt Entr Cli (de)</div>
-                    <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
-                  </div>
-                  <div className="flex items-center justify-center gap-1 pb-0.5">
-                    <button
-                      className="w-8 h-8 border rounded text-sm bg-gray-50 cursor-default"
-                      title="Botão sem ação"
-                      tabIndex={-1}
-                      type="button"
-                    >
+                <div className="grid grid-cols-[110px_90px_auto_90px] items-center gap-2">
+                  <div className="text-xs text-gray-600">Dt Entrega Cli:</div>
+                  <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
+                  <div className="flex items-center justify-center gap-1">
+                    <button className="w-8 h-8 border rounded text-sm bg-gray-50 cursor-default" title="Botão sem ação" tabIndex={-1} type="button">
                       {"<<"}
                     </button>
-                    <button
-                      className="w-8 h-8 border rounded text-sm bg-gray-50 cursor-default"
-                      title="Botão sem ação"
-                      tabIndex={-1}
-                      type="button"
-                    >
+                    <button className="w-8 h-8 border rounded text-sm bg-gray-50 cursor-default" title="Botão sem ação" tabIndex={-1} type="button">
                       {">>"}
                     </button>
                   </div>
-                  <div>
-                    <div className="text-xs text-gray-600 mb-1">Dt Entr Cli (até)</div>
-                    <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
-                  </div>
+                  <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-[255px_255px] gap-2">
-                  <div>
-                    <div className="text-xs text-gray-600 mb-1">Nome Cliente</div>
-                    <input value={filterNomeCliente} onChange={(e) => setFilterNomeCliente(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
-                  </div>
-                  <div>
-                    <div className="text-xs text-gray-600 mb-1">Pedido Cliente</div>
-                    <input value={filterPedidoCliente} onChange={(e) => setFilterPedidoCliente(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
-                  </div>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-2">
+                  <div className="text-xs text-gray-600">Nome Cliente:</div>
+                  <input value={filterNomeCliente} onChange={(e) => setFilterNomeCliente(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
                 </div>
 
-                <div>
-                  <div className="text-xs text-gray-600 mb-1">Item/Desc It</div>
+                <div className="grid grid-cols-[110px_1fr] items-center gap-2">
+                  <div className="text-xs text-gray-600">Pedido Cliente:</div>
+                  <input value={filterPedidoCliente} onChange={(e) => setFilterPedidoCliente(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
+                </div>
+
+                <div className="grid grid-cols-[110px_1fr] items-center gap-2">
+                  <div className="text-xs text-gray-600">Item/Desc It:</div>
                   <input value={filterItemDesc} onChange={(e) => setFilterItemDesc(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <div className="border rounded p-2">
-                  <div className="text-xs text-gray-600 mb-2">Tipo Pedido</div>
-                  <label className="text-xs flex items-center gap-2">
-                    <input type="checkbox" checked={kVenda} onChange={(e) => setKVenda(e.target.checked)} /> Venda
-                  </label>
-                  <label className="text-xs flex items-center gap-2">
-                    <input type="checkbox" checked={kBon} onChange={(e) => setKBon(e.target.checked)} /> Bonificação
-                  </label>
-                  <label className="text-xs flex items-center gap-2">
-                    <input type="checkbox" checked={kAmostra} onChange={(e) => setKAmostra(e.target.checked)} /> Amostra
-                  </label>
-                  <label className="text-xs flex items-center gap-2 mt-2">
-                    <input type="checkbox" checked={apenasAprovados} onChange={(e) => setApenasAprovados(e.target.checked)} /> Apenas Aprovados
-                  </label>
-                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="border rounded p-2">
+                    <div className="text-xs text-gray-600 mb-2">Tipo Pedido</div>
+                    <label className="text-xs flex items-center gap-2">
+                      <input type="checkbox" checked={kVenda} onChange={(e) => setKVenda(e.target.checked)} /> Venda
+                    </label>
+                    <label className="text-xs flex items-center gap-2">
+                      <input type="checkbox" checked={kBon} onChange={(e) => setKBon(e.target.checked)} /> Bonificação
+                    </label>
+                    <label className="text-xs flex items-center gap-2">
+                      <input type="checkbox" checked={kAmostra} onChange={(e) => setKAmostra(e.target.checked)} /> Amostra
+                    </label>
+                    <label className="text-xs flex items-center gap-2 mt-2">
+                      <input type="checkbox" checked={apenasAprovados} onChange={(e) => setApenasAprovados(e.target.checked)} /> Apenas Aprovados
+                    </label>
+                  </div>
 
-                <div className="border rounded p-2">
-                  <div className="text-xs text-gray-600 mb-2">Agrupamento</div>
-                  <label className="text-xs flex items-center gap-2">
-                    <input type="checkbox" defaultChecked /> Estado(UF)
-                  </label>
-                  <label className="text-xs flex items-center gap-2">
-                    <input type="checkbox" /> Cidade
-                  </label>
-                  <label className="text-xs flex items-center gap-2">
-                    <input type="checkbox" /> Dt Entrega Cli
-                  </label>
-                  <label className="text-xs flex items-center gap-2">
-                    <input type="checkbox" /> Cliente
-                  </label>
+                  <div className="border rounded p-2">
+                    <div className="text-xs text-gray-600 mb-2">Agrupamento</div>
+                    <label className="text-xs flex items-center gap-2">
+                      <input type="checkbox" defaultChecked /> Estado(UF)
+                    </label>
+                    <label className="text-xs flex items-center gap-2">
+                      <input type="checkbox" /> Cidade
+                    </label>
+                    <label className="text-xs flex items-center gap-2">
+                      <input type="checkbox" /> Dt Entrega Cli
+                    </label>
+                    <label className="text-xs flex items-center gap-2">
+                      <input type="checkbox" /> Cliente
+                    </label>
+                  </div>
                 </div>
 
                 <button onClick={loadPreCarga} className="text-xs px-3 py-2 bg-gray-200 rounded border disabled:opacity-50" disabled={loading}>
