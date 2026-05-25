@@ -620,7 +620,7 @@ export default function LogisticsPanelPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr_240px] gap-3">
+            <div className="grid grid-cols-1 lg:grid-cols-[120px_520px_240px] gap-3">
               <div className="space-y-2">
                 <button onClick={() => setShowEstabModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">Estabelecimento</button>
                 <button onClick={() => setShowUfModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">Estado(UF)</button>
@@ -628,7 +628,7 @@ export default function LogisticsPanelPage() {
               </div>
 
               <div className="space-y-2">
-                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-2 items-end">
+                <div className="grid grid-cols-1 md:grid-cols-[210px_auto_210px] gap-2 items-end">
                   <div>
                     <div className="text-xs text-gray-600 mb-1">Dt Entr Cli (de)</div>
                     <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
@@ -657,7 +657,7 @@ export default function LogisticsPanelPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-[255px_255px] gap-2">
                   <div>
                     <div className="text-xs text-gray-600 mb-1">Nome Cliente</div>
                     <input value={filterNomeCliente} onChange={(e) => setFilterNomeCliente(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
