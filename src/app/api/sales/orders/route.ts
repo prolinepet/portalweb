@@ -3,6 +3,9 @@ import { prisma } from '../../../../lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../lib/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 async function ensureUserAbbrevNameColumn(): Promise<void> {
   const g = global as any;
   if (g.__abbrevNameEnsured) return;
@@ -146,7 +149,9 @@ export async function GET(request: Request) {
       },
       orderBy: { createdAt: 'desc' }
     });
-    return NextResponse.json(Array.isArray(data) ? data : []);
+    const res = NextResponse.json(Array.isArray(data) ? data : []);
+    res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    return res;
   } catch (err: any) {
     const message = err?.message || 'Erro ao listar pedidos';
     return NextResponse.json({ error: message }, { status: 500 });

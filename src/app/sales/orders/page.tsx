@@ -263,6 +263,13 @@ export default function SalesOrdersPage() {
     return kind !== 'BONIFICACAO' && kind !== 'AMOSTRA';
   };
 
+  const afterDeleteOrder = async (deletedId: number) => {
+    setOrders((prev) => prev.filter((so) => so.id !== deletedId));
+    setSelected((prev) => (prev?.id === deletedId ? null : prev));
+    setBonusBaseOrder((prev) => (prev?.id === deletedId ? null : prev));
+    await loadOrders();
+  };
+
   const IconBtn = ({ title, onClick, children, disabled = false }: any) => (
     <button
       title={title}
@@ -495,7 +502,7 @@ export default function SalesOrdersPage() {
                         const body = await r.json().catch(() => null as any);
                         throw new Error(body?.error || 'Falha ao excluir pedido');
                       }
-                      setOrders((prev) => prev.filter((so) => so.id !== o.id));
+                      await afterDeleteOrder(o.id);
                     } catch (e: any) { alert(e?.message || String(e)); }
                   }}>
                     <TrashIcon />
@@ -600,7 +607,7 @@ export default function SalesOrdersPage() {
                             const body = await r.json().catch(() => null as any);
                             throw new Error(body?.error || 'Falha ao excluir pedido');
                           }
-                          setOrders((prev) => prev.filter((so) => so.id !== o.id));
+                          await afterDeleteOrder(o.id);
                         } catch (e: any) { alert(e?.message || String(e)); }
                       }}>
                         <TrashIcon />
