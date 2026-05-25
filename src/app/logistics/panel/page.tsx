@@ -491,7 +491,6 @@ export default function LogisticsPanelPage() {
           <div className="bg-white rounded border p-3">
             <div className="flex items-center justify-between mb-2">
               <div className="font-medium">Pré Cargas</div>
-              <div className="h-6 w-24 bg-gray-900 rounded-sm" />
             </div>
 
             <div className="space-y-2">
@@ -634,9 +633,9 @@ export default function LogisticsPanelPage() {
               </div>
 
               <div className="space-y-2">
-                <div className="grid grid-cols-[110px_90px_auto_90px] items-center gap-2">
+                <div className="grid grid-cols-[80px_130px_auto_130px] items-center gap-1">
                   <div className="text-xs text-gray-600">Dt Entrega Cli:</div>
-                  <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
+                  <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-full border rounded px-1.5 py-1 text-xs h-8" />
                   <div className="flex items-center justify-center gap-1">
                     <button className="w-8 h-8 border rounded text-sm bg-gray-50 cursor-default" title="Botão sem ação" tabIndex={-1} type="button">
                       {"<<"}
@@ -645,20 +644,20 @@ export default function LogisticsPanelPage() {
                       {">>"}
                     </button>
                   </div>
-                  <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
+                  <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-full border rounded px-1.5 py-1 text-xs h-8" />
                 </div>
 
-                <div className="grid grid-cols-[110px_1fr] items-center gap-2">
+                <div className="grid grid-cols-[80px_1fr] items-center gap-1">
                   <div className="text-xs text-gray-600">Nome Cliente:</div>
                   <input value={filterNomeCliente} onChange={(e) => setFilterNomeCliente(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
                 </div>
 
-                <div className="grid grid-cols-[110px_1fr] items-center gap-2">
+                <div className="grid grid-cols-[80px_1fr] items-center gap-1">
                   <div className="text-xs text-gray-600">Pedido Cliente:</div>
                   <input value={filterPedidoCliente} onChange={(e) => setFilterPedidoCliente(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
                 </div>
 
-                <div className="grid grid-cols-[110px_1fr] items-center gap-2">
+                <div className="grid grid-cols-[80px_1fr] items-center gap-1">
                   <div className="text-xs text-gray-600">Item/Desc It:</div>
                   <input value={filterItemDesc} onChange={(e) => setFilterItemDesc(e.target.value)} className="w-full border rounded px-2 py-1 text-xs h-8" />
                 </div>
