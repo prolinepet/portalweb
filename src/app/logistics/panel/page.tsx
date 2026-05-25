@@ -655,12 +655,12 @@ export default function LogisticsPanelPage() {
 
                 <div className="grid grid-cols-[80px_1fr] items-center gap-1">
                   <div className="text-xs text-gray-600">Pedido Cliente:</div>
-                  <input value={filterPedidoCliente} onChange={(e) => setFilterPedidoCliente(e.target.value)} className="w-full md:w-[520px] border rounded px-2 py-1 text-xs h-8" />
+                  <input value={filterPedidoCliente} onChange={(e) => setFilterPedidoCliente(e.target.value)} className="w-full md:w-[260px] border rounded px-2 py-1 text-xs h-8" />
                 </div>
 
                 <div className="grid grid-cols-[80px_1fr] items-center gap-1">
                   <div className="text-xs text-gray-600">Item/Desc It:</div>
-                  <input value={filterItemDesc} onChange={(e) => setFilterItemDesc(e.target.value)} className="w-full md:w-[520px] border rounded px-2 py-1 text-xs h-8" />
+                  <input value={filterItemDesc} onChange={(e) => setFilterItemDesc(e.target.value)} className="w-full md:w-[260px] border rounded px-2 py-1 text-xs h-8" />
                 </div>
               </div>
 
