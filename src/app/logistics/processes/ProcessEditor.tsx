@@ -474,6 +474,8 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
                 <tr>
                   <th className="text-left px-3 py-2 w-24">Cód</th>
                   <th className="text-left px-3 py-2">Descrição Fase</th>
+                  <th className="text-left px-3 py-2 w-24">Carga</th>
+                  <th className="text-left px-3 py-2 w-24">Descarga</th>
                   <th className="text-left px-3 py-2 w-28">Fase Auto?</th>
                   <th className="text-center px-3 py-2 w-36">Sequência</th>
                   <th className="text-center px-3 py-2 w-40">Ações</th>
@@ -482,7 +484,7 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
               <tbody>
                 {phases.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-3 py-4 text-center text-gray-500">
+                    <td colSpan={7} className="px-3 py-4 text-center text-gray-500">
                       Sem fases cadastradas.
                     </td>
                   </tr>
@@ -497,6 +499,8 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
                     >
                       <td className="px-3 py-2 font-mono text-xs">{p.code}</td>
                       <td className="px-3 py-2">{p.description}</td>
+                      <td className="px-3 py-2">{p.isCarga ? "Sim" : "Não"}</td>
+                      <td className="px-3 py-2">{p.isDescarga ? "Sim" : "Não"}</td>
                       <td className="px-3 py-2">{p.isAuto ? "Sim" : "Não"}</td>
                       <td className="px-3 py-2 text-center">
                         <div className="inline-flex gap-2">
