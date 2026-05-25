@@ -104,9 +104,10 @@ export default function SalesOrdersPage() {
     }
   };
 
-  const openBonusModal = async () => {
-    if (!bonusBaseOrder) return alert('Selecione um pedido na listagem.');
-    const clientId = Number((bonusBaseOrder as any)?.client?.id ?? (bonusBaseOrder as any)?.clientId);
+  const openBonusModal = async (order: SalesOrder) => {
+    if (!order) return;
+    setBonusBaseOrder(order);
+    const clientId = Number((order as any)?.client?.id ?? (order as any)?.clientId);
     if (!Number.isFinite(clientId) || clientId <= 0) return alert('Pedido selecionado sem cliente vinculado.');
     setBonusPercent('10');
     await loadBonusOrderTypes(clientId);
@@ -286,6 +287,15 @@ export default function SalesOrdersPage() {
       <path d="M22 2 15 22l-4-9-9-4Z" strokeWidth="1.5" />
     </svg>
   );
+  const GiftIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
+      <path d="M20 12v10H4V12" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M2 7h20v5H2z" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 22V7" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 7H7.5a2.5 2.5 0 1 1 0-5C10 2 12 7 12 7Z" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 7h4.5a2.5 2.5 0 1 0 0-5C14 2 12 7 12 7Z" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
   const TrashIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
       <path d="M3 6h18" strokeWidth="1.5" />
@@ -358,14 +368,6 @@ export default function SalesOrdersPage() {
           >
             Filtro
           </button>
-          <button
-            type="button"
-            onClick={openBonusModal}
-            disabled={!bonusBaseOrder}
-            className="px-3 py-1.5 text-xs border rounded bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Gerar Bonificação
-          </button>
           <Link href="/sales/orders/new" className="px-3 py-1.5 text-xs border rounded bg-white hover:bg-gray-100">Novo Pedido</Link>
         </div>
       </div>
@@ -414,11 +416,7 @@ export default function SalesOrdersPage() {
             <div className="px-3 py-4 text-center text-gray-500 text-sm">Nenhum pedido encontrado.</div>
           )}
           {!loading && paged.map((o) => (
-            <div
-              key={o.id}
-              className={`px-3 py-3 cursor-pointer ${bonusBaseOrder?.id === o.id ? 'bg-blue-50' : ''}`}
-              onClick={() => setBonusBaseOrder(o)}
-            >
+            <div key={o.id} className="px-3 py-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-mono text-xs text-gray-700">{o.code || o.id}</div>
@@ -436,9 +434,10 @@ export default function SalesOrdersPage() {
               </div>
 
               <div className="mt-2 flex items-center justify-end">
-                <div className="inline-flex" onClick={(e) => e.stopPropagation()}>
+                <div className="inline-flex">
                   <IconBtn title="Visualizar" onClick={() => setSelected(o)}><EyeIcon /></IconBtn>
                   <IconBtn title="Detalhes" onClick={() => { window.location.href = `/sales/orders/${o.id}`; }}> <FileIcon /> </IconBtn>
+                  <IconBtn title="Gerar Bonificação" onClick={() => openBonusModal(o)}><GiftIcon /></IconBtn>
                   <IconBtn
                     title="Enviar para ERP"
                     disabled={integratingId === o.id || !['Orçamento', 'Erro na integração'].includes(statusLabelPt(o.status))}
@@ -527,8 +526,7 @@ export default function SalesOrdersPage() {
               {!loading && paged.map((o) => (
                 <tr
                   key={o.id}
-                  className={`border-t hover:bg-gray-50 cursor-pointer ${bonusBaseOrder?.id === o.id ? 'bg-blue-50' : ''}`}
-                  onClick={() => setBonusBaseOrder(o)}
+                  className="border-t hover:bg-gray-50"
                 >
                   <td className="px-3 py-2 font-mono text-xs">{o.code || o.id}</td>
                   <td className="px-3 py-2 text-xs text-gray-600">{o.createdBy?.abbrevName || '-'}</td>
@@ -541,9 +539,10 @@ export default function SalesOrdersPage() {
                   </td>
                   <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs ${statusColor(statusLabelPt(o.status))}`}>{statusLabelPt(o.status)}</span></td>
                   <td className="px-3 py-2 text-center">
-                    <div className="inline-flex" onClick={(e) => e.stopPropagation()}>
+                    <div className="inline-flex">
                       <IconBtn title="Visualizar" onClick={() => setSelected(o)}><EyeIcon /></IconBtn>
                       <IconBtn title="Detalhes" onClick={() => { window.location.href = `/sales/orders/${o.id}`; }}> <FileIcon /> </IconBtn>
+                      <IconBtn title="Gerar Bonificação" onClick={() => openBonusModal(o)}><GiftIcon /></IconBtn>
                       <IconBtn 
                         title="Enviar para ERP" 
                         disabled={integratingId === o.id || !['Orçamento', 'Erro na integração'].includes(statusLabelPt(o.status))}
