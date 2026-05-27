@@ -582,142 +582,200 @@ export default function LogisticsPanelPage() {
 
       {tab === "pre-carga" && (
           <div className={`grid grid-cols-1 gap-2 ${compactLayout ? "" : "lg:grid-cols-[280px_1fr]"}`}>
-          <div className="bg-white rounded border p-3">
-            <div className="flex items-center justify-between mb-2">
-              <div className="font-medium">Pré Cargas</div>
-              <button
-                type="button"
-                onClick={() => setCompactLayout((v) => !v)}
-                className="text-xs px-2 py-1 border rounded bg-gray-50"
-                title={compactLayout ? "Voltar display original" : "Aumentar espaço horizontal"}
-              >
-                {compactLayout ? "Voltar" : "Expandir"}
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
-                <div>
-                  <div className="text-xs text-gray-600 mb-1">Nr. Pré-Carreg</div>
-                  <input
-                    value={preCargaMode === "create" ? "" : selectedPreCarga ? String(selectedPreCarga.id) : ""}
-                    placeholder={preCargaMode === "create" ? "(novo)" : ""}
-                    className="w-full h-8 border rounded px-2 py-1 text-sm bg-gray-50"
-                    disabled
-                  />
+          {compactLayout ? (
+            <div className="bg-white rounded border p-2">
+              <div className="flex items-start gap-3">
+                <div className="w-[120px] shrink-0">
+                  <div className="font-medium mb-2">Pré Cargas</div>
+                  <button
+                    type="button"
+                    onClick={() => setCompactLayout(false)}
+                    className="w-full text-xs px-2 py-1 border rounded bg-gray-50"
+                    title="Voltar display original"
+                  >
+                    Voltar
+                  </button>
                 </div>
-                <div className="flex items-center gap-1 pb-0.5">
-                  <button
-                    title={preCargaMode === "create" ? "Salvar inclusão" : "Incluir pré-carga"}
-                    onClick={() => (preCargaMode === "create" ? void savePreCarga() : startCreatePreCarga())}
-                    className="w-9 h-9 inline-flex items-center justify-center rounded border bg-gray-900 text-white disabled:opacity-50"
-                    disabled={loading || preCargaMode === "edit"}
-                  >
-                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M11 5h2v14h-2V5zm-6 6h14v2H5v-2z"/></svg>
-                  </button>
-                  <button
-                    title={preCargaMode === "edit" ? "Salvar alteração" : "Editar pré-carga"}
-                    onClick={() => (preCargaMode === "edit" ? void savePreCarga() : startEditPreCarga())}
-                    className="w-9 h-9 inline-flex items-center justify-center rounded border text-blue-700 border-blue-300 hover:bg-blue-50 disabled:opacity-50"
-                    disabled={loading || preCargaMode === "create"}
-                  >
-                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M3 17.25V21h3.75L17.8 9.95l-3.75-3.75L3 17.25zm18-11.5a1 1 0 000-1.41l-1.59-1.59a1 1 0 00-1.41 0l-1.13 1.13 3.75 3.75L21 5.75z"/></svg>
-                  </button>
-                  <button
-                    title="Cancelar inclusão/alteração"
-                    onClick={cancelPreCargaEdit}
-                    className="w-9 h-9 inline-flex items-center justify-center rounded border text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                    disabled={loading || preCargaMode === "view"}
-                  >
-                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M18.3 5.71L12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.29 19.71 2.88 18.3 9.17 12 2.88 5.71 4.29 4.29l6.3 6.3 6.3-6.3 1.41 1.42z"/></svg>
-                  </button>
-                  <button
-                    title="Excluir pré-carga"
-                    onClick={() => void deletePreCarga()}
-                    className="w-9 h-9 inline-flex items-center justify-center rounded border text-red-700 border-red-300 hover:bg-red-50 disabled:opacity-50"
-                    disabled={loading || preCargaMode !== "view" || !selectedPreCarga}
-                  >
-                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M6 7h12v14H6V7zm3-4h6l1 1h4v2H4V4h4l1-1z"/></svg>
-                  </button>
+                <div className="flex-1 min-w-0">
+                  <div className="border rounded overflow-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 border-b">
+                          <th className="text-left p-2 w-16">Pré</th>
+                          <th className="text-left p-2">Dt Prev</th>
+                          <th className="text-left p-2 w-16">CIF</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {preCargas.length === 0 && (
+                          <tr>
+                            <td className="p-3 text-center text-gray-500" colSpan={3}>
+                              Sem pré-cargas.
+                            </td>
+                          </tr>
+                        )}
+                        {preCargas.map((p) => {
+                          const dt = p.dtPrevCarreg ? p.dtPrevCarreg.slice(0, 10) : "";
+                          const active = selectedPreCargaId === p.id;
+                          return (
+                            <tr
+                              key={p.id}
+                              className={`border-b cursor-pointer ${active ? "bg-blue-50" : "hover:bg-gray-50"}`}
+                              onClick={() => {
+                                if (preCargaMode !== "view") return;
+                                setSelectedPreCargaId(p.id);
+                              }}
+                            >
+                              <td className="p-2 font-mono text-xs">{p.id}</td>
+                              <td className="p-2">{dt}</td>
+                              <td className="p-2">{(p.cifFob || "").toUpperCase()}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <div className="text-xs text-gray-600 mb-1">Dt Prev Carreg</div>
-                  <input
-                    type="date"
-                    value={preCargaDtPrev}
-                    onChange={(e) => setPreCargaDtPrev(e.target.value)}
-                    className="w-full h-8 border rounded px-2 py-1 text-sm disabled:bg-gray-50"
-                    disabled={preCargaMode === "view" || loading}
-                  />
-                </div>
-                <div>
-                  <div className="text-xs text-gray-600 mb-1">CIF/FOB</div>
-                  <select
-                    value={preCargaCifFob}
-                    onChange={(e) => setPreCargaCifFob((e.target.value || "") as any)}
-                    className="w-full h-8 border rounded px-2 py-1 text-sm disabled:bg-gray-50"
-                    disabled={preCargaMode === "view" || loading}
-                  >
-                    <option value=""></option>
-                    <option value="CIF">CIF</option>
-                    <option value="FOB">FOB</option>
-                  </select>
-                </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded border p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="font-medium">Pré Cargas</div>
+                <button
+                  type="button"
+                  onClick={() => setCompactLayout(true)}
+                  className="text-xs px-2 py-1 border rounded bg-gray-50"
+                  title="Aumentar espaço horizontal"
+                >
+                  Expandir
+                </button>
               </div>
 
-              <label className="text-xs flex items-center gap-2 mt-1">
-                <input
-                  type="checkbox"
-                  checked={includeFinalized}
-                  onChange={(e) => setIncludeFinalized(e.target.checked)}
-                  disabled={loading || preCargaMode !== "view"}
-                />
-                Lista Finalizados
-              </label>
-            </div>
+              <div className="space-y-2">
+                <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+                  <div>
+                    <div className="text-xs text-gray-600 mb-1">Nr. Pré-Carreg</div>
+                    <input
+                      value={preCargaMode === "create" ? "" : selectedPreCarga ? String(selectedPreCarga.id) : ""}
+                      placeholder={preCargaMode === "create" ? "(novo)" : ""}
+                      className="w-full h-8 border rounded px-2 py-1 text-sm bg-gray-50"
+                      disabled
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 pb-0.5">
+                    <button
+                      title={preCargaMode === "create" ? "Salvar inclusão" : "Incluir pré-carga"}
+                      onClick={() => (preCargaMode === "create" ? void savePreCarga() : startCreatePreCarga())}
+                      className="w-9 h-9 inline-flex items-center justify-center rounded border bg-gray-900 text-white disabled:opacity-50"
+                      disabled={loading || preCargaMode === "edit"}
+                    >
+                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M11 5h2v14h-2V5zm-6 6h14v2H5v-2z"/></svg>
+                    </button>
+                    <button
+                      title={preCargaMode === "edit" ? "Salvar alteração" : "Editar pré-carga"}
+                      onClick={() => (preCargaMode === "edit" ? void savePreCarga() : startEditPreCarga())}
+                      className="w-9 h-9 inline-flex items-center justify-center rounded border text-blue-700 border-blue-300 hover:bg-blue-50 disabled:opacity-50"
+                      disabled={loading || preCargaMode === "create"}
+                    >
+                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M3 17.25V21h3.75L17.8 9.95l-3.75-3.75L3 17.25zm18-11.5a1 1 0 000-1.41l-1.59-1.59a1 1 0 00-1.41 0l-1.13 1.13 3.75 3.75L21 5.75z"/></svg>
+                    </button>
+                    <button
+                      title="Cancelar inclusão/alteração"
+                      onClick={cancelPreCargaEdit}
+                      className="w-9 h-9 inline-flex items-center justify-center rounded border text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      disabled={loading || preCargaMode === "view"}
+                    >
+                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M18.3 5.71L12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.29 19.71 2.88 18.3 9.17 12 2.88 5.71 4.29 4.29l6.3 6.3 6.3-6.3 1.41 1.42z"/></svg>
+                    </button>
+                    <button
+                      title="Excluir pré-carga"
+                      onClick={() => void deletePreCarga()}
+                      className="w-9 h-9 inline-flex items-center justify-center rounded border text-red-700 border-red-300 hover:bg-red-50 disabled:opacity-50"
+                      disabled={loading || preCargaMode !== "view" || !selectedPreCarga}
+                    >
+                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M6 7h12v14H6V7zm3-4h6l1 1h4v2H4V4h4l1-1z"/></svg>
+                    </button>
+                  </div>
+                </div>
 
-            <div className="mt-3 border rounded overflow-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b">
-                    <th className="text-left p-2 w-16">Pré</th>
-                    <th className="text-left p-2">Dt Prev</th>
-                    <th className="text-left p-2 w-16">CIF</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {preCargas.length === 0 && (
-                    <tr>
-                      <td className="p-3 text-center text-gray-500" colSpan={3}>
-                        Sem pré-cargas.
-                      </td>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <div className="text-xs text-gray-600 mb-1">Dt Prev Carreg</div>
+                    <input
+                      type="date"
+                      value={preCargaDtPrev}
+                      onChange={(e) => setPreCargaDtPrev(e.target.value)}
+                      className="w-full h-8 border rounded px-2 py-1 text-sm disabled:bg-gray-50"
+                      disabled={preCargaMode === "view" || loading}
+                    />
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-600 mb-1">CIF/FOB</div>
+                    <select
+                      value={preCargaCifFob}
+                      onChange={(e) => setPreCargaCifFob((e.target.value || "") as any)}
+                      className="w-full h-8 border rounded px-2 py-1 text-sm disabled:bg-gray-50"
+                      disabled={preCargaMode === "view" || loading}
+                    >
+                      <option value=""></option>
+                      <option value="CIF">CIF</option>
+                      <option value="FOB">FOB</option>
+                    </select>
+                  </div>
+                </div>
+
+                <label className="text-xs flex items-center gap-2 mt-1">
+                  <input
+                    type="checkbox"
+                    checked={includeFinalized}
+                    onChange={(e) => setIncludeFinalized(e.target.checked)}
+                    disabled={loading || preCargaMode !== "view"}
+                  />
+                  Lista Finalizados
+                </label>
+              </div>
+
+              <div className="mt-3 border rounded overflow-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b">
+                      <th className="text-left p-2 w-16">Pré</th>
+                      <th className="text-left p-2">Dt Prev</th>
+                      <th className="text-left p-2 w-16">CIF</th>
                     </tr>
-                  )}
-                  {preCargas.map((p) => {
-                    const dt = p.dtPrevCarreg ? p.dtPrevCarreg.slice(0, 10) : "";
-                    const active = selectedPreCargaId === p.id;
-                    return (
-                      <tr
-                        key={p.id}
-                        className={`border-b cursor-pointer ${active ? "bg-blue-50" : "hover:bg-gray-50"}`}
-                        onClick={() => {
-                          if (preCargaMode !== "view") return;
-                          setSelectedPreCargaId(p.id);
-                        }}
-                      >
-                        <td className="p-2 font-mono text-xs">{p.id}</td>
-                        <td className="p-2">{dt}</td>
-                        <td className="p-2">{(p.cifFob || "").toUpperCase()}</td>
+                  </thead>
+                  <tbody>
+                    {preCargas.length === 0 && (
+                      <tr>
+                        <td className="p-3 text-center text-gray-500" colSpan={3}>
+                          Sem pré-cargas.
+                        </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    )}
+                    {preCargas.map((p) => {
+                      const dt = p.dtPrevCarreg ? p.dtPrevCarreg.slice(0, 10) : "";
+                      const active = selectedPreCargaId === p.id;
+                      return (
+                        <tr
+                          key={p.id}
+                          className={`border-b cursor-pointer ${active ? "bg-blue-50" : "hover:bg-gray-50"}`}
+                          onClick={() => {
+                            if (preCargaMode !== "view") return;
+                            setSelectedPreCargaId(p.id);
+                          }}
+                        >
+                          <td className="p-2 font-mono text-xs">{p.id}</td>
+                          <td className="p-2">{dt}</td>
+                          <td className="p-2">{(p.cifFob || "").toUpperCase()}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="bg-white rounded border p-2 space-y-2 min-w-0">
             <div className="flex flex-col lg:flex-row gap-2">
@@ -738,7 +796,7 @@ export default function LogisticsPanelPage() {
                 {err && <div className="text-xs text-red-600">{err}</div>}
               </div>
 
-              <div className="space-y-1 lg:w-[440px] lg:shrink-0">
+              <div className={`space-y-1 min-w-0 ${compactLayout ? "flex-1" : "lg:w-[440px] lg:shrink-0"}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="text-xs text-gray-600 w-[80px] shrink-0">Dt Entrega Cli:</div>
                   <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-[105px] border rounded px-1.5 py-1 text-xs h-8" />
@@ -755,17 +813,29 @@ export default function LogisticsPanelPage() {
 
                 <div className="grid grid-cols-[80px_1fr] sm:grid-cols-[80px_260px] items-center gap-1">
                   <div className="text-xs text-gray-600">Nome Cliente:</div>
-                  <input value={filterNomeCliente} onChange={(e) => setFilterNomeCliente(e.target.value)} className="w-full sm:w-[260px] border rounded px-2 py-1 text-xs h-8" />
+                  <input
+                    value={filterNomeCliente}
+                    onChange={(e) => setFilterNomeCliente(e.target.value)}
+                    className={`w-full border rounded px-2 py-1 text-xs h-8 ${compactLayout ? "" : "sm:w-[260px]"}`}
+                  />
                 </div>
 
                 <div className="grid grid-cols-[80px_1fr] sm:grid-cols-[80px_260px] items-center gap-1">
                   <div className="text-xs text-gray-600">Pedido Cliente:</div>
-                  <input value={filterPedidoCliente} onChange={(e) => setFilterPedidoCliente(e.target.value)} className="w-full sm:w-[260px] border rounded px-2 py-1 text-xs h-8" />
+                  <input
+                    value={filterPedidoCliente}
+                    onChange={(e) => setFilterPedidoCliente(e.target.value)}
+                    className={`w-full border rounded px-2 py-1 text-xs h-8 ${compactLayout ? "" : "sm:w-[260px]"}`}
+                  />
                 </div>
 
                 <div className="grid grid-cols-[80px_1fr] sm:grid-cols-[80px_260px] items-center gap-1">
                   <div className="text-xs text-gray-600">Item/Desc It:</div>
-                  <input value={filterItemDesc} onChange={(e) => setFilterItemDesc(e.target.value)} className="w-full sm:w-[260px] border rounded px-2 py-1 text-xs h-8" />
+                  <input
+                    value={filterItemDesc}
+                    onChange={(e) => setFilterItemDesc(e.target.value)}
+                    className={`w-full border rounded px-2 py-1 text-xs h-8 ${compactLayout ? "" : "sm:w-[260px]"}`}
+                  />
                 </div>
               </div>
 
