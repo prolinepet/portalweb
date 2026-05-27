@@ -654,7 +654,7 @@ export default function LogisticsPanelPage() {
               </div>
 
               <div className="space-y-2">
-                <div className="grid grid-cols-[120px_auto] gap-2 items-end">
+                <div className="grid grid-cols-[80px_auto] gap-2 items-end">
                   <div>
                     <div className="text-xs text-gray-600 mb-1">Nr. Pré-Carreg</div>
                     <input
@@ -732,7 +732,7 @@ export default function LogisticsPanelPage() {
                     <select
                       value={preCargaCifFob}
                       onChange={(e) => setPreCargaCifFob((e.target.value || "") as any)}
-                      className="w-full h-8 border rounded px-2 py-1 text-sm disabled:bg-gray-50"
+                      className="w-[120px] h-8 border rounded px-2 py-1 text-sm disabled:bg-gray-50"
                       disabled={preCargaMode === "view" || loading}
                     >
                       <option value=""></option>
