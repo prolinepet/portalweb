@@ -618,22 +618,26 @@ export default function LogisticsPanelPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded border p-3 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="font-medium">Itens Pré-Carga</div>
-              <div className="text-xs text-gray-600">
-                Itens: {totals.countItems} • Qtd Prog: {totals.sumQtdProg} • Sdo Ped: {totals.sumSdoPed}
+          <div className="bg-white rounded border p-2 space-y-2">
+            <div className="flex flex-col lg:flex-row gap-2">
+              <div className="space-y-1 lg:w-[120px] lg:shrink-0">
+                <button onClick={() => setShowEstabModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">
+                  Estabelecimento
+                </button>
+                <button onClick={() => setShowUfModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">
+                  Estado(UF)
+                </button>
+                <button onClick={() => setShowCityModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">
+                  Cidade
+                </button>
+                <button onClick={loadPreCarga} className="w-full text-xs px-2 py-1 bg-gray-200 rounded border disabled:opacity-50" disabled={loading}>
+                  Aplica Filtro
+                </button>
+                {loading && <div className="text-xs text-gray-500">Carregando...</div>}
+                {err && <div className="text-xs text-red-600">{err}</div>}
               </div>
-            </div>
 
-            <div className="flex flex-col lg:flex-row gap-3">
-              <div className="space-y-2 lg:w-[120px] lg:shrink-0">
-                <button onClick={() => setShowEstabModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">Estabelecimento</button>
-                <button onClick={() => setShowUfModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">Estado(UF)</button>
-                <button onClick={() => setShowCityModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">Cidade</button>
-              </div>
-
-              <div className="space-y-2 lg:w-[640px] lg:shrink-0">
+              <div className="space-y-1 lg:w-[440px] lg:shrink-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="text-xs text-gray-600 w-[80px] shrink-0">Dt Entrega Cli:</div>
                   <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-[140px] border rounded px-1.5 py-1 text-xs h-8" />
@@ -648,26 +652,26 @@ export default function LogisticsPanelPage() {
                   <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-[140px] border rounded px-1.5 py-1 text-xs h-8" />
                 </div>
 
-                <div className="grid grid-cols-[80px_1fr] items-center gap-1">
+                <div className="grid grid-cols-[80px_1fr] sm:grid-cols-[80px_260px] items-center gap-1">
                   <div className="text-xs text-gray-600">Nome Cliente:</div>
-                  <input value={filterNomeCliente} onChange={(e) => setFilterNomeCliente(e.target.value)} className="w-full md:w-[260px] border rounded px-2 py-1 text-xs h-8" />
+                  <input value={filterNomeCliente} onChange={(e) => setFilterNomeCliente(e.target.value)} className="w-full sm:w-[260px] border rounded px-2 py-1 text-xs h-8" />
                 </div>
 
-                <div className="grid grid-cols-[80px_1fr] items-center gap-1">
+                <div className="grid grid-cols-[80px_1fr] sm:grid-cols-[80px_260px] items-center gap-1">
                   <div className="text-xs text-gray-600">Pedido Cliente:</div>
-                  <input value={filterPedidoCliente} onChange={(e) => setFilterPedidoCliente(e.target.value)} className="w-full md:w-[260px] border rounded px-2 py-1 text-xs h-8" />
+                  <input value={filterPedidoCliente} onChange={(e) => setFilterPedidoCliente(e.target.value)} className="w-full sm:w-[260px] border rounded px-2 py-1 text-xs h-8" />
                 </div>
 
-                <div className="grid grid-cols-[80px_1fr] items-center gap-1">
+                <div className="grid grid-cols-[80px_1fr] sm:grid-cols-[80px_260px] items-center gap-1">
                   <div className="text-xs text-gray-600">Item/Desc It:</div>
-                  <input value={filterItemDesc} onChange={(e) => setFilterItemDesc(e.target.value)} className="w-full md:w-[260px] border rounded px-2 py-1 text-xs h-8" />
+                  <input value={filterItemDesc} onChange={(e) => setFilterItemDesc(e.target.value)} className="w-full sm:w-[260px] border rounded px-2 py-1 text-xs h-8" />
                 </div>
               </div>
 
-              <div className="space-y-2 lg:w-[220px] lg:shrink-0">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="border rounded p-2">
-                    <div className="text-xs text-gray-600 mb-2">Tipo Pedido</div>
+              <div className="space-y-1 lg:w-[220px] lg:shrink-0">
+                <div className="grid grid-cols-2 gap-1">
+                  <div className="border rounded p-1.5">
+                    <div className="text-xs text-gray-600 mb-1">Tipo Pedido</div>
                     <label className="text-xs flex items-center gap-2">
                       <input type="checkbox" checked={kVenda} onChange={(e) => setKVenda(e.target.checked)} /> Venda
                     </label>
@@ -682,8 +686,8 @@ export default function LogisticsPanelPage() {
                     </label>
                   </div>
 
-                  <div className="border rounded p-2">
-                    <div className="text-xs text-gray-600 mb-2">Agrupamento</div>
+                  <div className="border rounded p-1.5">
+                    <div className="text-xs text-gray-600 mb-1">Agrupamento</div>
                     <label className="text-xs flex items-center gap-2">
                       <input type="checkbox" defaultChecked /> Estado(UF)
                     </label>
@@ -698,59 +702,53 @@ export default function LogisticsPanelPage() {
                     </label>
                   </div>
                 </div>
-
-                <button onClick={loadPreCarga} className="text-xs px-3 py-2 bg-gray-200 rounded border disabled:opacity-50" disabled={loading}>
-                  Aplica Filtro
-                </button>
-                {loading && <div className="text-xs text-gray-500">Carregando...</div>}
-                {err && <div className="text-xs text-red-600">{err}</div>}
               </div>
             </div>
 
             <div className="border rounded overflow-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-gray-50 border-b">
-                    <th className="text-left p-2 w-16">UF</th>
-                    <th className="text-left p-2 w-48">Cidade</th>
-                    <th className="text-left p-2 w-28">Dt Entr Cli</th>
-                    <th className="text-left p-2 w-72">Cliente</th>
-                    <th className="text-left p-2 w-20">Estab</th>
-                    <th className="text-left p-2 w-28">Ped Cli</th>
-                    <th className="text-left p-2 w-24">Aprovação</th>
-                    <th className="text-right p-2 w-16">Seq</th>
-                    <th className="text-left p-2 w-24">Cód Item</th>
-                    <th className="text-right p-2 w-24">Sdo Ped</th>
-                    <th className="text-right p-2 w-24">Sdo Est</th>
-                    <th className="text-right p-2 w-24">Qtd Prog</th>
-                    <th className="text-right p-2 w-20">Diverg</th>
-                    <th className="text-left p-2 min-w-[360px]">Descrição</th>
+                    <th className="text-left px-1 py-1 w-16">UF</th>
+                    <th className="text-left px-1 py-1 w-48">Cidade</th>
+                    <th className="text-left px-1 py-1 w-28">Dt Entr Cli</th>
+                    <th className="text-left px-1 py-1 w-72">Cliente</th>
+                    <th className="text-left px-1 py-1 w-20">Estab</th>
+                    <th className="text-left px-1 py-1 w-28">Ped Cli</th>
+                    <th className="text-left px-1 py-1 w-24">Aprovação</th>
+                    <th className="text-right px-1 py-1 w-16">Seq</th>
+                    <th className="text-left px-1 py-1 w-24">Cód Item</th>
+                    <th className="text-right px-1 py-1 w-24">Sdo Ped</th>
+                    <th className="text-right px-1 py-1 w-24">Sdo Est</th>
+                    <th className="text-right px-1 py-1 w-24">Qtd Prog</th>
+                    <th className="text-right px-1 py-1 w-20">Diverg</th>
+                    <th className="text-left px-1 py-1 min-w-[360px]">Descrição</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredItems.length === 0 && (
                     <tr>
-                      <td className="p-3 text-center text-gray-500" colSpan={14}>
+                      <td className="px-1 py-2 text-center text-gray-500" colSpan={14}>
                         Nenhum item encontrado.
                       </td>
                     </tr>
                   )}
                   {filteredItems.map((it, idx) => (
                     <tr key={`${idx}-${it.uf}-${it.cidade}-${it.estab}-${it.pedCli}-${it.codItem}-${it.sdoPed}`} className="border-b hover:bg-gray-50">
-                      <td className="p-2">{it.uf || "-"}</td>
-                      <td className="p-2">{it.cidade || "-"}</td>
-                      <td className="p-2">{it.dtEntrCli ? it.dtEntrCli.slice(0, 10) : "-"}</td>
-                      <td className="p-2">{it.cliente}</td>
-                      <td className="p-2">{it.estab || "-"}</td>
-                      <td className="p-2 font-mono text-xs">{it.pedCli || "-"}</td>
-                      <td className="p-2">{it.aprovacao || "-"}</td>
-                      <td className="p-2 text-right">{it.seq ?? "-"}</td>
-                      <td className="p-2 font-mono text-xs">{it.codItem || "-"}</td>
-                      <td className="p-2 text-right">{it.sdoPed}</td>
-                      <td className="p-2 text-right">{it.sdoEst}</td>
-                      <td className="p-2 text-right">{it.qtdProg}</td>
-                      <td className="p-2 text-right">{it.diverg}</td>
-                      <td className="p-2">{it.descricao}</td>
+                      <td className="px-1 py-1">{it.uf || "-"}</td>
+                      <td className="px-1 py-1">{it.cidade || "-"}</td>
+                      <td className="px-1 py-1">{it.dtEntrCli ? it.dtEntrCli.slice(0, 10) : "-"}</td>
+                      <td className="px-1 py-1">{it.cliente}</td>
+                      <td className="px-1 py-1">{it.estab || "-"}</td>
+                      <td className="px-1 py-1 font-mono">{it.pedCli || "-"}</td>
+                      <td className="px-1 py-1">{it.aprovacao || "-"}</td>
+                      <td className="px-1 py-1 text-right">{it.seq ?? "-"}</td>
+                      <td className="px-1 py-1 font-mono">{it.codItem || "-"}</td>
+                      <td className="px-1 py-1 text-right">{it.sdoPed}</td>
+                      <td className="px-1 py-1 text-right">{it.sdoEst}</td>
+                      <td className="px-1 py-1 text-right">{it.qtdProg}</td>
+                      <td className="px-1 py-1 text-right">{it.diverg}</td>
+                      <td className="px-1 py-1">{it.descricao}</td>
                     </tr>
                   ))}
                 </tbody>
