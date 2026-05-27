@@ -456,6 +456,7 @@ function NewSalesOrderContent() {
             quantity: Number(it?.quantity ?? 1),
             unitPrice,
             discountPct: Number(it?.discountPct ?? 0),
+            discountValue: Number(it?.discountValue ?? 0),
             width: it?.width ?? inv?.width ?? null,
             length: it?.length ?? inv?.length ?? null,
             grammage: it?.grammage ?? inv?.grammage ?? null,
