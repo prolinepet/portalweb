@@ -586,15 +586,24 @@ export default function LogisticsPanelPage() {
             <div className="bg-white rounded border p-2">
               <div className="flex items-start gap-3">
                 <div className="w-[120px] shrink-0">
-                  <div className="font-medium mb-2">Pré Cargas</div>
-                  <button
-                    type="button"
-                    onClick={() => setCompactLayout(false)}
-                    className="w-full text-xs px-2 py-1 border rounded bg-gray-50"
-                    title="Voltar display original"
-                  >
-                    Voltar
-                  </button>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="font-medium">Pré Cargas</div>
+                    <button
+                      type="button"
+                      onClick={() => setCompactLayout(false)}
+                      className="inline-flex items-center justify-center w-8 h-8 border rounded bg-gray-50"
+                      title="Voltar display original"
+                    >
+                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 14v6a2 2 0 0 1-2 2h-6" />
+                        <path d="M4 10V4a2 2 0 0 1 2-2h6" />
+                        <path d="M14 10l7-7" />
+                        <path d="M21 10V3h-7" />
+                        <path d="M10 14l-7 7" />
+                        <path d="M3 14v7h7" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="border rounded overflow-auto">
@@ -640,15 +649,20 @@ export default function LogisticsPanelPage() {
             </div>
           ) : (
             <div className="bg-white rounded border p-3">
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 mb-2">
                 <div className="font-medium">Pré Cargas</div>
                 <button
                   type="button"
                   onClick={() => setCompactLayout(true)}
-                  className="text-xs px-2 py-1 border rounded bg-gray-50"
-                  title="Aumentar espaço horizontal"
+                  className="inline-flex items-center justify-center w-8 h-8 border rounded bg-gray-50"
+                  title="Expandir"
                 >
-                  Expandir
+                  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                    <path d="M16 3h3a2 2 0 0 1 2 2v3" />
+                    <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+                    <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+                  </svg>
                 </button>
               </div>
 
@@ -667,10 +681,15 @@ export default function LogisticsPanelPage() {
                     <button
                       title={preCargaMode === "create" ? "Salvar inclusão" : "Incluir pré-carga"}
                       onClick={() => (preCargaMode === "create" ? void savePreCarga() : startCreatePreCarga())}
-                      className="w-9 h-9 inline-flex items-center justify-center rounded border bg-gray-900 text-white disabled:opacity-50"
+                      className="w-9 h-9 inline-flex items-center justify-center rounded border bg-white text-gray-800 border-gray-300 hover:bg-gray-50 disabled:opacity-50"
                       disabled={loading || preCargaMode === "edit"}
                     >
-                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M11 5h2v14h-2V5zm-6 6h14v2H5v-2z"/></svg>
+                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z" />
+                        <path d="M14 2v5h5" />
+                        <path d="M12 12v6" />
+                        <path d="M9 15h6" />
+                      </svg>
                     </button>
                     <button
                       title={preCargaMode === "edit" ? "Salvar alteração" : "Editar pré-carga"}
