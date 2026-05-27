@@ -649,21 +649,8 @@ export default function LogisticsPanelPage() {
             </div>
           ) : (
             <div className="bg-white rounded border p-3">
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center mb-2">
                 <div className="font-medium">Pré Cargas</div>
-                <button
-                  type="button"
-                  onClick={() => setCompactLayout(true)}
-                  className="inline-flex items-center justify-center w-8 h-8 border rounded bg-gray-50"
-                  title="Expandir"
-                >
-                  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M8 3H5a2 2 0 0 0-2 2v3" />
-                    <path d="M16 3h3a2 2 0 0 1 2 2v3" />
-                    <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
-                    <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
-                  </svg>
-                </button>
               </div>
 
               <div className="space-y-2">
@@ -677,7 +664,7 @@ export default function LogisticsPanelPage() {
                       disabled
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-1 pb-0.5">
+                  <div className="grid grid-cols-3 gap-1 pb-0.5">
                     <button
                       title={preCargaMode === "create" ? "Salvar inclusão" : "Incluir pré-carga"}
                       onClick={() => (preCargaMode === "create" ? void savePreCarga() : startCreatePreCarga())}
@@ -689,6 +676,19 @@ export default function LogisticsPanelPage() {
                         <path d="M14 2v5h5" />
                         <path d="M12 12v6" />
                         <path d="M9 15h6" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCompactLayout(true)}
+                      className="w-9 h-9 inline-flex items-center justify-center rounded border bg-gray-50"
+                      title="Expandir"
+                    >
+                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                        <path d="M16 3h3a2 2 0 0 1 2 2v3" />
+                        <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+                        <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
                       </svg>
                     </button>
                     <button
@@ -715,6 +715,7 @@ export default function LogisticsPanelPage() {
                     >
                       <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M6 7h12v14H6V7zm3-4h6l1 1h4v2H4V4h4l1-1z"/></svg>
                     </button>
+                    <div />
                   </div>
                 </div>
 
@@ -815,8 +816,8 @@ export default function LogisticsPanelPage() {
                 {err && <div className="text-xs text-red-600">{err}</div>}
               </div>
 
-              <div className={`space-y-1 min-w-0 ${compactLayout ? "flex-1" : "lg:w-[360px]"}`}>
-                <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
+              <div className="space-y-1 min-w-0 flex-1">
+                <div className="flex flex-nowrap items-center gap-2">
                   <div className="text-xs text-gray-600 w-[80px] shrink-0">Dt Entrega Cli:</div>
                   <input
                     type="date"
