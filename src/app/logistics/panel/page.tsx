@@ -677,7 +677,7 @@ export default function LogisticsPanelPage() {
                       disabled
                     />
                   </div>
-                  <div className="flex items-center gap-1 pb-0.5">
+                  <div className="grid grid-cols-2 gap-1 pb-0.5">
                     <button
                       title={preCargaMode === "create" ? "Salvar inclusão" : "Incluir pré-carga"}
                       onClick={() => (preCargaMode === "create" ? void savePreCarga() : startCreatePreCarga())}
@@ -816,10 +816,15 @@ export default function LogisticsPanelPage() {
               </div>
 
               <div className={`space-y-1 min-w-0 ${compactLayout ? "flex-1" : "lg:w-[360px]"}`}>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
                   <div className="text-xs text-gray-600 w-[80px] shrink-0">Dt Entrega Cli:</div>
-                  <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-[105px] border rounded px-1.5 py-1 text-xs h-8" />
-                  <div className="flex items-center gap-1">
+                  <input
+                    type="date"
+                    value={dateStart}
+                    onChange={(e) => setDateStart(e.target.value)}
+                    className="w-[105px] shrink-0 border rounded px-1.5 py-1 text-xs h-8"
+                  />
+                  <div className="flex items-center gap-1 shrink-0">
                     <button className="w-8 h-8 border rounded text-sm bg-gray-50 cursor-default" title="Botão sem ação" tabIndex={-1} type="button">
                       {"<<"}
                     </button>
@@ -827,7 +832,12 @@ export default function LogisticsPanelPage() {
                       {">>"}
                     </button>
                   </div>
-                  <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-[105px] border rounded px-1.5 py-1 text-xs h-8" />
+                  <input
+                    type="date"
+                    value={dateEnd}
+                    onChange={(e) => setDateEnd(e.target.value)}
+                    className="w-[105px] shrink-0 border rounded px-1.5 py-1 text-xs h-8"
+                  />
                 </div>
 
                 <div className="grid grid-cols-[80px_1fr] items-center gap-1">
