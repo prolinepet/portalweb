@@ -64,6 +64,7 @@ function addDays(ymd: string, deltaDays: number): string {
 
 export default function LogisticsPanelPage() {
   const [tab, setTab] = useState<TabKey>("pre-carga");
+  const [compactLayout, setCompactLayout] = useState(false);
   const [dateStart, setDateStart] = useState<string>(() => addDays(toYmd(new Date()), -30));
   const [dateEnd, setDateEnd] = useState<string>(() => addDays(toYmd(new Date()), 10));
   const [loading, setLoading] = useState(false);
@@ -580,10 +581,18 @@ export default function LogisticsPanelPage() {
       )}
 
       {tab === "pre-carga" && (
-          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-2">
+          <div className={`grid grid-cols-1 gap-2 ${compactLayout ? "" : "lg:grid-cols-[280px_1fr]"}`}>
           <div className="bg-white rounded border p-3">
             <div className="flex items-center justify-between mb-2">
               <div className="font-medium">Pré Cargas</div>
+              <button
+                type="button"
+                onClick={() => setCompactLayout((v) => !v)}
+                className="text-xs px-2 py-1 border rounded bg-gray-50"
+                title={compactLayout ? "Voltar display original" : "Aumentar espaço horizontal"}
+              >
+                {compactLayout ? "Voltar" : "Expandir"}
+              </button>
             </div>
 
             <div className="space-y-2">
@@ -710,7 +719,7 @@ export default function LogisticsPanelPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded border p-2 space-y-2">
+          <div className="bg-white rounded border p-2 space-y-2 min-w-0">
             <div className="flex flex-col lg:flex-row gap-2">
               <div className="space-y-1 lg:w-[120px] lg:shrink-0">
                 <button onClick={() => setShowEstabModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">
@@ -797,50 +806,50 @@ export default function LogisticsPanelPage() {
               </div>
             </div>
 
-            <div className="border rounded overflow-auto max-h-[320px]">
+            <div className="border rounded overflow-auto max-h-[320px] w-full max-w-full">
               <table className="min-w-max w-full text-xs table-auto">
                 <thead>
                   <tr className="bg-gray-50 border-b">
-                    <th className="text-left px-1 py-1">
+                    <th className="text-left px-1 py-1 sticky top-0 z-10 bg-gray-50">
                       <div className="max-w-[64px] whitespace-nowrap">UF</div>
                     </th>
-                    <th className="text-left px-1 py-1">
+                    <th className="text-left px-1 py-1 sticky top-0 z-10 bg-gray-50">
                       <div className="max-w-[192px] whitespace-nowrap">Cidade</div>
                     </th>
-                    <th className="text-left px-1 py-1">
+                    <th className="text-left px-1 py-1 sticky top-0 z-10 bg-gray-50">
                       <div className="max-w-[112px] whitespace-nowrap">Dt Entr Cli</div>
                     </th>
-                    <th className="text-left px-1 py-1">
+                    <th className="text-left px-1 py-1 sticky top-0 z-10 bg-gray-50">
                       <div className="max-w-[288px] whitespace-nowrap">Cliente</div>
                     </th>
-                    <th className="text-left px-1 py-1">
+                    <th className="text-left px-1 py-1 sticky top-0 z-10 bg-gray-50">
                       <div className="max-w-[80px] whitespace-nowrap">Estab</div>
                     </th>
-                    <th className="text-left px-1 py-1">
+                    <th className="text-left px-1 py-1 sticky top-0 z-10 bg-gray-50">
                       <div className="max-w-[112px] whitespace-nowrap">Ped Cli</div>
                     </th>
-                    <th className="text-left px-1 py-1">
+                    <th className="text-left px-1 py-1 sticky top-0 z-10 bg-gray-50">
                       <div className="max-w-[96px] whitespace-nowrap">Aprovação</div>
                     </th>
-                    <th className="text-right px-1 py-1">
+                    <th className="text-right px-1 py-1 sticky top-0 z-10 bg-gray-50">
                       <div className="max-w-[64px] whitespace-nowrap">Seq</div>
                     </th>
-                    <th className="text-left px-1 py-1">
+                    <th className="text-left px-1 py-1 sticky top-0 z-10 bg-gray-50">
                       <div className="max-w-[96px] whitespace-nowrap">Cód Item</div>
                     </th>
-                    <th className="text-right px-1 py-1">
+                    <th className="text-right px-1 py-1 sticky top-0 z-10 bg-gray-50">
                       <div className="max-w-[96px] whitespace-nowrap">Sdo Ped</div>
                     </th>
-                    <th className="text-right px-1 py-1">
+                    <th className="text-right px-1 py-1 sticky top-0 z-10 bg-gray-50">
                       <div className="max-w-[96px] whitespace-nowrap">Sdo Est</div>
                     </th>
-                    <th className="text-right px-1 py-1">
+                    <th className="text-right px-1 py-1 sticky top-0 z-10 bg-gray-50">
                       <div className="max-w-[96px] whitespace-nowrap">Qtd Prog</div>
                     </th>
-                    <th className="text-right px-1 py-1">
+                    <th className="text-right px-1 py-1 sticky top-0 z-10 bg-gray-50">
                       <div className="max-w-[80px] whitespace-nowrap">Diverg</div>
                     </th>
-                    <th className="text-left px-1 py-1 min-w-[360px]">Descrição</th>
+                    <th className="text-left px-1 py-1 min-w-[360px] sticky top-0 z-10 bg-gray-50">Descrição</th>
                   </tr>
                 </thead>
                 <tbody>
