@@ -649,7 +649,7 @@ export default function LogisticsPanelPage() {
             </div>
           ) : (
             <div className="bg-white rounded border p-3">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center justify-between mb-2">
                 <div className="font-medium">Pré Cargas</div>
                 <button
                   type="button"
@@ -815,7 +815,7 @@ export default function LogisticsPanelPage() {
                 {err && <div className="text-xs text-red-600">{err}</div>}
               </div>
 
-              <div className={`space-y-1 min-w-0 ${compactLayout ? "flex-1" : "lg:w-[440px] lg:shrink-0"}`}>
+              <div className={`space-y-1 min-w-0 ${compactLayout ? "flex-1" : "lg:w-[360px]"}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="text-xs text-gray-600 w-[80px] shrink-0">Dt Entrega Cli:</div>
                   <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-[105px] border rounded px-1.5 py-1 text-xs h-8" />
@@ -830,35 +830,35 @@ export default function LogisticsPanelPage() {
                   <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-[105px] border rounded px-1.5 py-1 text-xs h-8" />
                 </div>
 
-                <div className="grid grid-cols-[80px_1fr] sm:grid-cols-[80px_260px] items-center gap-1">
+                <div className="grid grid-cols-[80px_1fr] items-center gap-1">
                   <div className="text-xs text-gray-600">Nome Cliente:</div>
                   <input
                     value={filterNomeCliente}
                     onChange={(e) => setFilterNomeCliente(e.target.value)}
-                    className={`w-full border rounded px-2 py-1 text-xs h-8 ${compactLayout ? "" : "sm:w-[260px]"}`}
+                    className={`w-full border rounded px-2 py-1 text-xs h-8 ${compactLayout ? "" : "max-w-[260px]"}`}
                   />
                 </div>
 
-                <div className="grid grid-cols-[80px_1fr] sm:grid-cols-[80px_260px] items-center gap-1">
+                <div className="grid grid-cols-[80px_1fr] items-center gap-1">
                   <div className="text-xs text-gray-600">Pedido Cliente:</div>
                   <input
                     value={filterPedidoCliente}
                     onChange={(e) => setFilterPedidoCliente(e.target.value)}
-                    className={`w-full border rounded px-2 py-1 text-xs h-8 ${compactLayout ? "" : "sm:w-[260px]"}`}
+                    className={`w-full border rounded px-2 py-1 text-xs h-8 ${compactLayout ? "" : "max-w-[260px]"}`}
                   />
                 </div>
 
-                <div className="grid grid-cols-[80px_1fr] sm:grid-cols-[80px_260px] items-center gap-1">
+                <div className="grid grid-cols-[80px_1fr] items-center gap-1">
                   <div className="text-xs text-gray-600">Item/Desc It:</div>
                   <input
                     value={filterItemDesc}
                     onChange={(e) => setFilterItemDesc(e.target.value)}
-                    className={`w-full border rounded px-2 py-1 text-xs h-8 ${compactLayout ? "" : "sm:w-[260px]"}`}
+                    className={`w-full border rounded px-2 py-1 text-xs h-8 ${compactLayout ? "" : "max-w-[260px]"}`}
                   />
                 </div>
               </div>
 
-              <div className="space-y-1 lg:w-[220px] lg:shrink-0">
+              <div className="space-y-1 lg:w-[200px] min-w-0">
                 <div className="grid grid-cols-2 gap-1">
                   <div className="border rounded p-1.5">
                     <div className="text-xs text-gray-600 mb-1">Tipo Pedido</div>
