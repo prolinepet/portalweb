@@ -270,13 +270,6 @@ export default function LogisticsPanelPage() {
     }
   }, [dateStart, dateEnd]);
 
-  const totals = useMemo(() => {
-    const countItems = items.length;
-    const sumQtdProg = items.reduce((acc, it) => acc + (Number(it.qtdProg) || 0), 0);
-    const sumSdoPed = items.reduce((acc, it) => acc + (Number(it.sdoPed) || 0), 0);
-    return { countItems, sumQtdProg, sumSdoPed };
-  }, [items]);
-
   const estabsAvailable = useMemo(() => {
     const rows: CheckRow[] = items
       .map((it) => String(it.estab || "").trim())
