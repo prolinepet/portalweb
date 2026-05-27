@@ -798,22 +798,48 @@ export default function LogisticsPanelPage() {
             </div>
 
             <div className="border rounded overflow-auto max-h-[320px]">
-              <table className="min-w-max w-full text-xs">
+              <table className="min-w-max w-full text-xs table-auto">
                 <thead>
                   <tr className="bg-gray-50 border-b">
-                    <th className="text-left px-1 py-1 w-16">UF</th>
-                    <th className="text-left px-1 py-1 w-48">Cidade</th>
-                    <th className="text-left px-1 py-1 w-28">Dt Entr Cli</th>
-                    <th className="text-left px-1 py-1 w-72">Cliente</th>
-                    <th className="text-left px-1 py-1 w-20">Estab</th>
-                    <th className="text-left px-1 py-1 w-28">Ped Cli</th>
-                    <th className="text-left px-1 py-1 w-24">Aprovação</th>
-                    <th className="text-right px-1 py-1 w-16">Seq</th>
-                    <th className="text-left px-1 py-1 w-24">Cód Item</th>
-                    <th className="text-right px-1 py-1 w-24">Sdo Ped</th>
-                    <th className="text-right px-1 py-1 w-24">Sdo Est</th>
-                    <th className="text-right px-1 py-1 w-24">Qtd Prog</th>
-                    <th className="text-right px-1 py-1 w-20">Diverg</th>
+                    <th className="text-left px-1 py-1">
+                      <div className="max-w-[64px] whitespace-nowrap">UF</div>
+                    </th>
+                    <th className="text-left px-1 py-1">
+                      <div className="max-w-[192px] whitespace-nowrap">Cidade</div>
+                    </th>
+                    <th className="text-left px-1 py-1">
+                      <div className="max-w-[112px] whitespace-nowrap">Dt Entr Cli</div>
+                    </th>
+                    <th className="text-left px-1 py-1">
+                      <div className="max-w-[288px] whitespace-nowrap">Cliente</div>
+                    </th>
+                    <th className="text-left px-1 py-1">
+                      <div className="max-w-[80px] whitespace-nowrap">Estab</div>
+                    </th>
+                    <th className="text-left px-1 py-1">
+                      <div className="max-w-[112px] whitespace-nowrap">Ped Cli</div>
+                    </th>
+                    <th className="text-left px-1 py-1">
+                      <div className="max-w-[96px] whitespace-nowrap">Aprovação</div>
+                    </th>
+                    <th className="text-right px-1 py-1">
+                      <div className="max-w-[64px] whitespace-nowrap">Seq</div>
+                    </th>
+                    <th className="text-left px-1 py-1">
+                      <div className="max-w-[96px] whitespace-nowrap">Cód Item</div>
+                    </th>
+                    <th className="text-right px-1 py-1">
+                      <div className="max-w-[96px] whitespace-nowrap">Sdo Ped</div>
+                    </th>
+                    <th className="text-right px-1 py-1">
+                      <div className="max-w-[96px] whitespace-nowrap">Sdo Est</div>
+                    </th>
+                    <th className="text-right px-1 py-1">
+                      <div className="max-w-[96px] whitespace-nowrap">Qtd Prog</div>
+                    </th>
+                    <th className="text-right px-1 py-1">
+                      <div className="max-w-[80px] whitespace-nowrap">Diverg</div>
+                    </th>
                     <th className="text-left px-1 py-1 min-w-[360px]">Descrição</th>
                   </tr>
                 </thead>
@@ -833,19 +859,45 @@ export default function LogisticsPanelPage() {
                         onDoubleClick={() => void onItemRowDoubleClick(it)}
                         className={`border-b hover:bg-gray-50 ${isLinked ? "bg-yellow-100" : ""}`}
                       >
-                      <td className="px-1 py-1">{it.uf || "-"}</td>
-                      <td className="px-1 py-1">{it.cidade || "-"}</td>
-                      <td className="px-1 py-1">{it.dtEntrCli ? it.dtEntrCli.slice(0, 10) : "-"}</td>
-                      <td className="px-1 py-1">{it.cliente}</td>
-                      <td className="px-1 py-1">{it.estab || "-"}</td>
-                      <td className="px-1 py-1 font-mono">{it.pedCli || "-"}</td>
-                      <td className="px-1 py-1">{it.aprovacao || "-"}</td>
-                      <td className="px-1 py-1 text-right">{it.seq ?? "-"}</td>
-                      <td className="px-1 py-1 font-mono">{it.codItem || "-"}</td>
-                      <td className="px-1 py-1 text-right">{it.sdoPed}</td>
-                      <td className="px-1 py-1 text-right">{it.sdoEst}</td>
-                      <td className="px-1 py-1 text-right">{it.qtdProg}</td>
-                      <td className="px-1 py-1 text-right">{it.diverg}</td>
+                      <td className="px-1 py-1">
+                        <div className="max-w-[64px] overflow-hidden text-ellipsis whitespace-nowrap">{it.uf || "-"}</div>
+                      </td>
+                      <td className="px-1 py-1">
+                        <div className="max-w-[192px] overflow-hidden text-ellipsis whitespace-nowrap">{it.cidade || "-"}</div>
+                      </td>
+                      <td className="px-1 py-1">
+                        <div className="max-w-[112px] overflow-hidden text-ellipsis whitespace-nowrap">{it.dtEntrCli ? it.dtEntrCli.slice(0, 10) : "-"}</div>
+                      </td>
+                      <td className="px-1 py-1">
+                        <div className="max-w-[288px] overflow-hidden text-ellipsis whitespace-nowrap">{it.cliente}</div>
+                      </td>
+                      <td className="px-1 py-1">
+                        <div className="max-w-[80px] overflow-hidden text-ellipsis whitespace-nowrap">{it.estab || "-"}</div>
+                      </td>
+                      <td className="px-1 py-1 font-mono">
+                        <div className="max-w-[112px] overflow-hidden text-ellipsis whitespace-nowrap">{it.pedCli || "-"}</div>
+                      </td>
+                      <td className="px-1 py-1">
+                        <div className="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{it.aprovacao || "-"}</div>
+                      </td>
+                      <td className="px-1 py-1 text-right">
+                        <div className="max-w-[64px] overflow-hidden text-ellipsis whitespace-nowrap">{it.seq ?? "-"}</div>
+                      </td>
+                      <td className="px-1 py-1 font-mono">
+                        <div className="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{it.codItem || "-"}</div>
+                      </td>
+                      <td className="px-1 py-1 text-right">
+                        <div className="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{it.sdoPed}</div>
+                      </td>
+                      <td className="px-1 py-1 text-right">
+                        <div className="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{it.sdoEst}</div>
+                      </td>
+                      <td className="px-1 py-1 text-right">
+                        <div className="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{it.qtdProg}</div>
+                      </td>
+                      <td className="px-1 py-1 text-right">
+                        <div className="max-w-[80px] overflow-hidden text-ellipsis whitespace-nowrap">{it.diverg}</div>
+                      </td>
                       <td className="px-1 py-1">{it.descricao}</td>
                       </tr>
                     );
