@@ -2,6 +2,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 type PreCargaItem = {
+  itemId: number;
+  salesOrderId: number;
+  clientId: number | null;
+  preCargaId: number | null;
   uf: string | null;
   cidade: string | null;
   dtEntrCli: string | null;
@@ -96,6 +100,10 @@ export default function LogisticsPanelPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
       const normalized: PreCargaItem[] = (Array.isArray(data?.items) ? data.items : []).map((r: any) => ({
+        itemId: Number(r?.itemId),
+        salesOrderId: Number(r?.salesOrderId),
+        clientId: r?.clientId == null ? null : Number(r.clientId),
+        preCargaId: r?.preCargaId == null ? null : Number(r.preCargaId),
         uf: r?.uf == null ? null : String(r.uf),
         cidade: r?.cidade == null ? null : String(r.cidade),
         dtEntrCli: r?.dtEntrCli == null ? null : String(r.dtEntrCli),
@@ -112,7 +120,9 @@ export default function LogisticsPanelPage() {
         descricao: String(r?.descricao || ""),
         orderTypeKind: r?.orderTypeKind == null ? null : String(r.orderTypeKind),
       }));
-      setItems(normalized);
+      setItems(
+        normalized.filter((x) => Number.isFinite(x.itemId) && x.itemId > 0 && Number.isFinite(x.salesOrderId) && x.salesOrderId > 0)
+      );
     } catch (e: any) {
       setErr(e?.message || String(e));
       setItems([]);
@@ -317,7 +327,7 @@ export default function LogisticsPanelPage() {
     const useUf = Object.keys(fUfs).length > 0;
     const useCity = Object.keys(fCities).length > 0;
 
-    return items.filter((it) => {
+    const out = items.filter((it) => {
       if (!kindAllowed(it.orderTypeKind)) return false;
 
       if (useEstab) {
@@ -351,7 +361,96 @@ export default function LogisticsPanelPage() {
 
       return true;
     });
-  }, [items, fEstabs, fUfs, fCities, filterNomeCliente, filterPedidoCliente, filterItemDesc, kindAllowed, apenasAprovados]);
+    const sel = selectedPreCargaId;
+    out.sort((a, b) => {
+      const aLinked = sel != null && a.preCargaId === sel ? 0 : 1;
+      const bLinked = sel != null && b.preCargaId === sel ? 0 : 1;
+      if (aLinked !== bLinked) return aLinked - bLinked;
+
+      const aUf = String(a.uf || "").trim().toUpperCase();
+      const bUf = String(b.uf || "").trim().toUpperCase();
+      if (aUf !== bUf) return aUf.localeCompare(bUf);
+
+      const aCity = String(a.cidade || "").trim();
+      const bCity = String(b.cidade || "").trim();
+      if (aCity !== bCity) return aCity.localeCompare(bCity);
+
+      const aCli = String(a.cliente || "").trim();
+      const bCli = String(b.cliente || "").trim();
+      if (aCli !== bCli) return aCli.localeCompare(bCli);
+
+      const aDt = a.dtEntrCli ? String(a.dtEntrCli).slice(0, 10) : "9999-12-31";
+      const bDt = b.dtEntrCli ? String(b.dtEntrCli).slice(0, 10) : "9999-12-31";
+      if (aDt !== bDt) return aDt.localeCompare(bDt);
+
+      return a.itemId - b.itemId;
+    });
+    return out;
+  }, [
+    items,
+    fEstabs,
+    fUfs,
+    fCities,
+    filterNomeCliente,
+    filterPedidoCliente,
+    filterItemDesc,
+    kindAllowed,
+    apenasAprovados,
+    selectedPreCargaId,
+  ]);
+
+  const onItemRowDoubleClick = useCallback(
+    async (row: PreCargaItem) => {
+      const selId = selectedPreCargaId;
+      if (!selId) {
+        alert("Selecione uma pré-carga.");
+        return;
+      }
+
+      if (row.preCargaId != null && row.preCargaId !== selId) {
+        alert(`Item já vinculado à Pré-Carga ${row.preCargaId}.`);
+        return;
+      }
+
+      setLoading(true);
+      setErr(null);
+      try {
+        if (row.preCargaId === selId) {
+          const res = await fetch("/api/logistics/panel/pre-carga/items", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ preCargaId: selId, itemId: row.itemId }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+          await loadPreCarga();
+          return;
+        }
+
+        const sameClient = filteredItems.filter((it) => {
+          if (it.preCargaId != null) return false;
+          if (row.clientId != null && it.clientId != null) return it.clientId === row.clientId;
+          return String(it.cliente || "").trim() === String(row.cliente || "").trim();
+        });
+
+        const itemIds = Array.from(new Set([row.itemId, ...sameClient.map((x) => x.itemId)]));
+        const res = await fetch("/api/logistics/panel/pre-carga/items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ preCargaId: selId, itemIds }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+        await loadPreCarga();
+      } catch (e: any) {
+        setErr(e?.message || String(e));
+        alert(e?.message || String(e));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [filteredItems, loadPreCarga, selectedPreCargaId]
+  );
 
   const FilterModal = ({
     title,
@@ -633,7 +732,7 @@ export default function LogisticsPanelPage() {
               <div className="space-y-1 lg:w-[440px] lg:shrink-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="text-xs text-gray-600 w-[80px] shrink-0">Dt Entrega Cli:</div>
-                  <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-[140px] border rounded px-1.5 py-1 text-xs h-8" />
+                  <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-[105px] border rounded px-1.5 py-1 text-xs h-8" />
                   <div className="flex items-center gap-1">
                     <button className="w-8 h-8 border rounded text-sm bg-gray-50 cursor-default" title="Botão sem ação" tabIndex={-1} type="button">
                       {"<<"}
@@ -642,7 +741,7 @@ export default function LogisticsPanelPage() {
                       {">>"}
                     </button>
                   </div>
-                  <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-[140px] border rounded px-1.5 py-1 text-xs h-8" />
+                  <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-[105px] border rounded px-1.5 py-1 text-xs h-8" />
                 </div>
 
                 <div className="grid grid-cols-[80px_1fr] sm:grid-cols-[80px_260px] items-center gap-1">
@@ -698,8 +797,8 @@ export default function LogisticsPanelPage() {
               </div>
             </div>
 
-            <div className="border rounded overflow-auto">
-              <table className="w-full text-xs">
+            <div className="border rounded overflow-auto max-h-[320px]">
+              <table className="min-w-max w-full text-xs">
                 <thead>
                   <tr className="bg-gray-50 border-b">
                     <th className="text-left px-1 py-1 w-16">UF</th>
@@ -726,8 +825,14 @@ export default function LogisticsPanelPage() {
                       </td>
                     </tr>
                   )}
-                  {filteredItems.map((it, idx) => (
-                    <tr key={`${idx}-${it.uf}-${it.cidade}-${it.estab}-${it.pedCli}-${it.codItem}-${it.sdoPed}`} className="border-b hover:bg-gray-50">
+                  {filteredItems.map((it, idx) => {
+                    const isLinked = selectedPreCargaId != null && it.preCargaId === selectedPreCargaId;
+                    return (
+                      <tr
+                        key={`${idx}-${it.itemId}-${it.salesOrderId}`}
+                        onDoubleClick={() => void onItemRowDoubleClick(it)}
+                        className={`border-b hover:bg-gray-50 ${isLinked ? "bg-yellow-100" : ""}`}
+                      >
                       <td className="px-1 py-1">{it.uf || "-"}</td>
                       <td className="px-1 py-1">{it.cidade || "-"}</td>
                       <td className="px-1 py-1">{it.dtEntrCli ? it.dtEntrCli.slice(0, 10) : "-"}</td>
@@ -742,8 +847,9 @@ export default function LogisticsPanelPage() {
                       <td className="px-1 py-1 text-right">{it.qtdProg}</td>
                       <td className="px-1 py-1 text-right">{it.diverg}</td>
                       <td className="px-1 py-1">{it.descricao}</td>
-                    </tr>
-                  ))}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

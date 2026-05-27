@@ -25,6 +25,26 @@ async function ensureEntityCodEstabColumn(): Promise<void> {
   g.__entityCodEstabEnsured = true;
 }
 
+async function ensurePreCargaItemLinkTable(): Promise<void> {
+  const g = global as any;
+  if (g.__logisticPreCargaItemLinkEnsured) return;
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`logisticprecargaitem\` (
+        \`id\` INT NOT NULL AUTO_INCREMENT,
+        \`preCargaId\` INT NOT NULL,
+        \`salesOrderItemId\` INT NOT NULL,
+        \`createdAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updatedAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (\`id\`),
+        UNIQUE KEY \`ux_logisticprecargaitem_salesorderitem\` (\`salesOrderItemId\`),
+        KEY \`idx_logisticprecargaitem_precarga\` (\`preCargaId\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+  } catch {}
+  g.__logisticPreCargaItemLinkEnsured = true;
+}
+
 function normalizeStatusKey(status: unknown): string {
   const s = String(status || '').trim().toUpperCase();
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -49,6 +69,7 @@ export async function GET(request: Request) {
   try {
     await ensureSalesOrderItemSdoPedColumn();
     await ensureEntityCodEstabColumn();
+    await ensurePreCargaItemLinkTable();
 
     const session = await getServerSession(authOptions);
     const uid = session?.user ? Number((session.user as any).id) : undefined;
@@ -109,12 +130,34 @@ export async function GET(request: Request) {
     });
 
     const integratedOrders = orders.filter((o) => statusRank(o.status) >= 3);
+
+    const allItemIds = integratedOrders
+      .flatMap((o) => o.items || [])
+      .map((it) => Number(it.id))
+      .filter((n) => Number.isFinite(n) && n > 0);
+
+    const linkByItemId = new Map<number, number>();
+    if (allItemIds.length > 0) {
+      const inList = Array.from(new Set(allItemIds)).join(',');
+      const rows: any[] = await prisma.$queryRawUnsafe(
+        `SELECT salesOrderItemId, preCargaId FROM logisticprecargaitem WHERE salesOrderItemId IN (${inList})`
+      );
+      for (const r of rows || []) {
+        const itemId = Number((r as any)?.salesOrderItemId);
+        const preCargaId = Number((r as any)?.preCargaId);
+        if (Number.isFinite(itemId) && itemId > 0 && Number.isFinite(preCargaId) && preCargaId > 0) {
+          linkByItemId.set(itemId, preCargaId);
+        }
+      }
+    }
+
     const items = integratedOrders.flatMap((o) => {
       const customerLabel = o.client?.abbrevName || o.customerName || o.client?.name || '';
       const customerCity = o.client?.cidade || null;
       const customerUf = o.client?.estado || null;
       const estab = o.entity?.codEstab || null;
       const kind = o.orderType?.kind ?? null;
+      const clientId = o.client?.id ?? null;
 
       return (o.items || []).map((it) => {
         const dtEntrCli = it.itemDeliveryDate ?? o.deliveryDate ?? null;
@@ -124,6 +167,10 @@ export async function GET(request: Request) {
         const diverg = sdoPed - qtdProg;
 
         return {
+          itemId: it.id,
+          salesOrderId: o.id,
+          clientId,
+          preCargaId: linkByItemId.get(Number(it.id)) ?? null,
           uf: customerUf,
           cidade: customerCity,
           dtEntrCli,
@@ -153,6 +200,81 @@ export async function GET(request: Request) {
     const res = NextResponse.json({ items: filtered });
     res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     return res;
+  } catch (err: any) {
+    return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    await ensurePreCargaItemLinkTable();
+
+    const session = await getServerSession(authOptions);
+    const uid = session?.user ? Number((session.user as any).id) : undefined;
+    const entityId = (session as any)?.entityId ?? (session as any)?.activeEntityId ?? null;
+    if (!uid) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+
+    const allowed = await isProgramAllowed(uid, entityId, 'PAINEL_LOGISTICO');
+    if (!allowed) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+
+    const body = await request.json().catch(() => ({}));
+    const preCargaId = Number(body?.preCargaId);
+    const itemIds = Array.isArray(body?.itemIds) ? body.itemIds : [];
+    if (!Number.isFinite(preCargaId) || preCargaId <= 0) return NextResponse.json({ error: 'preCargaId inválido' }, { status: 400 });
+
+    const normalizedItemIds = Array.from(
+      new Set(
+        itemIds
+          .map((x: any) => Number(x))
+          .filter((n: number) => Number.isFinite(n) && n > 0)
+      )
+    );
+    if (normalizedItemIds.length === 0) return NextResponse.json({ ok: true, linked: 0, skipped: 0 });
+
+    let linked = 0;
+    let skipped = 0;
+
+    await prisma.$transaction(async (tx) => {
+      for (const itemId of normalizedItemIds) {
+        const r = await tx.$executeRawUnsafe(
+          `INSERT INTO logisticprecargaitem (preCargaId, salesOrderItemId, createdAt, updatedAt)
+           SELECT ${preCargaId}, ${itemId}, NOW(), NOW()
+           FROM DUAL
+           WHERE NOT EXISTS (SELECT 1 FROM logisticprecargaitem WHERE salesOrderItemId = ${itemId})`
+        );
+        if (Number(r) > 0) linked += 1;
+        else skipped += 1;
+      }
+    });
+
+    return NextResponse.json({ ok: true, linked, skipped });
+  } catch (err: any) {
+    return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    await ensurePreCargaItemLinkTable();
+
+    const session = await getServerSession(authOptions);
+    const uid = session?.user ? Number((session.user as any).id) : undefined;
+    const entityId = (session as any)?.entityId ?? (session as any)?.activeEntityId ?? null;
+    if (!uid) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+
+    const allowed = await isProgramAllowed(uid, entityId, 'PAINEL_LOGISTICO');
+    if (!allowed) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+
+    const body = await request.json().catch(() => ({}));
+    const preCargaId = Number(body?.preCargaId);
+    const itemId = Number(body?.itemId);
+    if (!Number.isFinite(preCargaId) || preCargaId <= 0) return NextResponse.json({ error: 'preCargaId inválido' }, { status: 400 });
+    if (!Number.isFinite(itemId) || itemId <= 0) return NextResponse.json({ error: 'itemId inválido' }, { status: 400 });
+
+    const deleted = await prisma.$executeRawUnsafe(
+      `DELETE FROM logisticprecargaitem WHERE preCargaId = ${preCargaId} AND salesOrderItemId = ${itemId}`
+    );
+    return NextResponse.json({ ok: true, deleted: Number(deleted) || 0 });
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
