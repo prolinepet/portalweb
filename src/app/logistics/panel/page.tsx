@@ -716,7 +716,7 @@ export default function LogisticsPanelPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-[120px_80px] gap-2">
                   <div>
                     <div className="text-xs text-gray-600 mb-1">Dt Prev Carreg</div>
                     <input
@@ -753,7 +753,7 @@ export default function LogisticsPanelPage() {
                 </label>
               </div>
 
-              <div className="mt-3 border rounded overflow-auto">
+              <div className="mt-3 border rounded overflow-auto w-[208px]">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b">
