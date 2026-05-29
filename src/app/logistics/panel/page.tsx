@@ -732,7 +732,7 @@ export default function LogisticsPanelPage() {
                     <select
                       value={preCargaCifFob}
                       onChange={(e) => setPreCargaCifFob((e.target.value || "") as any)}
-                      className="w-[120px] h-8 border rounded px-2 py-1 text-sm disabled:bg-gray-50"
+                      className="w-[80px] h-8 border rounded px-2 py-1 text-sm disabled:bg-gray-50"
                       disabled={preCargaMode === "view" || loading}
                     >
                       <option value=""></option>
