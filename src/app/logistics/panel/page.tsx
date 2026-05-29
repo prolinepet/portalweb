@@ -803,36 +803,36 @@ export default function LogisticsPanelPage() {
           <div className="bg-white rounded border p-2 space-y-2 min-w-0">
             <div className="flex flex-col lg:flex-row gap-2">
               <div className="space-y-1 lg:w-[120px] lg:shrink-0">
-                <button onClick={() => setShowEstabModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">
+                <button onClick={() => setShowEstabModal(true)} className="w-full text-xs px-2 py-0.5 border rounded bg-gray-50 h-7">
                   Estabelecimento
                 </button>
-                <button onClick={() => setShowUfModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">
+                <button onClick={() => setShowUfModal(true)} className="w-full text-xs px-2 py-0.5 border rounded bg-gray-50 h-7">
                   Estado(UF)
                 </button>
-                <button onClick={() => setShowCityModal(true)} className="w-full text-xs px-2 py-1 border rounded bg-gray-50">
+                <button onClick={() => setShowCityModal(true)} className="w-full text-xs px-2 py-0.5 border rounded bg-gray-50 h-7">
                   Cidade
                 </button>
-                <button onClick={loadPreCarga} className="w-full text-xs px-2 py-1 bg-gray-200 rounded border disabled:opacity-50" disabled={loading}>
+                <button onClick={loadPreCarga} className="w-full text-xs px-2 py-0.5 bg-gray-200 rounded border disabled:opacity-50 h-7" disabled={loading}>
                   Aplica Filtro
                 </button>
                 {loading && <div className="text-xs text-gray-500">Carregando...</div>}
                 {err && <div className="text-xs text-red-600">{err}</div>}
               </div>
 
-              <div className="space-y-1 min-w-0 flex-1">
-                <div className="flex flex-nowrap items-center gap-2">
+              <div className="space-y-0.5 min-w-0 flex-1">
+                <div className="flex flex-nowrap items-center gap-1.5">
                   <div className="text-xs text-gray-600 w-[80px] shrink-0">Dt Entrega Cli:</div>
                   <input
                     type="date"
                     value={dateStart}
                     onChange={(e) => setDateStart(e.target.value)}
-                    className="w-[105px] shrink-0 border rounded px-1.5 py-1 text-xs h-8"
+                    className="w-[105px] shrink-0 border rounded px-1.5 py-0.5 text-xs h-7"
                   />
                   <div className="flex items-center gap-1 shrink-0">
-                    <button className="w-8 h-8 border rounded text-sm bg-gray-50 cursor-default" title="Botão sem ação" tabIndex={-1} type="button">
+                    <button className="w-7 h-7 border rounded text-xs bg-gray-50 cursor-default" title="Botão sem ação" tabIndex={-1} type="button">
                       {"<<"}
                     </button>
-                    <button className="w-8 h-8 border rounded text-sm bg-gray-50 cursor-default" title="Botão sem ação" tabIndex={-1} type="button">
+                    <button className="w-7 h-7 border rounded text-xs bg-gray-50 cursor-default" title="Botão sem ação" tabIndex={-1} type="button">
                       {">>"}
                     </button>
                   </div>
@@ -840,34 +840,34 @@ export default function LogisticsPanelPage() {
                     type="date"
                     value={dateEnd}
                     onChange={(e) => setDateEnd(e.target.value)}
-                    className="w-[105px] shrink-0 border rounded px-1.5 py-1 text-xs h-8"
+                    className="w-[105px] shrink-0 border rounded px-1.5 py-0.5 text-xs h-7"
                   />
                 </div>
 
-                <div className="grid grid-cols-[80px_1fr] items-center gap-1">
+                <div className="grid grid-cols-[80px_1fr] items-center gap-0.5">
                   <div className="text-xs text-gray-600">Nome Cliente:</div>
                   <input
                     value={filterNomeCliente}
                     onChange={(e) => setFilterNomeCliente(e.target.value)}
-                    className={`w-full border rounded px-2 py-1 text-xs h-8 ${compactLayout ? "" : "max-w-[260px]"}`}
+                    className={`w-full border rounded px-2 py-0.5 text-xs h-7 ${compactLayout ? "" : "max-w-[260px]"}`}
                   />
                 </div>
 
-                <div className="grid grid-cols-[80px_1fr] items-center gap-1">
+                <div className="grid grid-cols-[80px_1fr] items-center gap-0.5">
                   <div className="text-xs text-gray-600">Pedido Cliente:</div>
                   <input
                     value={filterPedidoCliente}
                     onChange={(e) => setFilterPedidoCliente(e.target.value)}
-                    className={`w-full border rounded px-2 py-1 text-xs h-8 ${compactLayout ? "" : "max-w-[260px]"}`}
+                    className={`w-full border rounded px-2 py-0.5 text-xs h-7 ${compactLayout ? "" : "max-w-[260px]"}`}
                   />
                 </div>
 
-                <div className="grid grid-cols-[80px_1fr] items-center gap-1">
+                <div className="grid grid-cols-[80px_1fr] items-center gap-0.5">
                   <div className="text-xs text-gray-600">Item/Desc It:</div>
                   <input
                     value={filterItemDesc}
                     onChange={(e) => setFilterItemDesc(e.target.value)}
-                    className={`w-full border rounded px-2 py-1 text-xs h-8 ${compactLayout ? "" : "max-w-[260px]"}`}
+                    className={`w-full border rounded px-2 py-0.5 text-xs h-7 ${compactLayout ? "" : "max-w-[260px]"}`}
                   />
                 </div>
               </div>
