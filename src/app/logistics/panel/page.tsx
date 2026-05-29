@@ -565,15 +565,15 @@ export default function LogisticsPanelPage() {
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1 -mt-1">
       <div className="flex items-end justify-between gap-4 border-b">
         <div className="flex items-center gap-2">
-          <button onClick={() => setTab("processos")} className={`px-3 py-2 text-sm ${tab === "processos" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}>Processos</button>
-          <button onClick={() => setTab("pre-carga")} className={`px-3 py-2 text-sm ${tab === "pre-carga" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}>Pré-Carga</button>
-          <button onClick={() => setTab("descarga")} className={`px-3 py-2 text-sm ${tab === "descarga" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}>Descarga</button>
-          <button onClick={() => setTab("pre-devolucao")} className={`px-3 py-2 text-sm ${tab === "pre-devolucao" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}>Pré-Devolução</button>
+          <button onClick={() => setTab("processos")} className={`px-3 py-1.5 text-sm ${tab === "processos" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}>Processos</button>
+          <button onClick={() => setTab("pre-carga")} className={`px-3 py-1.5 text-sm ${tab === "pre-carga" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}>Pré-Carga</button>
+          <button onClick={() => setTab("descarga")} className={`px-3 py-1.5 text-sm ${tab === "descarga" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}>Descarga</button>
+          <button onClick={() => setTab("pre-devolucao")} className={`px-3 py-1.5 text-sm ${tab === "pre-devolucao" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}>Pré-Devolução</button>
         </div>
-        <div className="text-xl font-semibold pb-2">Painel Logístico</div>
+        <div className="text-xl font-semibold pb-1">Painel Logístico</div>
       </div>
 
       {tab !== "pre-carga" && (
