@@ -42,6 +42,12 @@ function toYmd(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
+function ymdToDmy(ymd: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return ymd;
+  const [y, m, d] = ymd.split("-");
+  return `${d}/${m}/${y}`;
+}
+
 function uniqSorted<T>(arr: T[], toKey: (v: T) => string): T[] {
   const seen = new Set<string>();
   const out: T[] = [];
@@ -581,7 +587,7 @@ export default function LogisticsPanelPage() {
       )}
 
       {tab === "pre-carga" && (
-          <div className={`grid grid-cols-1 gap-2 ${compactLayout ? "" : "lg:grid-cols-[280px_1fr]"}`}>
+          <div className={`grid grid-cols-1 gap-2 ${compactLayout ? "" : "lg:grid-cols-[max-content_1fr]"}`}>
           {compactLayout ? (
             <div className="bg-white rounded border p-2">
               <div className="flex items-start gap-3">
@@ -610,9 +616,9 @@ export default function LogisticsPanelPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-gray-50 border-b">
-                          <th className="text-left p-2 w-16">Pré</th>
-                          <th className="text-left p-2">Dt Prev</th>
-                          <th className="text-left p-2 w-16">CIF</th>
+                          <th className="text-left p-1 w-10">Pré</th>
+                          <th className="text-left p-1 whitespace-nowrap">Dt Prev</th>
+                          <th className="text-left p-1 w-12 whitespace-nowrap">CIF</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -635,9 +641,9 @@ export default function LogisticsPanelPage() {
                                 setSelectedPreCargaId(p.id);
                               }}
                             >
-                              <td className="p-2 font-mono text-xs">{p.id}</td>
-                              <td className="p-2">{dt}</td>
-                              <td className="p-2">{(p.cifFob || "").toUpperCase()}</td>
+                              <td className="p-1 font-mono text-xs whitespace-nowrap">{p.id}</td>
+                              <td className="p-1 text-xs whitespace-nowrap">{ymdToDmy(dt)}</td>
+                              <td className="p-1 text-xs whitespace-nowrap">{(p.cifFob || "").toUpperCase()}</td>
                             </tr>
                           );
                         })}
@@ -648,7 +654,7 @@ export default function LogisticsPanelPage() {
               </div>
             </div>
           ) : (
-            <div className="bg-white rounded border p-3">
+            <div className="bg-white rounded border p-2 w-fit">
               <div className="flex items-center mb-2">
                 <div className="font-medium">Pré Cargas</div>
               </div>
@@ -664,7 +670,7 @@ export default function LogisticsPanelPage() {
                       disabled
                     />
                   </div>
-                  <div className="grid grid-cols-3 gap-1 pb-0.5">
+                  <div className="grid grid-cols-[36px_36px_36px] gap-1 pb-0.5">
                     <button
                       type="button"
                       onClick={() => setCompactLayout(true)}
@@ -754,12 +760,12 @@ export default function LogisticsPanelPage() {
               </div>
 
               <div className="mt-3 border rounded overflow-auto w-[208px]">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-gray-50 border-b">
-                      <th className="text-left p-2 w-16">Pré</th>
-                      <th className="text-left p-2">Dt Prev</th>
-                      <th className="text-left p-2 w-16">CIF</th>
+                      <th className="text-left p-1 w-10">Pré</th>
+                      <th className="text-left p-1 whitespace-nowrap">Dt Prev</th>
+                      <th className="text-left p-1 w-12 whitespace-nowrap">CIF</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -782,9 +788,9 @@ export default function LogisticsPanelPage() {
                             setSelectedPreCargaId(p.id);
                           }}
                         >
-                          <td className="p-2 font-mono text-xs">{p.id}</td>
-                          <td className="p-2">{dt}</td>
-                          <td className="p-2">{(p.cifFob || "").toUpperCase()}</td>
+                          <td className="p-1 font-mono text-xs whitespace-nowrap">{p.id}</td>
+                          <td className="p-1 whitespace-nowrap">{ymdToDmy(dt)}</td>
+                          <td className="p-1 whitespace-nowrap">{(p.cifFob || "").toUpperCase()}</td>
                         </tr>
                       );
                     })}
