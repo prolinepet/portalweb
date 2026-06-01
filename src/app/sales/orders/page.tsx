@@ -260,7 +260,8 @@ export default function SalesOrdersPage() {
 
   const canGenerateBonus = (o: SalesOrder) => {
     const kind = String(o?.orderType?.kind || '').trim().toUpperCase();
-    return kind !== 'BONIFICACAO' && kind !== 'AMOSTRA';
+    const code = Number(o?.orderType?.codtipoped);
+    return kind !== 'BONIFICACAO' && kind !== 'AMOSTRA' && code !== 6;
   };
 
   const afterDeleteOrder = async (deletedId: number) => {
