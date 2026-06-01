@@ -106,6 +106,9 @@ function programHref(code: string): string | null {
     case 'ATIVOS': return '/admin/modules/gestao-finti/ativos';
     case 'CONTRATOS': return '/admin/modules/gestao-finti/contratos';
     case 'CONFIGURACOES': return '/admin/modules/gestao-finti/configuracoes';
+    // Meu Financeiro
+    case 'POSICAO_FINANCEIRA': return '/admin/modules/meu-financeiro/posicao-financeira';
+    case 'NOVO_REEMBOLSO': return '/admin/modules/meu-financeiro/novo-reembolso';
     default: return null;
   }
 }
@@ -263,6 +266,9 @@ export default function Sidebar({ perms, mobileOpen, setMobileOpen, pathname, us
                         case 'ATIVOS': return Icon.assets;
                         case 'CONTRATOS': return Icon.reports;
                         case 'CONFIGURACOES': return Icon.settings;
+                        // Meu Financeiro
+                        case 'POSICAO_FINANCEIRA': return Icon.reports;
+                        case 'NOVO_REEMBOLSO': return Icon.reports;
                         default: return null;
                       }
                     })();

@@ -10,7 +10,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", abbrevName: "", email: "", password: "", doc: "" });
+  const [form, setForm] = useState({ name: "", abbrevName: "", email: "", password: "", doc: "", costCenter: "", pixKey: "" });
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [formOpen, setFormOpen] = useState<boolean>(false);
 
@@ -66,14 +66,14 @@ export default function UsersPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
         setEditingUserId(null);
-        setForm({ name: "", abbrevName: "", email: "", password: "", doc: "" });
+        setForm({ name: "", abbrevName: "", email: "", password: "", doc: "", costCenter: "", pixKey: "" });
         await loadUsers();
         setSelectedUserId(data.id);
       } else {
         const res = await fetch("/api/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
-        setForm({ name: "", abbrevName: "", email: "", password: "", doc: "" });
+          setForm({ name: "", abbrevName: "", email: "", password: "", doc: "", costCenter: "", pixKey: "" });
         await loadUsers();
         setSelectedUserId(data.id);
       }
@@ -124,7 +124,7 @@ export default function UsersPage() {
 
   const cancelEdit = () => {
     setEditingUserId(null);
-    setForm({ name: "", abbrevName: "", email: "", password: "", doc: "" });
+    setForm({ name: "", abbrevName: "", email: "", password: "", doc: "", costCenter: "", pixKey: "" });
   };
 
   const openEditForm = (u: any) => {
@@ -136,6 +136,8 @@ export default function UsersPage() {
       email: u.email || '',
       password: '',
       doc: String(u.doc || ''),
+      costCenter: String((u as any)?.costCenter || ''),
+      pixKey: String((u as any)?.pixKey || ''),
     });
     setFormOpen(true);
   };
@@ -231,7 +233,7 @@ export default function UsersPage() {
       if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
       setSelectedIds([]);
       setEditingUserId(null);
-      setForm({ name: "", email: "", password: "", doc: "" });
+      setForm({ name: "", abbrevName: "", email: "", password: "", doc: "", costCenter: "", pixKey: "" });
       await loadUsers();
       setSelectedUserId(null);
       setEntities([]);
@@ -255,7 +257,7 @@ export default function UsersPage() {
 
   const openAddForm = () => {
     setEditingUserId(null);
-    setForm({ name: "", abbrevName: "", email: "", password: "", doc: "" });
+    setForm({ name: "", abbrevName: "", email: "", password: "", doc: "", costCenter: "", pixKey: "" });
     setSelectedUserId(null);
     setEntities([]);
     setModules([]);
@@ -420,6 +422,8 @@ export default function UsersPage() {
             <input className="border rounded px-3 py-2" placeholder="Nome Abrev" value={form.abbrevName} maxLength={20} onChange={(e) => setForm({ ...form, abbrevName: e.target.value })} />
             <input className="border rounded px-3 py-2" placeholder="CPF/CNPJ" value={form.doc} onChange={(e) => setForm({ ...form, doc: e.target.value })} />
             <input className="border rounded px-3 py-2" type="email" placeholder="E-mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+            <input className="border rounded px-3 py-2" placeholder="Centro Custo" value={form.costCenter} onChange={(e) => setForm({ ...form, costCenter: e.target.value })} />
+            <input className="border rounded px-3 py-2" placeholder="Chave PIX" value={form.pixKey} onChange={(e) => setForm({ ...form, pixKey: e.target.value })} />
             <input className="border rounded px-3 py-2" type="password" placeholder={editingUserId ? "Nova senha (opcional)" : "Senha"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required={!editingUserId} />
             <div>
               <button className="px-4 py-2 bg-gray-800 text-white rounded mr-2">{editingUserId ? 'Atualizar' : 'Salvar'}</button>

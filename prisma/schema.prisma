@@ -12,6 +12,8 @@ model User {
   email              String?         @unique
   name               String
   abbrevName         String?         @db.Char(20)
+  costCenter         String?         @db.VarChar(50)
+  pixKey             String?         @db.VarChar(191)
   password           String
   salesRepAdmin      Boolean         @default(false)
   isSalesAdmin       Boolean         @default(false)

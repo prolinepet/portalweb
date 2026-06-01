@@ -9,11 +9,24 @@ function normalizeDoc(doc: string): string {
 
 async function ensureUserAbbrevNameColumn(): Promise<void> {
   const g = global as any;
-  if (g.__abbrevNameEnsured) return;
+  if (g.__userColumnsEnsured) return;
   try {
-    await prisma.$executeRawUnsafe('ALTER TABLE `user` ADD COLUMN `abbrevName` CHAR(20) NULL');
+    const rows = (await prisma.$queryRawUnsafe(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user' AND COLUMN_NAME IN ('abbrevName','costCenter','pixKey')"
+    )) as any[];
+    const existing = new Set<string>((Array.isArray(rows) ? rows : []).map((r) => String(r?.COLUMN_NAME || r?.column_name || '').trim()));
+
+    if (!existing.has('abbrevName')) {
+      await prisma.$executeRawUnsafe('ALTER TABLE `user` ADD COLUMN `abbrevName` CHAR(20) NULL');
+    }
+    if (!existing.has('costCenter')) {
+      await prisma.$executeRawUnsafe('ALTER TABLE `user` ADD COLUMN `costCenter` VARCHAR(50) NULL');
+    }
+    if (!existing.has('pixKey')) {
+      await prisma.$executeRawUnsafe('ALTER TABLE `user` ADD COLUMN `pixKey` VARCHAR(191) NULL');
+    }
   } catch {}
-  g.__abbrevNameEnsured = true;
+  g.__userColumnsEnsured = true;
 }
 
 async function ensureSalesRepDefaults(userId: number) {
@@ -87,6 +100,8 @@ export async function GET(request: Request) {
       id: true,
       name: true,
       abbrevName: true,
+      costCenter: true,
+      pixKey: true,
       email: true,
       doc: true,
       salesRepAdmin: true,
@@ -104,6 +119,8 @@ export async function GET(request: Request) {
       id: u.id,
       name: u.name,
       abbrevName: u.abbrevName,
+      costCenter: (u as any).costCenter ?? null,
+      pixKey: (u as any).pixKey ?? null,
       email: u.email,
       doc: u.doc,
       salesRepAdmin: u.salesRepAdmin,
@@ -130,6 +147,10 @@ export async function POST(request: Request) {
     const erpIntegrationMode = String(data?.erpIntegrationMode || 'TEST');
     const salesRepAdmin = data?.salesRepAdmin;
     const doc = normalizeDoc(String((data as any)?.doc || '')) || null;
+    const costCenterRaw = data?.costCenter == null ? null : String(data.costCenter);
+    const costCenter = costCenterRaw == null ? null : String(costCenterRaw).trim().slice(0, 50) || null;
+    const pixKeyRaw = data?.pixKey == null ? null : String(data.pixKey);
+    const pixKey = pixKeyRaw == null ? null : String(pixKeyRaw).trim().slice(0, 191) || null;
 
     if (!name) return NextResponse.json({ error: 'name é obrigatório' }, { status: 400 });
     if (!passwordStr) return NextResponse.json({ error: 'password é obrigatório' }, { status: 400 });
@@ -154,6 +175,8 @@ export async function POST(request: Request) {
       const update: any = {
         name,
         abbrevName,
+        costCenter,
+        pixKey,
         email: finalEmail,
         password: String(hashed),
         erpIntegrationMode,
@@ -163,6 +186,8 @@ export async function POST(request: Request) {
       const create: any = {
         name,
         abbrevName,
+        costCenter,
+        pixKey,
         email: finalEmail,
         password: String(hashed),
         doc,
@@ -178,6 +203,8 @@ export async function POST(request: Request) {
           id: true,
           name: true,
           abbrevName: true,
+          costCenter: true,
+          pixKey: true,
           email: true,
           doc: true,
           salesRepAdmin: true,
@@ -197,13 +224,15 @@ export async function POST(request: Request) {
       data: {
         name,
         abbrevName,
+        costCenter,
+        pixKey,
         email: finalEmail,
         password: hashed,
         erpIntegrationMode,
         salesRepAdmin: Boolean(salesRepAdmin),
         isSalesAdmin: false,
       },
-      select: { id: true, name: true, abbrevName: true, email: true, createdAt: true, updatedAt: true, salesRepAdmin: true, isSalesAdmin: true, erpIntegrationMode: true },
+      select: { id: true, name: true, abbrevName: true, costCenter: true, pixKey: true, email: true, createdAt: true, updatedAt: true, salesRepAdmin: true, isSalesAdmin: true, erpIntegrationMode: true },
     });
     if (shouldEnsureRepDefaults) {
       await ensureSalesRepDefaults(Number(created.id)).catch(() => {});
@@ -230,6 +259,14 @@ export async function PATCH(request: Request) {
       update.abbrevName = raw == null ? null : String(raw).trim().slice(0, 20) || null;
     }
     if (body.email !== undefined) update.email = body.email == null ? null : String(body.email);
+    if (body.costCenter !== undefined) {
+      const raw = body.costCenter == null ? null : String(body.costCenter);
+      update.costCenter = raw == null ? null : String(raw).trim().slice(0, 50) || null;
+    }
+    if (body.pixKey !== undefined) {
+      const raw = body.pixKey == null ? null : String(body.pixKey);
+      update.pixKey = raw == null ? null : String(raw).trim().slice(0, 191) || null;
+    }
     if (body.erpIntegrationMode !== undefined) update.erpIntegrationMode = String(body.erpIntegrationMode);
     if (body.salesRepAdmin !== undefined) update.salesRepAdmin = Boolean(body.salesRepAdmin);
     if (body.isSalesAdmin !== undefined) update.isSalesAdmin = Boolean(body.isSalesAdmin);
@@ -246,6 +283,8 @@ export async function PATCH(request: Request) {
         id: true,
         name: true,
         abbrevName: true,
+        costCenter: true,
+        pixKey: true,
         email: true,
         doc: true,
         createdAt: true,
