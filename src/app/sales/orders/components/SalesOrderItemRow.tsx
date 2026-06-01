@@ -191,6 +191,7 @@ interface SalesOrderItemRowProps {
   fmtInt: (n?: number) => string;
   hasCoreCol: boolean;
   canDelete: boolean;
+  disableDiscountFields?: boolean;
 }
 
 export const SalesOrderItemRow = ({
@@ -203,7 +204,8 @@ export const SalesOrderItemRow = ({
   computeWeightKg,
   fmtInt,
   hasCoreCol,
-  canDelete
+  canDelete,
+  disableDiscountFields
 }: SalesOrderItemRowProps) => {
   const [localItem, setLocalItem] = useState<OrderItem>(item);
   const [discountInput, setDiscountInput] = useState(
@@ -293,6 +295,7 @@ export const SalesOrderItemRow = ({
 
   const showDiameterTube = supportsCoreDims(localItem);
   const canEdit = isOrderEditable && !isRowLocked;
+  const canEditDiscount = canEdit && !disableDiscountFields;
   const disabledClass = "bg-gray-100 text-gray-500";
   const lockToggleDisabled = !isOrderEditable || isSaving;
   const isEffectivelyLocked = !isOrderEditable || isRowLocked;
@@ -366,8 +369,8 @@ export const SalesOrderItemRow = ({
         <td className="p-2">
             <input 
                 type="text" 
-                className={`w-20 px-2 py-1 border rounded ${!canEdit ? disabledClass : ''}`}
-                disabled={!canEdit}
+                className={`w-20 px-2 py-1 border rounded ${!canEditDiscount ? disabledClass : ''}`}
+                disabled={!canEditDiscount}
                 value={discountInput} 
                 onChange={(e) => handleDiscountChange(e.target.value)} 
             />
@@ -375,8 +378,8 @@ export const SalesOrderItemRow = ({
         <td className="p-2">
             <input 
                 type="text" 
-                className={`w-24 px-2 py-1 border rounded ${!canEdit ? disabledClass : ''}`}
-                disabled={!canEdit}
+                className={`w-24 px-2 py-1 border rounded ${!canEditDiscount ? disabledClass : ''}`}
+                disabled={!canEditDiscount}
                 value={discountValueInput} 
                 onChange={(e) => handleDiscountValueChange(e.target.value)} 
             />
@@ -420,7 +423,8 @@ export const SalesOrderItemCard = ({
   computeWeightKg,
   fmtInt,
   hasCoreCol,
-  canDelete
+  canDelete,
+  disableDiscountFields
 }: SalesOrderItemRowProps) => {
   const [localItem, setLocalItem] = useState<OrderItem>(item);
   const [discountInput, setDiscountInput] = useState(
@@ -507,6 +511,7 @@ export const SalesOrderItemCard = ({
 
   const showDiameterTube = supportsCoreDims(localItem);
   const canEdit = isOrderEditable && !isRowLocked;
+  const canEditDiscount = canEdit && !disableDiscountFields;
   const disabledClass = "bg-gray-100 text-gray-500";
   const lockToggleDisabled = !isOrderEditable || isSaving;
   const isEffectivelyLocked = !isOrderEditable || isRowLocked;
@@ -589,8 +594,8 @@ export const SalesOrderItemCard = ({
           <div className="text-[11px] text-gray-600">Desc (%)</div>
           <input
             type="text"
-            className={`w-full px-2 py-1 border rounded text-sm ${!canEdit ? disabledClass : ''}`}
-            disabled={!canEdit}
+            className={`w-full px-2 py-1 border rounded text-sm ${!canEditDiscount ? disabledClass : ''}`}
+            disabled={!canEditDiscount}
             value={discountInput}
             onChange={(e) => handleDiscountChange(e.target.value)}
           />
@@ -599,8 +604,8 @@ export const SalesOrderItemCard = ({
           <div className="text-[11px] text-gray-600">Desc (R$)</div>
           <input
             type="text"
-            className={`w-full px-2 py-1 border rounded text-sm ${!canEdit ? disabledClass : ''}`}
-            disabled={!canEdit}
+            className={`w-full px-2 py-1 border rounded text-sm ${!canEditDiscount ? disabledClass : ''}`}
+            disabled={!canEditDiscount}
             value={discountValueInput}
             onChange={(e) => handleDiscountValueChange(e.target.value)}
           />

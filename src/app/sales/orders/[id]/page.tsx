@@ -323,6 +323,10 @@ export default function SalesOrderMaintenancePage() {
   const [linkedOrderTypesLoading, setLinkedOrderTypesLoading] = useState(false);
   const [paymentTermsOptions, setPaymentTermsOptions] = useState<any[]>([]);
   const [paymentTermsLoading, setPaymentTermsLoading] = useState(false);
+  const isCpfCustomer = useMemo(() => {
+    const docDigits = String((order as any)?.customerDoc || "").replace(/\D/g, "");
+    return docDigits.length === 11;
+  }, [order]);
 
   const canEditOrder = isEditableStatus(order?.status);
   const effectiveOrderTypeId =
@@ -920,6 +924,7 @@ export default function SalesOrderMaintenancePage() {
     const docDigits = String((order as any)?.customerDoc || "").replace(/\D/g, "");
     if (docDigits.length !== 11) return;
     setHeaderCollapsed(true);
+    setSearchHistItemDiscount(false);
   }, [order]);
 
   const fmtCurrency = (n: number | undefined) => (n ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -1774,13 +1779,13 @@ export default function SalesOrderMaintenancePage() {
             <div className="px-3 py-2 border-b flex items-center gap-2">
               <span className="text-sm text-gray-700">Itens</span>
               <label
-                className={`ml-auto flex items-center gap-2 text-xs text-gray-700 ${(!isHeaderEditing && !canEditOrder) || (isOrderTypeRequired && !hasSelectedOrderType) ? 'opacity-50' : ''}`}
+                className={`ml-auto flex items-center gap-2 text-xs text-gray-700 ${(!isHeaderEditing && !canEditOrder) || (isOrderTypeRequired && !hasSelectedOrderType) || isCpfCustomer ? 'opacity-50' : ''}`}
               >
                 <input
                   type="checkbox"
                   className="h-4 w-4"
                   checked={searchHistItemDiscount}
-                  disabled={(!isHeaderEditing && !canEditOrder) || (isOrderTypeRequired && !hasSelectedOrderType)}
+                  disabled={(!isHeaderEditing && !canEditOrder) || (isOrderTypeRequired && !hasSelectedOrderType) || isCpfCustomer}
                   onChange={(e) => setSearchHistItemDiscount(e.target.checked)}
                 />
                 Busca Hist Desconto Item
@@ -1864,6 +1869,7 @@ export default function SalesOrderMaintenancePage() {
                       item={it}
                       isOrderEditable={isEditableStatus(order?.status)}
                       canDelete={isDeletableStatus(order?.status)}
+                      disableDiscountFields={isCpfCustomer}
                       onPreviewUpdate={(updated) => {
                         setOrderItems((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
                       }}
@@ -1931,6 +1937,7 @@ export default function SalesOrderMaintenancePage() {
                            item={it}
                            isOrderEditable={isHeaderEditing}
                            canDelete={isDeletableStatus(order?.status) && !isHeaderEditing}
+                           disableDiscountFields={isCpfCustomer}
                            onPreviewUpdate={(updated) => {
                              setOrderItems(prev => prev.map(i => i.id === updated.id ? updated : i));
                            }}

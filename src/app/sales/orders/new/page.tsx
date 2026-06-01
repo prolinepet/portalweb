@@ -202,6 +202,10 @@ function NewSalesOrderContent() {
   const [paymentTermsLoading, setPaymentTermsLoading] = useState(false);
   const lastOrderTypeIdRef = useRef<number | null>(null);
   const [searchHistItemDiscount, setSearchHistItemDiscount] = useState(false);
+  const isCpfCustomer = useMemo(() => {
+    const docDigits = String(order.customerDoc || "").replace(/\D/g, "");
+    return docDigits.length === 11;
+  }, [order.customerDoc]);
 
   const selectedOrderType = useMemo(() => {
     const oid = order.orderTypeId != null ? Number(order.orderTypeId) : null;
@@ -406,11 +410,17 @@ function NewSalesOrderContent() {
     if (!headerCollapsedTouchedRef.current) {
       setHeaderCollapsed(true);
     }
+    setSearchHistItemDiscount(false);
     setOrder((prev) => {
       if (prev.orderTypeId) return prev;
       return { ...prev, orderTypeId: Number(ot6.id) };
     });
   }, [copyFromParam, linkedOrderTypes, linkedOrderTypesLoading, order.customerDoc, order.customerId, order.orderTypeId]);
+
+  useEffect(() => {
+    if (!isCpfCustomer) return;
+    setSearchHistItemDiscount(false);
+  }, [isCpfCustomer]);
 
   useEffect(() => {
     const copyId = Number(copyFromParam);
@@ -1220,8 +1230,13 @@ function NewSalesOrderContent() {
           <div className="px-3 py-2 border-b flex items-center gap-2">
             <span className="text-sm text-gray-700">Itens</span>
             <div className="ml-auto flex items-center gap-3">
-              <label className="text-xs flex items-center gap-1 select-none">
-                <input type="checkbox" checked={searchHistItemDiscount} onChange={(e) => setSearchHistItemDiscount(e.target.checked)} />
+              <label className={`text-xs flex items-center gap-1 select-none ${isCpfCustomer ? 'opacity-50' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={searchHistItemDiscount}
+                  disabled={isCpfCustomer}
+                  onChange={(e) => setSearchHistItemDiscount(e.target.checked)}
+                />
                 Busca Hist Desconto Item
               </label>
               <button 
@@ -1307,6 +1322,7 @@ function NewSalesOrderContent() {
                   item={it}
                   isOrderEditable={true}
                   canDelete={true}
+                  disableDiscountFields={isCpfCustomer}
                   onPreviewUpdate={(updated) => updateItem(it.id, updated)}
                   onDelete={() => removeItem(it.id)}
                   showFeatures={showFeaturesFor === it.id}
@@ -1341,6 +1357,7 @@ function NewSalesOrderContent() {
                       item={it}
                       isOrderEditable={true}
                       canDelete={true}
+                      disableDiscountFields={isCpfCustomer}
                       onPreviewUpdate={(updated) => updateItem(it.id, updated)}
                       onDelete={() => removeItem(it.id)}
                       showFeatures={showFeaturesFor === it.id}
