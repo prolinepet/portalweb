@@ -394,6 +394,25 @@ function NewSalesOrderContent() {
   }, [customerIdParam, copyFromParam, loadLinkedOrderTypesForClient, loadPaymentTermsForClient]);
 
   useEffect(() => {
+    if (copyFromParam) return;
+    if (!order.customerId) return;
+    if (order.orderTypeId) return;
+    if (linkedOrderTypesLoading) return;
+    if (!Array.isArray(linkedOrderTypes) || linkedOrderTypes.length === 0) return;
+    const docDigits = String(order.customerDoc || "").replace(/\D/g, "");
+    if (docDigits.length !== 11) return;
+    const ot6 = linkedOrderTypes.find((ot) => Number(ot?.codtipoped) === 6);
+    if (!ot6?.id) return;
+    if (!headerCollapsedTouchedRef.current) {
+      setHeaderCollapsed(true);
+    }
+    setOrder((prev) => {
+      if (prev.orderTypeId) return prev;
+      return { ...prev, orderTypeId: Number(ot6.id) };
+    });
+  }, [copyFromParam, linkedOrderTypes, linkedOrderTypesLoading, order.customerDoc, order.customerId, order.orderTypeId]);
+
+  useEffect(() => {
     const copyId = Number(copyFromParam);
     if (!Number.isFinite(copyId) || copyId <= 0) return;
 
@@ -521,6 +540,7 @@ function NewSalesOrderContent() {
   
   const [showFeaturesFor, setShowFeaturesFor] = useState<number | null>(null);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  const headerCollapsedTouchedRef = useRef(false);
 
   // Item search
   const [addingItems, setAddingItems] = useState(false);
@@ -1178,7 +1198,10 @@ function NewSalesOrderContent() {
             className="absolute bottom-2 right-2 inline-flex items-center justify-center w-8 h-8 border rounded bg-white hover:bg-gray-50 text-gray-700"
             title={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
             aria-label={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
-            onClick={() => setHeaderCollapsed((v) => !v)}
+            onClick={() => {
+              headerCollapsedTouchedRef.current = true;
+              setHeaderCollapsed((v) => !v);
+            }}
           >
             {headerCollapsed ? (
               <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">

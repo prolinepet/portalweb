@@ -296,6 +296,7 @@ export default function SalesOrderMaintenancePage() {
   const [error, setError] = useState<string | null>(null);
   const [showFeaturesFor, setShowFeaturesFor] = useState<number | null>(null);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  const headerCollapsedTouchedRef = useRef(false);
   const [hdrDraft, setHdrDraft] = useState<{ paymentTerms?: string; deliveryDate?: string; customerName?: string; customerDoc?: string; triangularCustomerName?: string; triangularCustomerDoc?: string; orderTypeId?: number | null }>({});
   const [deliveryDateBr, setDeliveryDateBr] = useState('');
   const [hdrCustomerId, setHdrCustomerId] = useState<number | null>(null);
@@ -913,6 +914,14 @@ export default function SalesOrderMaintenancePage() {
     };
   }, [idKey]);
 
+  useEffect(() => {
+    if (!order) return;
+    if (headerCollapsedTouchedRef.current) return;
+    const docDigits = String((order as any)?.customerDoc || "").replace(/\D/g, "");
+    if (docDigits.length !== 11) return;
+    setHeaderCollapsed(true);
+  }, [order]);
+
   const fmtCurrency = (n: number | undefined) => (n ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const fmtNumber = (n: number | undefined) => (n ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtInt = (n: number | undefined) => Math.round(n ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
@@ -1207,7 +1216,10 @@ export default function SalesOrderMaintenancePage() {
               className="absolute bottom-2 right-2 inline-flex items-center justify-center w-8 h-8 border rounded bg-white hover:bg-gray-50 text-gray-700"
               title={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
               aria-label={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
-              onClick={() => setHeaderCollapsed((v) => !v)}
+              onClick={() => {
+                headerCollapsedTouchedRef.current = true;
+                setHeaderCollapsed((v) => !v);
+              }}
             >
               {headerCollapsed ? (
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
