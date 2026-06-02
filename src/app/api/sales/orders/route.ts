@@ -546,7 +546,7 @@ export async function POST(request: Request) {
       paymentTerms,
       carrier,
       deliveryDate,
-      notes,
+      notes: notesRaw,
       items,
       entityCnpj,
       entityDoc,
@@ -557,6 +557,8 @@ export async function POST(request: Request) {
 
     const customerDocNorm = typeof customerDoc === 'string' ? normalizeDoc(customerDoc) : undefined;
     const triangularCustomerDocNorm = typeof triangularCustomerDoc === 'string' ? normalizeDoc(triangularCustomerDoc) : undefined;
+    const notes =
+      notesRaw == null ? null : String(notesRaw).trim().slice(0, 255) || null;
 
     let clientId: number | undefined = undefined;
     if (typeof customerId === 'number' && Number.isFinite(customerId) && customerId > 0) {

@@ -314,6 +314,9 @@ export default function SalesOrderMaintenancePage() {
   const [simulating, setSimulating] = useState(false);
   const [integrating, setIntegrating] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notesDraft, setNotesDraft] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
   const [checkingEdit, setCheckingEdit] = useState(false);
   const [erpModalOpen, setErpModalOpen] = useState(false);
   const [erpModalTitle, setErpModalTitle] = useState('');
@@ -1445,6 +1448,27 @@ export default function SalesOrderMaintenancePage() {
                   </button>
                     )}
                   </div>
+
+                  <div className="flex sm:justify-end">
+                    <button
+                      type="button"
+                      className={`inline-flex items-center gap-2 px-3 py-2 border rounded bg-white hover:bg-gray-50 text-gray-700 text-sm ${
+                        isHeaderEditing ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                      disabled={isHeaderEditing}
+                      onClick={() => {
+                        setNotesDraft(String(order.notes || '').slice(0, 255));
+                        setNotesOpen(true);
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+                        <path d="M7 8h10" />
+                        <path d="M7 12h7" />
+                      </svg>
+                      Observação do Pedido
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-2 sm:hidden">
                   <span className={`inline-flex text-xs px-2 py-1 rounded ${statusChipStyle(statusLabelPt(order.status))}`}>
@@ -1989,6 +2013,71 @@ export default function SalesOrderMaintenancePage() {
               })()}
             </div>
           ))}
+        </div>
+      )}
+
+      {notesOpen && order && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg bg-white rounded border shadow-lg">
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <div className="font-medium">Observação do Pedido</div>
+              <button
+                type="button"
+                className="px-2 py-1 rounded border hover:bg-gray-50"
+                onClick={() => setNotesOpen(false)}
+                aria-label="Fechar"
+                title="Fechar"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                  <path d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.41 4.29 19.71 2.88 18.3 9.17 12 2.88 5.71 4.29 4.29 10.59 10.59 16.89 4.29l1.41 1.42Z" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 space-y-2">
+              <div className="text-xs text-gray-600">Até 255 caracteres</div>
+              <input
+                className="w-full border rounded px-3 py-2"
+                value={notesDraft}
+                maxLength={255}
+                onChange={(e) => setNotesDraft(e.target.value.slice(0, 255))}
+                placeholder="Digite a observação do pedido"
+              />
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-gray-500">{notesDraft.length}/255</div>
+                <div className="flex gap-2">
+                  <button type="button" className="px-3 py-2 border rounded hover:bg-gray-50" onClick={() => setNotesOpen(false)} disabled={savingNotes}>
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 ${savingNotes ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    disabled={savingNotes}
+                    onClick={async () => {
+                      const next = String(notesDraft || '').trim().slice(0, 255);
+                      setSavingNotes(true);
+                      try {
+                        const res = await fetch(`/api/sales/orders/${order.id}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ notes: next || null }),
+                        });
+                        const data = await res.json().catch(() => ({} as any));
+                        if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+                        setOrder((prev) => (prev ? { ...prev, notes: (data as any)?.notes ?? (next || null) } : prev));
+                        setNotesOpen(false);
+                      } catch (e: any) {
+                        alert(e?.message || String(e));
+                      } finally {
+                        setSavingNotes(false);
+                      }
+                    }}
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

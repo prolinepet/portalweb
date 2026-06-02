@@ -189,6 +189,10 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (typeof body.triangularCustomerDoc === 'string') {
       allowed.triangularCustomerDoc = String(body.triangularCustomerDoc);
     }
+    if (body.notes !== undefined) {
+      const raw = body.notes == null ? null : String(body.notes);
+      allowed.notes = raw == null ? null : String(raw).trim().slice(0, 255) || null;
+    }
     if (typeof body.totalInvoiced === 'number') {
       allowed.totalInvoiced = Number(body.totalInvoiced);
     }

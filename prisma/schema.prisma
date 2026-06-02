@@ -388,7 +388,7 @@ model SalesOrder {
   paymentTerms           String?
   carrier                String?
   deliveryDate           DateTime?
-  notes                  String?
+  notes                  String?                    @db.Char(255)
   entityId               Int?
   entity                 Entity?                   @relation(fields: [entityId], references: [id])
   createdById            Int?
