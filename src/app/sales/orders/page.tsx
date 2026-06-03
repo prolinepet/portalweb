@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import React, { useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 
 type OrderItem = { id: number; name: string; quantity: number; unitPrice: number; discountPct: number };
 type SalesOrder = {
@@ -9,6 +10,7 @@ type SalesOrder = {
   status: string;
   orderDate: string;
   customerName: string;
+  customerDoc?: string | null;
   clientId?: number | null;
   client?: { id: number; clientCode?: number | null; abbrevName?: string | null; name?: string | null } | null;
   orderType?: { codtipoped: number; descricao: string; kind?: 'VENDA' | 'BONIFICACAO' | 'AMOSTRA' | null } | null;
@@ -22,6 +24,7 @@ type SalesOrder = {
 type OrderTypeOption = { id: number; codtipoped: number; descricao: string; kind?: 'VENDA' | 'BONIFICACAO' | 'AMOSTRA' | null; situacao: number };
 
 export default function SalesOrdersPage() {
+  const { data: session } = useSession();
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -258,7 +261,18 @@ export default function SalesOrdersPage() {
     }, 0);
   };
 
+  const userDocDigits = useMemo(() => {
+    return String((session?.user as any)?.doc || "").replace(/\D/g, "");
+  }, [session?.user]);
+
+  const isSelfCustomer = (o: SalesOrder) => {
+    const customerDigits = String((o as any)?.customerDoc || "").replace(/\D/g, "");
+    if (!customerDigits || !userDocDigits) return false;
+    return customerDigits === userDocDigits;
+  };
+
   const canGenerateBonus = (o: SalesOrder) => {
+    if (isSelfCustomer(o)) return false;
     const kind = String(o?.orderType?.kind || '').trim().toUpperCase();
     const code = Number(o?.orderType?.codtipoped);
     return kind !== 'BONIFICACAO' && kind !== 'AMOSTRA' && code !== 6;
