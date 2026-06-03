@@ -1336,46 +1336,6 @@ export default function SalesOrderMaintenancePage() {
                       </svg>
                     </button>
 
-                    <button
-                      type="button"
-                      className={`inline-flex items-center gap-2 h-8 px-3 border rounded bg-white hover:bg-gray-50 text-gray-700 text-sm whitespace-nowrap ${
-                        isHeaderEditing ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
-                      disabled={isHeaderEditing}
-                      onClick={() => {
-                        setNotesDraft(String(order.notes || '').slice(0, 255));
-                        setNotesOpen(true);
-                      }}
-                    >
-                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-                        <path d="M7 8h10" />
-                        <path d="M7 12h7" />
-                      </svg>
-                      Observação
-                    </button>
-
-                    <button
-                      type="button"
-                      className="inline-flex items-center justify-center w-8 h-8 border rounded bg-white hover:bg-gray-50 text-gray-700"
-                      title={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
-                      aria-label={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
-                      onClick={() => {
-                        headerCollapsedTouchedRef.current = true;
-                        setHeaderCollapsed((v) => !v);
-                      }}
-                    >
-                      {headerCollapsed ? (
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                          <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41Z" />
-                        </svg>
-                      ) : (
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                          <path d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6 1.41 1.41Z" />
-                        </svg>
-                      )}
-                    </button>
-
                     {isHeaderEditing ? (
                       <>
                         <button className="inline-flex items-center justify-center w-8 h-8 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 text-green-600" title="Salvar" aria-label="Salvar" onClick={() => {
@@ -1482,6 +1442,47 @@ export default function SalesOrderMaintenancePage() {
                     )}
                   </button>
                     )}
+                  </div>
+                  <div className="flex items-center gap-2 sm:justify-end">
+                    <button
+                      type="button"
+                      className={`inline-flex items-center gap-2 h-8 px-3 border rounded bg-white hover:bg-gray-50 text-gray-700 text-sm whitespace-nowrap ${
+                        isHeaderEditing ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                      disabled={isHeaderEditing}
+                      onClick={() => {
+                        setNotesDraft(String(order.notes || '').slice(0, 255));
+                        setNotesOpen(true);
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+                        <path d="M7 8h10" />
+                        <path d="M7 12h7" />
+                      </svg>
+                      Observação
+                    </button>
+
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center w-8 h-8 border rounded bg-white hover:bg-gray-50 text-gray-700"
+                      title={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
+                      aria-label={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
+                      onClick={() => {
+                        headerCollapsedTouchedRef.current = true;
+                        setHeaderCollapsed((v) => !v);
+                      }}
+                    >
+                      {headerCollapsed ? (
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                          <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41Z" />
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                          <path d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6 1.41 1.41Z" />
+                        </svg>
+                      )}
+                    </button>
                   </div>
                 </div>
                 <div className="mt-2 sm:hidden">
