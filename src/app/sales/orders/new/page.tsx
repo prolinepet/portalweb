@@ -1070,10 +1070,10 @@ function NewSalesOrderContent() {
                   </button>
                 </div>
 
-                <div className="flex sm:justify-end">
+                <div className="flex items-center gap-2 sm:justify-end">
                   <button
                     type="button"
-                    className="inline-flex items-center gap-2 px-3 py-2 border rounded bg-white hover:bg-gray-50 text-gray-700 text-sm"
+                    className="inline-flex items-center gap-2 h-8 px-3 border rounded bg-white hover:bg-gray-50 text-gray-700 text-sm whitespace-nowrap"
                     onClick={() => {
                       setNotesDraft(String(order.notes || '').slice(0, 255));
                       setNotesOpen(true);
@@ -1084,7 +1084,28 @@ function NewSalesOrderContent() {
                       <path d="M7 8h10" />
                       <path d="M7 12h7" />
                     </svg>
-                    Observação do Pedido
+                    Observação
+                  </button>
+
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center w-8 h-8 border rounded bg-white hover:bg-gray-50 text-gray-700"
+                    title={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
+                    aria-label={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
+                    onClick={() => {
+                      headerCollapsedTouchedRef.current = true;
+                      setHeaderCollapsed((v) => !v);
+                    }}
+                  >
+                    {headerCollapsed ? (
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41Z" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6 1.41 1.41Z" />
+                      </svg>
+                    )}
                   </button>
                 </div>
               </div>
@@ -1224,26 +1245,6 @@ function NewSalesOrderContent() {
               )}
             </div>
           </div>
-          <button
-            type="button"
-            className="absolute bottom-2 right-2 inline-flex items-center justify-center w-8 h-8 border rounded bg-white hover:bg-gray-50 text-gray-700"
-            title={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
-            aria-label={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
-            onClick={() => {
-              headerCollapsedTouchedRef.current = true;
-              setHeaderCollapsed((v) => !v);
-            }}
-          >
-            {headerCollapsed ? (
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41Z" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                <path d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6 1.41 1.41Z" />
-              </svg>
-            )}
-          </button>
         </div>
 
         {/* Itens */}
