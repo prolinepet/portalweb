@@ -1,6 +1,7 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 type InventoryItem = {
   id: number;
@@ -175,6 +176,7 @@ const AsyncSelect = ({
 function NewSalesOrderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
   const customerIdParam = searchParams?.get('customerId');
   const copyFromParam = searchParams?.get('copyFrom');
   
@@ -208,6 +210,14 @@ function NewSalesOrderContent() {
     const docDigits = String(order.customerDoc || "").replace(/\D/g, "");
     return docDigits.length === 11;
   }, [order.customerDoc]);
+  const userDocDigits = useMemo(() => {
+    return String((session?.user as any)?.doc || "").replace(/\D/g, "");
+  }, [session?.user]);
+  const isSelfCustomer = useMemo(() => {
+    const customerDigits = String(order.customerDoc || "").replace(/\D/g, "");
+    if (!customerDigits || !userDocDigits) return false;
+    return customerDigits === userDocDigits;
+  }, [order.customerDoc, userDocDigits]);
 
   const selectedOrderType = useMemo(() => {
     const oid = order.orderTypeId != null ? Number(order.orderTypeId) : null;
@@ -420,9 +430,9 @@ function NewSalesOrderContent() {
   }, [copyFromParam, linkedOrderTypes, linkedOrderTypesLoading, order.customerDoc, order.customerId, order.orderTypeId]);
 
   useEffect(() => {
-    if (!isCpfCustomer) return;
+    if (!isCpfCustomer && !isSelfCustomer) return;
     setSearchHistItemDiscount(false);
-  }, [isCpfCustomer]);
+  }, [isCpfCustomer, isSelfCustomer]);
 
   useEffect(() => {
     const copyId = Number(copyFromParam);
@@ -1252,11 +1262,11 @@ function NewSalesOrderContent() {
           <div className="px-3 py-2 border-b flex items-center gap-2">
             <span className="text-sm text-gray-700">Itens</span>
             <div className="ml-auto flex items-center gap-3">
-              <label className={`text-xs flex items-center gap-1 select-none ${isCpfCustomer ? 'opacity-50' : ''}`}>
+              <label className={`text-xs flex items-center gap-1 select-none ${isCpfCustomer || isSelfCustomer ? 'opacity-50' : ''}`}>
                 <input
                   type="checkbox"
                   checked={searchHistItemDiscount}
-                  disabled={isCpfCustomer}
+                  disabled={isCpfCustomer || isSelfCustomer}
                   onChange={(e) => setSearchHistItemDiscount(e.target.checked)}
                 />
                 Busca Hist Desconto Item
@@ -1344,7 +1354,7 @@ function NewSalesOrderContent() {
                   item={it}
                   isOrderEditable={true}
                   canDelete={true}
-                  disableDiscountFields={isCpfCustomer}
+                  disableDiscountFields={isCpfCustomer || isSelfCustomer}
                   onPreviewUpdate={(updated) => updateItem(it.id, updated)}
                   onDelete={() => removeItem(it.id)}
                   showFeatures={showFeaturesFor === it.id}
@@ -1379,7 +1389,7 @@ function NewSalesOrderContent() {
                       item={it}
                       isOrderEditable={true}
                       canDelete={true}
-                      disableDiscountFields={isCpfCustomer}
+                      disableDiscountFields={isCpfCustomer || isSelfCustomer}
                       onPreviewUpdate={(updated) => updateItem(it.id, updated)}
                       onDelete={() => removeItem(it.id)}
                       showFeatures={showFeaturesFor === it.id}

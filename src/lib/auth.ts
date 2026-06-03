@@ -167,9 +167,10 @@ export const authOptions: NextAuthOptions = {
           // 1) Priorizar a última entidade selecionada pelo usuário (User.lastEntityId)
           const userRecord = await prisma.user.findUnique({
             where: { id: uid },
-            select: { lastEntityId: true }
+            select: { lastEntityId: true, doc: true }
           });
           let activeEntityId: number | null = userRecord?.lastEntityId ?? null;
+          (session.user as any).doc = userRecord?.doc ?? null;
 
           // Validar que o usuário possui vínculo com a entidade escolhida
           if (activeEntityId != null) {

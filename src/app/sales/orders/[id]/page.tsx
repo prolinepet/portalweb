@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { SalesOrderItemCard, SalesOrderItemRow, supportsSheetDims, supportsCoreDims } from "../components/SalesOrderItemRow";
 
 type InventoryItem = {
@@ -291,6 +292,7 @@ export default function SalesOrderMaintenancePage() {
   const idKey = String(idParam ?? '').trim();
   const numericId = Number.isFinite(Number(idKey)) ? Math.trunc(Number(idKey)) : null;
   const router = useRouter();
+  const { data: session } = useSession();
   const [order, setOrder] = useState<SalesOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -330,6 +332,19 @@ export default function SalesOrderMaintenancePage() {
     const docDigits = String((order as any)?.customerDoc || "").replace(/\D/g, "");
     return docDigits.length === 11;
   }, [order]);
+  const userDocDigits = useMemo(() => {
+    return String((session?.user as any)?.doc || "").replace(/\D/g, "");
+  }, [session?.user]);
+  const isSelfCustomer = useMemo(() => {
+    const customerDigits = String((order as any)?.customerDoc || "").replace(/\D/g, "");
+    if (!customerDigits || !userDocDigits) return false;
+    return customerDigits === userDocDigits;
+  }, [order, userDocDigits]);
+
+  useEffect(() => {
+    if (!isCpfCustomer && !isSelfCustomer) return;
+    setSearchHistItemDiscount(false);
+  }, [isCpfCustomer, isSelfCustomer]);
 
   const canEditOrder = isEditableStatus(order?.status);
   const effectiveOrderTypeId =
@@ -1802,13 +1817,13 @@ export default function SalesOrderMaintenancePage() {
             <div className="px-3 py-2 border-b flex items-center gap-2">
               <span className="text-sm text-gray-700">Itens</span>
               <label
-                className={`ml-auto flex items-center gap-2 text-xs text-gray-700 ${(!isHeaderEditing && !canEditOrder) || (isOrderTypeRequired && !hasSelectedOrderType) || isCpfCustomer ? 'opacity-50' : ''}`}
+                className={`ml-auto flex items-center gap-2 text-xs text-gray-700 ${(!isHeaderEditing && !canEditOrder) || (isOrderTypeRequired && !hasSelectedOrderType) || isCpfCustomer || isSelfCustomer ? 'opacity-50' : ''}`}
               >
                 <input
                   type="checkbox"
                   className="h-4 w-4"
                   checked={searchHistItemDiscount}
-                  disabled={(!isHeaderEditing && !canEditOrder) || (isOrderTypeRequired && !hasSelectedOrderType) || isCpfCustomer}
+                  disabled={(!isHeaderEditing && !canEditOrder) || (isOrderTypeRequired && !hasSelectedOrderType) || isCpfCustomer || isSelfCustomer}
                   onChange={(e) => setSearchHistItemDiscount(e.target.checked)}
                 />
                 Busca Hist Desconto Item
@@ -1892,7 +1907,7 @@ export default function SalesOrderMaintenancePage() {
                       item={it}
                       isOrderEditable={isEditableStatus(order?.status)}
                       canDelete={isDeletableStatus(order?.status)}
-                      disableDiscountFields={isCpfCustomer}
+                      disableDiscountFields={isCpfCustomer || isSelfCustomer}
                       onPreviewUpdate={(updated) => {
                         setOrderItems((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
                       }}
@@ -1960,7 +1975,7 @@ export default function SalesOrderMaintenancePage() {
                            item={it}
                            isOrderEditable={isHeaderEditing}
                            canDelete={isDeletableStatus(order?.status) && !isHeaderEditing}
-                           disableDiscountFields={isCpfCustomer}
+                           disableDiscountFields={isCpfCustomer || isSelfCustomer}
                            onPreviewUpdate={(updated) => {
                              setOrderItems(prev => prev.map(i => i.id === updated.id ? updated : i));
                            }}
