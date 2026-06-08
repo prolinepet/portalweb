@@ -1070,3 +1070,12 @@ model GestaoFintiConfiguracao {
 
   @@map("gestao_finti_configuracoes")
 }
+
+model ReimbursementType {
+  id          Int      @id @default(autoincrement())
+  description String   @db.VarChar(100)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("reimbursementtype")
+}

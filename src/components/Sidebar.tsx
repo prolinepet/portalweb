@@ -91,6 +91,7 @@ function programHref(code: string): string | null {
     case 'ITEM_MAINTENANCE': return '/base/items';
     case 'PRICE_TABLE_ADMIN': return '/base/price-tables';
     case 'ORDER_TYPE_ADMIN': return '/base/order-types';
+    case 'TIPO_REEMBOLSO_ADMIN': return '/base/reimbursement-types';
     case 'PAINEL_LOGISTICO': return '/logistics/panel';
     case 'PROCESSOS_LOGISTICOS': return '/logistics/processes';
     // SAC
@@ -255,6 +256,7 @@ export default function Sidebar({ perms, mobileOpen, setMobileOpen, pathname, us
                         case 'ITEM_MAINTENANCE': return Icon.inventory;
                         case 'PRICE_TABLE_ADMIN': return Icon.reports;
                         case 'ORDER_TYPE_ADMIN': return Icon.reports;
+                        case 'TIPO_REEMBOLSO_ADMIN': return Icon.reports;
                         case 'PAINEL_LOGISTICO': return Icon.logisticsProcesses;
                         case 'PROCESSOS_LOGISTICOS': return Icon.logisticsProcesses;
                         case 'SAC_STANDARD_OCCURRENCE': return Icon.settings;

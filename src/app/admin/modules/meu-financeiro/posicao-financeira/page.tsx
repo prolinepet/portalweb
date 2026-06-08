@@ -1,11 +1,22 @@
 "use client";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Send, Trash2 } from "lucide-react";
 
 type Status = "ABERTO" | "PAGO";
-type Row = { numero: string; vencimento: string; valor: number; status: Status };
+type Row = { numero: string; vencimento: string; valor: number; status: Status; integrado: boolean };
 type Kind = "RECEBER" | "PAGAR";
+
+const INITIAL_RECEBER: Row[] = [
+  { numero: "001/2024", vencimento: "2024-10-15", valor: 12000, status: "ABERTO", integrado: false },
+  { numero: "002/2024", vencimento: "2024-10-28", valor: 8500, status: "PAGO", integrado: false },
+  { numero: "003/2024", vencimento: "2024-11-05", valor: 14000, status: "ABERTO", integrado: false },
+];
+
+const INITIAL_PAGAR: Row[] = [
+  { numero: "105/2024", vencimento: "2024-10-20", valor: 6250.5, status: "ABERTO", integrado: false },
+  { numero: "106/2024", vencimento: "2024-10-25", valor: 12000, status: "PAGO", integrado: false },
+];
 
 function formatBRL(value: number): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
@@ -19,25 +30,36 @@ function formatDateBR(iso: string): string {
 
 export default function PosicaoFinanceiraPage() {
   const [kind, setKind] = useState<Kind>("RECEBER");
+  const [receberRows, setReceberRows] = useState<Row[]>(INITIAL_RECEBER);
+  const [pagarRows, setPagarRows] = useState<Row[]>(INITIAL_PAGAR);
 
   const data = useMemo(() => {
-    const receber: Row[] = [
-      { numero: "001/2024", vencimento: "2024-10-15", valor: 12000, status: "ABERTO" },
-      { numero: "002/2024", vencimento: "2024-10-28", valor: 8500, status: "PAGO" },
-      { numero: "003/2024", vencimento: "2024-11-05", valor: 14000, status: "ABERTO" },
-    ];
-    const pagar: Row[] = [
-      { numero: "105/2024", vencimento: "2024-10-20", valor: 6250.5, status: "ABERTO" },
-      { numero: "106/2024", vencimento: "2024-10-25", valor: 12000, status: "PAGO" },
-    ];
     const totals = {
-      RECEBER: receber.reduce((sum, r) => sum + (Number(r.valor) || 0), 0),
-      PAGAR: pagar.reduce((sum, r) => sum + (Number(r.valor) || 0), 0),
+      RECEBER: receberRows.reduce((sum, r) => sum + (Number(r.valor) || 0), 0),
+      PAGAR: pagarRows.reduce((sum, r) => sum + (Number(r.valor) || 0), 0),
     };
-    return { receber, pagar, totals };
-  }, []);
+    return { receber: receberRows, pagar: pagarRows, totals };
+  }, [pagarRows, receberRows]);
 
   const rows = kind === "RECEBER" ? data.receber : data.pagar;
+
+  const updateRows = (updater: (current: Row[]) => Row[]) => {
+    if (kind === "RECEBER") {
+      setReceberRows((current) => updater(current));
+      return;
+    }
+    setPagarRows((current) => updater(current));
+  };
+
+  const handleSendToErp = (numero: string) => {
+    updateRows((current) =>
+      current.map((row) => (row.numero === numero ? { ...row, integrado: true } : row))
+    );
+  };
+
+  const handleDelete = (numero: string) => {
+    updateRows((current) => current.filter((row) => row.numero !== numero));
+  };
 
   return (
     <div className="space-y-4">
@@ -100,6 +122,8 @@ export default function PosicaoFinanceiraPage() {
                 <th className="p-2">Data Vencimento</th>
                 <th className="p-2">Valor R$</th>
                 <th className="p-2">Situação</th>
+                <th className="p-2">Integrado</th>
+                <th className="p-2 text-center">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -119,11 +143,52 @@ export default function PosicaoFinanceiraPage() {
                       </span>
                     )}
                   </td>
+                  <td className="p-2">
+                    {r.integrado ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 border border-blue-200">
+                        Sim
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700 border border-gray-200">
+                        Não
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-2">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs ${
+                          r.integrado
+                            ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                        }`}
+                        disabled={r.integrado}
+                        onClick={() => handleSendToErp(r.numero)}
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        Enviar ao ERP
+                      </button>
+                      <button
+                        type="button"
+                        className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs ${
+                          r.integrado
+                            ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                        }`}
+                        disabled={r.integrado}
+                        onClick={() => handleDelete(r.numero)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Excluir
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="p-2 text-gray-500">
+                  <td colSpan={6} className="p-2 text-gray-500">
                     Nenhum título
                   </td>
                 </tr>
@@ -135,4 +200,3 @@ export default function PosicaoFinanceiraPage() {
     </div>
   );
 }
-
