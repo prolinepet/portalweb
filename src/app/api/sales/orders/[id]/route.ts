@@ -142,13 +142,23 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     const userId = session?.user ? Number((session.user as any).id) : null;
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const id = parsePositiveInt(params.id);
-    if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+    const rawKey = String(params.id ?? '').trim();
+    if (!rawKey) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+
+    const orderKey = await resolveOrderKey(rawKey);
+    if (!orderKey) {
+      if (!/^[A-Za-z0-9-]+$/.test(rawKey) || rawKey.length > 32) {
+        return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+      }
+      return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
+    }
+
+    const id = Number(orderKey.id);
     const orderExists = await prisma.salesOrder.findUnique({ where: { id }, select: { id: true, customerDoc: true, clientId: true, orderTypeId: true } });
     if (!orderExists) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
 
     if (await shouldRestrictToLinkedClients(userId)) {
-      const ok = await canAccessOrder(userId, orderExists);
+      const ok = await canAccessOrder(userId, orderKey);
       if (!ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
