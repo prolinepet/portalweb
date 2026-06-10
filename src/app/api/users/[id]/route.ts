@@ -6,10 +6,35 @@ function normalizeDoc(doc: string): string {
   return (doc || '').replace(/\D+/g, '');
 }
 
+function parseOptionalInt(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const digits = String(value).trim().replace(/\D+/g, '');
+  if (!digits) return null;
+  const parsed = Number(digits);
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
+}
+
+async function ensureUserRepCodeColumn(): Promise<void> {
+  const g = global as any;
+  if (g.__userRepCodeEnsuredIdRoute) return;
+  try {
+    const rows = (await prisma.$queryRawUnsafe(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user' AND COLUMN_NAME IN ('repCode')"
+    )) as any[];
+    const existing = new Set<string>((Array.isArray(rows) ? rows : []).map((row) => String(row?.COLUMN_NAME || row?.column_name || '').trim()));
+    if (!existing.has('repCode')) {
+      await prisma.$executeRawUnsafe('ALTER TABLE `user` ADD COLUMN `repCode` INT NULL');
+    }
+  } catch {}
+  g.__userRepCodeEnsuredIdRoute = true;
+}
+
 // PATCH: Atualiza dados básicos do usuário
 export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
+    await ensureUserRepCodeColumn();
     const id = Number(params.id);
     if (!id || Number.isNaN(id)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
     const body = await request.json().catch(() => ({} as any));
@@ -19,6 +44,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       const raw = body.abbrevName == null ? null : String(body.abbrevName);
       update.abbrevName = raw == null ? null : String(raw).trim().slice(0, 20) || null;
     }
+    if (body.repCode !== undefined) update.repCode = parseOptionalInt(body.repCode);
     if (body.email !== undefined) update.email = body.email == null ? null : String(body.email);
     if (body.erpIntegrationMode !== undefined) update.erpIntegrationMode = String(body.erpIntegrationMode);
     if (body.doc !== undefined) update.doc = normalizeDoc(String(body.doc || '')) || null;
@@ -33,7 +59,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         isSalesAdmin: body.isSalesAdmin !== undefined ? Boolean(body.isSalesAdmin) : undefined,
         twoFactorRequired: body.twoFactorRequired !== undefined ? Boolean(body.twoFactorRequired) : undefined,
       },
-      select: { id: true, name: true, abbrevName: true, email: true, doc: true, createdAt: true, updatedAt: true, salesRepAdmin: true, isSalesAdmin: true, twoFactorRequired: true, erpIntegrationMode: true }
+      select: { id: true, name: true, abbrevName: true, repCode: true, email: true, doc: true, createdAt: true, updatedAt: true, salesRepAdmin: true, isSalesAdmin: true, twoFactorRequired: true, erpIntegrationMode: true }
     });
     return NextResponse.json(updated);
   } catch (err: any) {
@@ -45,6 +71,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 export async function DELETE(_: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
+    await ensureUserRepCodeColumn();
     const id = Number(params.id);
     if (!id || Number.isNaN(id)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
     await prisma.$transaction(async (tx) => {

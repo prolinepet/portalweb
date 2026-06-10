@@ -12,6 +12,7 @@ model User {
   email              String?         @unique
   name               String
   abbrevName         String?         @db.Char(20)
+  repCode            Int?            @db.Int
   costCenter         String?         @db.VarChar(50)
   pixKey             String?         @db.VarChar(191)
   password           String
@@ -52,6 +53,7 @@ model User {
   gestaoFintiConfiguracoesCriadas    GestaoFintiConfiguracao[] @relation("GestaoFintiConfiguracaoCriadoPor")
   gestaoFintiConfiguracoesAtualizadas GestaoFintiConfiguracao[] @relation("GestaoFintiConfiguracaoAtualizadoPor")
 
+  @@index([repCode])
   @@map("user")
 }
 
