@@ -90,6 +90,7 @@ export async function GET(request: Request) {
         'EM PRODUÇÃO': 'Em produção',
         'PRODUZIDO/ESTOCADO': 'Produzido/Estocado',
         'FATURADO': 'Faturado',
+        'EXPEDIDO': 'Expedido',
         'CANCELADO': 'Cancelado'
     };
 

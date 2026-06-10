@@ -62,6 +62,7 @@ function statusRank(status: unknown): number {
   if (k === 'EM PRODUCAO') return 5;
   if (k === 'PRODUZIDO/ESTOCADO') return 6;
   if (k === 'FATURADO') return 7;
+  if (k === 'EXPEDIDO') return 8;
   return 0;
 }
 

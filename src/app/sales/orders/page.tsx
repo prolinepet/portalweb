@@ -188,6 +188,7 @@ export default function SalesOrdersPage() {
       case 'Em produção': return 'bg-indigo-100 text-indigo-800';
       case 'Produzido/Estocado': return 'bg-cyan-100 text-cyan-800';
       case 'Faturado': return 'bg-green-100 text-green-800';
+      case 'Expedido': return 'bg-emerald-100 text-emerald-800';
       case 'Cancelado': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
@@ -211,6 +212,8 @@ export default function SalesOrdersPage() {
       case 'EM PRODUCAO': return 'Em produção';
       case 'PRODUZIDO/ESTOCADO': return 'Produzido/Estocado';
       case 'FATURADO': return 'Faturado';
+      case 'EXPEDIDO':
+      case 'SHIPPED': return 'Expedido';
       case 'CANCELADO': return 'Cancelado';
       default: return s || '-';
     }
@@ -419,6 +422,7 @@ export default function SalesOrdersPage() {
               <option value="Em produção">Em produção</option>
               <option value="Produzido/Estocado">Produzido/Estocado</option>
               <option value="Faturado">Faturado</option>
+              <option value="Expedido">Expedido</option>
               <option value="Cancelado">Cancelado</option>
             </select>
           </div>

@@ -205,6 +205,8 @@ function statusChipStyle(s?: string): string {
       return 'bg-blue-100 text-blue-800 border border-blue-300';
     case 'Erro na integração':
       return 'bg-red-100 text-red-800 border border-red-300';
+    case 'Expedido':
+      return 'bg-emerald-100 text-emerald-800 border border-emerald-300';
     default:
       return 'bg-gray-100 text-gray-800 border border-gray-300';
   }
@@ -236,6 +238,9 @@ function statusLabelPt(s?: string): string {
       return 'Produzido/Estocado';
     case 'FATURADO':
       return 'Faturado';
+    case 'EXPEDIDO':
+    case 'SHIPPED':
+      return 'Expedido';
     case 'CANCELADO':
       return 'Cancelado';
     default:
