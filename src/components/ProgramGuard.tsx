@@ -32,6 +32,7 @@ function pathToProgramCodes(pathname: string): string[] {
   if (pathname.startsWith("/sac/complaints/search")) return ["SAC_COMPLAINT_SEARCH"];
   if (pathname.startsWith("/sac/complaints/new")) return ["SAC_COMPLAINT_CREATE"];
   if (pathname.startsWith("/sac/occurrences/standard")) return ["SAC_STANDARD_OCCURRENCE"];
+  if (pathname.startsWith("/sac/sgq-processes")) return ["PROCESSOS_SACSGQ"];
   if (pathname.startsWith("/reports")) return ["REPORTS"];
   return [];
 }

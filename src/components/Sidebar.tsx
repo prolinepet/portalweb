@@ -99,6 +99,7 @@ function programHref(code: string): string | null {
     case 'SAC_COMPLAINT_SEARCH': return '/sac/complaints/search';
     case 'SAC_COMPLAINT_CREATE': return '/sac/complaints/new';
     case 'SAC_STANDARD_OCCURRENCE': return '/sac/occurrences/standard';
+    case 'PROCESSOS_SACSGQ': return '/sac/sgq-processes';
     // Gestão FinTI
     case 'DESPESAS': return '/admin/modules/gestao-finti/despesas';
     case 'PAGAMENTOS': return '/admin/modules/gestao-finti/pagamentos';
@@ -260,6 +261,7 @@ export default function Sidebar({ perms, mobileOpen, setMobileOpen, pathname, us
                         case 'PAINEL_LOGISTICO': return Icon.logisticsProcesses;
                         case 'PROCESSOS_LOGISTICOS': return Icon.logisticsProcesses;
                         case 'SAC_STANDARD_OCCURRENCE': return Icon.settings;
+                        case 'PROCESSOS_SACSGQ': return Icon.logisticsProcesses;
                         // Gestão FinTI
                         case 'DESPESAS': return Icon.reports;
                         case 'PAGAMENTOS': return Icon.reports;

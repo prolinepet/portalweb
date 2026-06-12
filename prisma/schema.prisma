@@ -34,6 +34,7 @@ model User {
   userInventoryItemPrices UserInventoryItemPrice[]
   trustedDevices     TrustedDevice[]
   logisticsPhaseUsers LogisticPhaseNotifiedUser[]
+  sacSgqPhaseUsers    SacSgqPhaseUser[]
 
   // Gestão FinTI Relations
   gestaoFintiCategoriasCriadas       GestaoFintiCategoria[]   @relation("GestaoFintiCategoriaCriadoPor")
@@ -106,6 +107,53 @@ model LogisticPhaseNotifiedUser {
   @@index([phaseId])
   @@index([userId])
   @@map("logisticphaseuser")
+}
+
+model SacSgqProcess {
+  id          Int                  @id @default(autoincrement())
+  code        Int                  @unique
+  description String
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  phases      SacSgqProcessPhase[]
+
+  @@index([description])
+  @@map("sacsgqprocess")
+}
+
+model SacSgqProcessPhase {
+  id          Int             @id @default(autoincrement())
+  processId   Int
+  code        Int
+  description String
+  sequence    Int             @default(1)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  process     SacSgqProcess   @relation(fields: [processId], references: [id], onDelete: Cascade)
+  users       SacSgqPhaseUser[]
+
+  @@unique([processId, code])
+  @@index([processId])
+  @@index([processId, sequence])
+  @@map("sacsgqprocessphase")
+}
+
+model SacSgqPhaseUser {
+  id          Int               @id @default(autoincrement())
+  phaseId     Int
+  userId      Int
+  allowReturn Boolean           @default(false)
+  allowNext   Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  phase       SacSgqProcessPhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([phaseId, userId])
+  @@index([phaseId])
+  @@index([userId])
+  @@map("sacsgqphaseuser")
 }
 
 model LogisticPreCarga {
