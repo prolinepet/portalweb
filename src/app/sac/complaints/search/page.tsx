@@ -43,7 +43,7 @@ export default function ComplaintSearchPage() {
         <h1 className="text-xl font-semibold">Consulta Reclamação</h1>
         <button
           className="px-3 py-2 bg-blue-600 text-white rounded"
-          onClick={() => router.push("/sac/complaints/maintenance")}
+          onClick={() => router.push("/sac/complaints/new")}
         >Incluir Reclamação</button>
       </div>
       {loading && <div>Carregando...</div>}
