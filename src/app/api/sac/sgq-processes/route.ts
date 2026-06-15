@@ -79,10 +79,25 @@ async function ensureAllowed(): Promise<{ userId: number; entityId: number } | n
   return { userId, entityId };
 }
 
+async function ensureReadAllowed(): Promise<{ userId: number; entityId: number } | null> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user ? Number((session.user as any).id) : NaN;
+  const entityIdRaw = (session as any)?.activeEntityId ?? (session as any)?.entityId ?? (session?.user as any)?.lastEntityId ?? null;
+  const entityId = entityIdRaw == null ? NaN : Number(entityIdRaw);
+  if (!Number.isFinite(userId) || userId <= 0) return null;
+  if (!Number.isFinite(entityId) || entityId <= 0) return null;
+
+  const canManage = await isProgramAllowed(userId, entityId, 'PROCESSOS_SACSGQ').catch(() => false);
+  if (canManage) return { userId, entityId };
+  const canCreateComplaint = await isProgramAllowed(userId, entityId, 'SAC_COMPLAINT_CREATE').catch(() => false);
+  if (canCreateComplaint) return { userId, entityId };
+  return null;
+}
+
 export async function GET() {
   try {
     await ensureSacSgqTables();
-    const auth = await ensureAllowed();
+    const auth = await ensureReadAllowed();
     if (!auth) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
 
     const rows = await prisma.sacSgqProcess.findMany({
@@ -122,4 +137,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-

@@ -10,10 +10,7 @@ const TAB_ITEMS: Array<{ key: TabKey; label: string }> = [
   { key: "dados-adicionais", label: "Dados Adicionais" },
   { key: "observacoes", label: "Observações" },
 ];
-
-const PROCESS_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "", label: "Selecione" },
-];
+type SacSgqProcessRow = { id: number; code: number; description: string; isActive: boolean };
 
 const minChars = 1;
 
@@ -120,6 +117,7 @@ function formatToday() {
 
 export default function ComplaintCreatePage() {
   const [activeTab, setActiveTab] = useState<TabKey>("nf-itens");
+  const [processOptions, setProcessOptions] = useState<Array<{ value: string; label: string }>>([{ value: "", label: "Selecione" }]);
   const [form, setForm] = useState({
     occurrenceNumber: "",
     processSacSgq: "",
@@ -151,6 +149,27 @@ export default function ComplaintCreatePage() {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/sac/sgq-processes", { cache: "no-store" });
+        const data = await res.json().catch(() => null as any);
+        const rows: SacSgqProcessRow[] = Array.isArray(data) ? (data as any) : [];
+        const active = rows.filter((r) => Boolean((r as any)?.isActive));
+        const options = [
+          { value: "", label: "Selecione" },
+          ...active.map((r) => ({
+            value: String(r.id),
+            label: `${r.code} - ${r.description}`,
+          })),
+        ];
+        setProcessOptions(options);
+      } catch {
+        setProcessOptions([{ value: "", label: "Selecione" }]);
+      }
+    })();
+  }, []);
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
@@ -178,7 +197,7 @@ export default function ComplaintCreatePage() {
               value={form.processSacSgq}
               onChange={(e) => updateField("processSacSgq", e.target.value)}
             >
-              {PROCESS_OPTIONS.map((option) => (
+              {processOptions.map((option) => (
                 <option key={option.value || "empty"} value={option.value}>
                   {option.label}
                 </option>
