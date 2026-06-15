@@ -4,14 +4,17 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type UserRow = { id: number; name: string; abbrevName?: string | null };
+type OccurrenceTagRow = { code: number; description: string };
 
 type PhaseUser = {
   id: number;
   phaseId: number;
   userId: number;
+  tagCode?: number | null;
   allowReturn: boolean;
   allowNext: boolean;
   user?: UserRow | null;
+  tag?: OccurrenceTagRow | null;
 };
 
 type Phase = {
@@ -90,15 +93,20 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
   const [editingUserLinkId, setEditingUserLinkId] = useState<number | null>(null);
   const [userQuery, setUserQuery] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [selectedTagCode, setSelectedTagCode] = useState<number | null>(null);
   const [allowReturn, setAllowReturn] = useState(false);
   const [allowNext, setAllowNext] = useState(false);
 
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersLoaded, setUsersLoaded] = useState(false);
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [tagsLoading, setTagsLoading] = useState(false);
+  const [tagsLoaded, setTagsLoaded] = useState(false);
+  const [tags, setTags] = useState<OccurrenceTagRow[]>([]);
 
   const selectedPhase = useMemo(() => phases.find((p) => p.id === selectedPhaseId) ?? null, [phases, selectedPhaseId]);
   const selectedUser = useMemo(() => (selectedUserId ? users.find((u) => u.id === selectedUserId) ?? null : null), [users, selectedUserId]);
+  const selectedTag = useMemo(() => (selectedTagCode ? tags.find((tag) => tag.code === selectedTagCode) ?? null : null), [tags, selectedTagCode]);
 
   const userSuggestions = useMemo(() => {
     const q = userQuery.trim().toLowerCase();
@@ -309,17 +317,39 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
   };
 
   const openUserModal = (link?: PhaseUser) => {
+    void ensureTagsLoaded();
     setEditingUserLinkId(link?.id ?? null);
     setSelectedUserId(link?.userId ?? null);
+    setSelectedTagCode(link?.tagCode != null ? Number(link.tagCode) : null);
     setUserQuery(link?.user?.abbrevName ? String(link.user.abbrevName) : "");
     setAllowReturn(Boolean(link?.allowReturn));
     setAllowNext(Boolean(link?.allowNext));
     setUserModalOpen(true);
   };
 
+  const ensureTagsLoaded = async () => {
+    if (tagsLoaded || tagsLoading) return;
+    setTagsLoading(true);
+    try {
+      const res = await fetch("/api/sac/occurrence-tags", { cache: "no-store" });
+      const data = await res.json().catch(() => null as any);
+      const arr = Array.isArray(data) ? data : [];
+      setTags(
+        arr.map((row: any) => ({
+          code: Number(row.code),
+          description: safeString(row.description),
+        }))
+      );
+      setTagsLoaded(true);
+    } finally {
+      setTagsLoading(false);
+    }
+  };
+
   const savePhaseUser = async () => {
     if (!selectedPhase) return;
     if (!selectedUserId) return alert("Selecione um usuário");
+    if (!selectedTagCode) return alert("Selecione uma TAG");
     setSaving(true);
     try {
       let res: Response;
@@ -327,13 +357,13 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
         res = await fetch(`/api/sac/sgq-processes/phase-users/${editingUserLinkId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: selectedUserId, allowReturn, allowNext }),
+          body: JSON.stringify({ userId: selectedUserId, tagCode: selectedTagCode, allowReturn, allowNext }),
         });
       } else {
         res = await fetch(`/api/sac/sgq-processes/phases/${selectedPhase.id}/users`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: selectedUserId, allowReturn, allowNext }),
+          body: JSON.stringify({ userId: selectedUserId, tagCode: selectedTagCode, allowReturn, allowNext }),
         });
       }
       const data = await res.json().catch(() => null as any);
@@ -519,6 +549,7 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
             <table className="min-w-full text-sm">
               <thead className="bg-gray-100 text-gray-700">
                 <tr>
+                  <th className="text-left px-3 py-2 w-28">TAG</th>
                   <th className="text-left px-3 py-2 w-32">Cód Usuário</th>
                   <th className="text-left px-3 py-2">Usuário (Nome Abrev)</th>
                   <th className="text-left px-3 py-2 w-36">Permite Retornar?</th>
@@ -529,13 +560,17 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
               <tbody>
                 {(selectedPhase.users || []).length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-3 py-4 text-center text-gray-500">
+                    <td colSpan={6} className="px-3 py-4 text-center text-gray-500">
                       Sem usuários vinculados.
                     </td>
                   </tr>
                 )}
                 {(selectedPhase.users || []).map((u) => (
                   <tr key={u.id} className="border-t hover:bg-gray-50">
+                    <td className="px-3 py-2">
+                      <div className="text-sm">{u.tag?.description || "-"}</div>
+                      <div className="text-xs text-gray-600">{u.tag?.code != null ? `Cód ${u.tag.code}` : "-"}</div>
+                    </td>
                     <td className="px-3 py-2 font-mono text-xs">{u.user?.id ?? u.userId}</td>
                     <td className="px-3 py-2">
                       <div className="text-sm">{u.user?.abbrevName || "-"}</div>
@@ -619,6 +654,23 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
                 <div className="col-span-3">
                   <label className="text-xs text-gray-600">Cód Fase</label>
                   <input className="w-full mt-1 px-2 py-1.5 border rounded bg-gray-50" value={String(selectedPhase.code)} readOnly />
+                </div>
+                <div className="col-span-3">
+                  <label className="text-xs text-gray-600">TAG</label>
+                  <select
+                    className="w-full mt-1 px-2 py-1.5 border rounded"
+                    value={selectedTagCode ?? ""}
+                    onChange={(e) => setSelectedTagCode(e.target.value ? Number(e.target.value) : null)}
+                    onFocus={() => void ensureTagsLoaded()}
+                  >
+                    <option value="">{tagsLoading ? "Carregando..." : "Selecione"}</option>
+                    {tags.map((tag) => (
+                      <option key={tag.code} value={tag.code}>
+                        {tag.description}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedTag && <div className="mt-1 text-xs text-gray-600">Cód: {selectedTag.code}</div>}
                 </div>
                 <div className="col-span-6">
                   <label className="text-xs text-gray-600">Usuário (Nome Abrev)</label>

@@ -60,9 +60,6 @@ export default function ComplaintCreatePage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Cadastro de Reclamação</h1>
-          <p className="text-sm text-gray-600">
-            Estrutura inicial da tela criada com os campos base e abas preparadas para evolução.
-          </p>
         </div>
       </div>
 
@@ -76,7 +73,6 @@ export default function ComplaintCreatePage() {
               readOnly
               placeholder="Automático"
             />
-            <p className="mt-1 text-xs text-gray-500">Campo previsto como `int(10)` autoincremento.</p>
           </div>
 
           <div>
@@ -92,9 +88,6 @@ export default function ComplaintCreatePage() {
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-gray-500">
-              Selection list preparada; os dados do cadastro serão integrados depois.
-            </p>
           </div>
 
           <div>

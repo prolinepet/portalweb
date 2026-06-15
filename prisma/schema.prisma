@@ -143,16 +143,19 @@ model SacSgqPhaseUser {
   id          Int               @id @default(autoincrement())
   phaseId     Int
   userId      Int
+  tagCode     Int?
   allowReturn Boolean           @default(false)
   allowNext   Boolean           @default(false)
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   phase       SacSgqProcessPhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
   user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tag         OccurrenceTag?    @relation(fields: [tagCode], references: [code], onDelete: SetNull)
 
-  @@unique([phaseId, userId])
+  @@unique([phaseId, userId, tagCode])
   @@index([phaseId])
   @@index([userId])
+  @@index([tagCode])
   @@map("sacsgqphaseuser")
 }
 
@@ -1128,4 +1131,14 @@ model ReimbursementType {
   updatedAt   DateTime @updatedAt
 
   @@map("reimbursementtype")
+}
+
+model OccurrenceTag {
+  code        Int      @id @db.Int
+  description String   @db.Char(60)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  sacSgqPhaseUsers SacSgqPhaseUser[]
+
+  @@map("occurrencetag")
 }

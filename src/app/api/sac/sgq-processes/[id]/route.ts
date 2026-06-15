@@ -45,21 +45,60 @@ async function ensureSacSgqTables(): Promise<void> {
 
   try {
     await prisma.$executeRawUnsafe(
+      `CREATE TABLE IF NOT EXISTS \`occurrencetag\` (
+        \`code\` INT NOT NULL,
+        \`description\` CHAR(60) NOT NULL,
+        \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        \`updatedAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        PRIMARY KEY (\`code\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
+    );
+  } catch {}
+
+  try {
+    await prisma.$executeRawUnsafe(
       `CREATE TABLE IF NOT EXISTS \`sacsgqphaseuser\` (
         \`id\` INT NOT NULL AUTO_INCREMENT,
         \`phaseId\` INT NOT NULL,
         \`userId\` INT NOT NULL,
+        \`tagCode\` INT NULL,
         \`allowReturn\` TINYINT(1) NOT NULL DEFAULT 0,
         \`allowNext\` TINYINT(1) NOT NULL DEFAULT 0,
         \`createdAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         \`updatedAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (\`id\`),
-        UNIQUE KEY \`sacsgqphaseuser_phase_user_key\` (\`phaseId\`, \`userId\`),
+        UNIQUE KEY \`sacsgqphaseuser_phase_user_tag_key\` (\`phaseId\`, \`userId\`, \`tagCode\`),
         KEY \`sacsgqphaseuser_phase_idx\` (\`phaseId\`),
         KEY \`sacsgqphaseuser_user_idx\` (\`userId\`),
+        KEY \`sacsgqphaseuser_tag_idx\` (\`tagCode\`),
         CONSTRAINT \`sacsgqphaseuser_phase_fk\` FOREIGN KEY (\`phaseId\`) REFERENCES \`sacsgqprocessphase\`(\`id\`) ON DELETE CASCADE,
-        CONSTRAINT \`sacsgqphaseuser_user_fk\` FOREIGN KEY (\`userId\`) REFERENCES \`user\`(\`id\`) ON DELETE CASCADE
+        CONSTRAINT \`sacsgqphaseuser_user_fk\` FOREIGN KEY (\`userId\`) REFERENCES \`user\`(\`id\`) ON DELETE CASCADE,
+        CONSTRAINT \`sacsgqphaseuser_tag_fk\` FOREIGN KEY (\`tagCode\`) REFERENCES \`occurrencetag\`(\`code\`) ON DELETE SET NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
+    );
+  } catch {}
+
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE \`sacsgqphaseuser\` ADD COLUMN \`tagCode\` INT NULL;`);
+  } catch {}
+
+  try {
+    await prisma.$executeRawUnsafe(`CREATE INDEX \`sacsgqphaseuser_tag_idx\` ON \`sacsgqphaseuser\` (\`tagCode\`);`);
+  } catch {}
+
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE \`sacsgqphaseuser\` DROP INDEX \`sacsgqphaseuser_phase_user_key\`;`);
+  } catch {}
+
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE \`sacsgqphaseuser\` ADD UNIQUE KEY \`sacsgqphaseuser_phase_user_tag_key\` (\`phaseId\`, \`userId\`, \`tagCode\`);`);
+  } catch {}
+
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE \`sacsgqphaseuser\`
+         ADD CONSTRAINT \`sacsgqphaseuser_tag_fk\`
+         FOREIGN KEY (\`tagCode\`) REFERENCES \`occurrencetag\`(\`code\`) ON DELETE SET NULL;`
     );
   } catch {}
 
@@ -93,7 +132,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
           include: {
             users: {
               orderBy: [{ id: 'asc' }],
-              include: { user: { select: { id: true, name: true, abbrevName: true } } },
+              include: {
+                user: { select: { id: true, name: true, abbrevName: true } },
+                tag: { select: { code: true, description: true } },
+              },
             },
           },
         },
@@ -153,4 +195,3 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
 }
-
