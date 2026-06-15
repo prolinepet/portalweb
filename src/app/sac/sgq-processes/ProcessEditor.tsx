@@ -11,6 +11,7 @@ type PhaseUser = {
   phaseId: number;
   userId: number;
   tagCode?: number | null;
+  sequence?: number;
   allowReturn: boolean;
   allowNext: boolean;
   user?: UserRow | null;
@@ -295,6 +296,48 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
     }
   };
 
+  const reorderPhaseUsers = async (phaseId: number, tagCode: number | null, orderedLinkIds: number[]) => {
+    const res = await fetch(`/api/sac/sgq-processes/phases/${phaseId}/users/reorder`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tagCode, orderedPhaseUserIds: orderedLinkIds }),
+    });
+    const data = await res.json().catch(() => null as any);
+    if (!res.ok) throw new Error(data?.error || "Falha ao reordenar usuários da fase");
+  };
+
+  const movePhaseUser = async (linkId: number, tagCode: number | null, dir: -1 | 1) => {
+    if (!id || !selectedPhase) return;
+    const phaseId = selectedPhase.id;
+    const currentUsers = Array.isArray(selectedPhase.users) ? selectedPhase.users : [];
+    const tagKey = tagCode ?? null;
+    const tagUsers = currentUsers.filter((u) => (u.tagCode ?? null) === tagKey);
+    const idx = tagUsers.findIndex((u) => u.id === linkId);
+    const nextIdx = idx + dir;
+    if (idx < 0 || nextIdx < 0 || nextIdx >= tagUsers.length) return;
+
+    const nextTagUsers = [...tagUsers];
+    const tmp = nextTagUsers[idx];
+    nextTagUsers[idx] = nextTagUsers[nextIdx];
+    nextTagUsers[nextIdx] = tmp;
+
+    let tagCursor = 0;
+    const nextUsers = currentUsers.map((u) => ((u.tagCode ?? null) === tagKey ? nextTagUsers[tagCursor++] : u));
+
+    setPhases((prev) => prev.map((p) => (p.id === phaseId ? { ...p, users: nextUsers } : p)));
+
+    try {
+      setSaving(true);
+      await reorderPhaseUsers(phaseId, tagKey, nextTagUsers.map((u) => u.id));
+      await load(id);
+    } catch (e: any) {
+      alert(String(e?.message || e));
+      await load(id);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const ensureUsersLoaded = async () => {
     if (usersLoaded || usersLoading) return;
     setUsersLoading(true);
@@ -559,49 +602,71 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
                   <th className="text-left px-3 py-2">Usuário (Nome Abrev)</th>
                   <th className="text-left px-3 py-2 w-36">Permite Retornar?</th>
                   <th className="text-left px-3 py-2 w-40">Permite Próxima?</th>
+                  <th className="text-left px-3 py-2 w-28">Sequência</th>
                   <th className="text-center px-3 py-2 w-40">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {(selectedPhase.users || []).length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-3 py-4 text-center text-gray-500">
+                    <td colSpan={7} className="px-3 py-4 text-center text-gray-500">
                       Sem usuários vinculados.
                     </td>
                   </tr>
                 )}
-                {(selectedPhase.users || []).map((u) => (
-                  <tr key={u.id} className="border-t hover:bg-gray-50">
-                    <td className="px-3 py-2">
-                      <div className="text-sm">{u.tag?.description || "-"}</div>
-                      <div className="text-xs text-gray-600">{u.tag?.code != null ? `Cód ${u.tag.code}` : "-"}</div>
-                    </td>
-                    <td className="px-3 py-2 font-mono text-xs">{u.user?.id ?? u.userId}</td>
-                    <td className="px-3 py-2">
-                      <div className="text-sm">{u.user?.abbrevName || "-"}</div>
-                      <div className="text-xs text-gray-600">{u.user?.name || "-"}</div>
-                    </td>
-                    <td className="px-3 py-2">{u.allowReturn ? "Sim" : "Não"}</td>
-                    <td className="px-3 py-2">{u.allowNext ? "Sim" : "Não"}</td>
-                    <td className="px-3 py-2 text-center">
-                      <div className="inline-flex gap-2">
-                        <IconButton title="Modificar" disabled={saving} onClick={() => openUserModal(u)}>
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
-                            <path d="M12 20h9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        </IconButton>
-                        <IconButton title="Eliminar" disabled={saving} onClick={() => removePhaseUser(u.id)}>
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4 text-red-600">
-                            <path d="M3 6h18" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M8 6V4h8v2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        </IconButton>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {(selectedPhase.users || []).map((u) => {
+                  const tagKey = u.tagCode ?? null;
+                  const sameTag = (selectedPhase.users || []).filter((x) => (x.tagCode ?? null) === tagKey);
+                  const idx = sameTag.findIndex((x) => x.id === u.id);
+                  const canUp = idx > 0;
+                  const canDown = idx >= 0 && idx < sameTag.length - 1;
+                  return (
+                    <tr key={u.id} className="border-t hover:bg-gray-50">
+                      <td className="px-3 py-2">
+                        <div className="text-sm">{u.tag?.description || "-"}</div>
+                        <div className="text-xs text-gray-600">{u.tag?.code != null ? `Cód ${u.tag.code}` : "-"}</div>
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs">{u.user?.id ?? u.userId}</td>
+                      <td className="px-3 py-2">
+                        <div className="text-sm">{u.user?.abbrevName || "-"}</div>
+                        <div className="text-xs text-gray-600">{u.user?.name || "-"}</div>
+                      </td>
+                      <td className="px-3 py-2">{u.allowReturn ? "Sim" : "Não"}</td>
+                      <td className="px-3 py-2">{u.allowNext ? "Sim" : "Não"}</td>
+                      <td className="px-3 py-2">
+                        <div className="inline-flex gap-2">
+                          <IconButton title="Subir" disabled={saving || !canUp} onClick={() => movePhaseUser(u.id, tagKey, -1)}>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4 text-blue-600">
+                              <path d="M12 5l7 7H5Z" strokeWidth="2" strokeLinejoin="round" />
+                            </svg>
+                          </IconButton>
+                          <IconButton title="Descer" disabled={saving || !canDown} onClick={() => movePhaseUser(u.id, tagKey, 1)}>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4 text-blue-600">
+                              <path d="M12 19l7-7H5Z" strokeWidth="2" strokeLinejoin="round" />
+                            </svg>
+                          </IconButton>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <div className="inline-flex gap-2">
+                          <IconButton title="Modificar" disabled={saving} onClick={() => openUserModal(u)}>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
+                              <path d="M12 20h9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </IconButton>
+                          <IconButton title="Eliminar" disabled={saving} onClick={() => removePhaseUser(u.id)}>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4 text-red-600">
+                              <path d="M3 6h18" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M8 6V4h8v2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </IconButton>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

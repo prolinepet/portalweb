@@ -49,16 +49,21 @@ async function ensureSacSgqTables(): Promise<void> {
         \`id\` INT NOT NULL AUTO_INCREMENT,
         \`phaseId\` INT NOT NULL,
         \`userId\` INT NOT NULL,
+        \`tagCode\` INT NULL,
+        \`sequence\` INT NOT NULL DEFAULT 1,
         \`allowReturn\` TINYINT(1) NOT NULL DEFAULT 0,
         \`allowNext\` TINYINT(1) NOT NULL DEFAULT 0,
         \`createdAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         \`updatedAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (\`id\`),
-        UNIQUE KEY \`sacsgqphaseuser_phase_user_key\` (\`phaseId\`, \`userId\`),
+        UNIQUE KEY \`sacsgqphaseuser_phase_user_tag_key\` (\`phaseId\`, \`userId\`, \`tagCode\`),
         KEY \`sacsgqphaseuser_phase_idx\` (\`phaseId\`),
         KEY \`sacsgqphaseuser_user_idx\` (\`userId\`),
+        KEY \`sacsgqphaseuser_tag_idx\` (\`tagCode\`),
+        KEY \`sacsgqphaseuser_phase_tag_seq_idx\` (\`phaseId\`, \`tagCode\`, \`sequence\`),
         CONSTRAINT \`sacsgqphaseuser_phase_fk\` FOREIGN KEY (\`phaseId\`) REFERENCES \`sacsgqprocessphase\`(\`id\`) ON DELETE CASCADE,
-        CONSTRAINT \`sacsgqphaseuser_user_fk\` FOREIGN KEY (\`userId\`) REFERENCES \`user\`(\`id\`) ON DELETE CASCADE
+        CONSTRAINT \`sacsgqphaseuser_user_fk\` FOREIGN KEY (\`userId\`) REFERENCES \`user\`(\`id\`) ON DELETE CASCADE,
+        CONSTRAINT \`sacsgqphaseuser_tag_fk\` FOREIGN KEY (\`tagCode\`) REFERENCES \`occurrencetag\`(\`code\`) ON DELETE SET NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
     );
   } catch {}

@@ -65,6 +65,7 @@ async function ensureSacSgqTables(): Promise<void> {
         \`phaseId\` INT NOT NULL,
         \`userId\` INT NOT NULL,
         \`tagCode\` INT NULL,
+        \`sequence\` INT NOT NULL DEFAULT 1,
         \`allowReturn\` TINYINT(1) NOT NULL DEFAULT 0,
         \`allowNext\` TINYINT(1) NOT NULL DEFAULT 0,
         \`createdAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -74,6 +75,7 @@ async function ensureSacSgqTables(): Promise<void> {
         KEY \`sacsgqphaseuser_phase_idx\` (\`phaseId\`),
         KEY \`sacsgqphaseuser_user_idx\` (\`userId\`),
         KEY \`sacsgqphaseuser_tag_idx\` (\`tagCode\`),
+        KEY \`sacsgqphaseuser_phase_tag_seq_idx\` (\`phaseId\`, \`tagCode\`, \`sequence\`),
         CONSTRAINT \`sacsgqphaseuser_phase_fk\` FOREIGN KEY (\`phaseId\`) REFERENCES \`sacsgqprocessphase\`(\`id\`) ON DELETE CASCADE,
         CONSTRAINT \`sacsgqphaseuser_user_fk\` FOREIGN KEY (\`userId\`) REFERENCES \`user\`(\`id\`) ON DELETE CASCADE,
         CONSTRAINT \`sacsgqphaseuser_tag_fk\` FOREIGN KEY (\`tagCode\`) REFERENCES \`occurrencetag\`(\`code\`) ON DELETE SET NULL
@@ -84,9 +86,17 @@ async function ensureSacSgqTables(): Promise<void> {
   try {
     await prisma.$executeRawUnsafe(`ALTER TABLE \`sacsgqphaseuser\` ADD COLUMN \`tagCode\` INT NULL;`);
   } catch {}
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE \`sacsgqphaseuser\` ADD COLUMN \`sequence\` INT NOT NULL DEFAULT 1;`);
+  } catch {}
 
   try {
     await prisma.$executeRawUnsafe(`CREATE INDEX \`sacsgqphaseuser_tag_idx\` ON \`sacsgqphaseuser\` (\`tagCode\`);`);
+  } catch {}
+  try {
+    await prisma.$executeRawUnsafe(
+      `CREATE INDEX \`sacsgqphaseuser_phase_tag_seq_idx\` ON \`sacsgqphaseuser\` (\`phaseId\`, \`tagCode\`, \`sequence\`);`
+    );
   } catch {}
 
   try {
@@ -134,7 +144,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
           orderBy: [{ sequence: 'asc' }, { id: 'asc' }],
           include: {
             users: {
-              orderBy: [{ id: 'asc' }],
+              orderBy: [{ tagCode: 'asc' }, { sequence: 'asc' }, { id: 'asc' }],
               include: {
                 user: { select: { id: true, name: true, abbrevName: true } },
                 tag: { select: { code: true, description: true } },

@@ -117,6 +117,7 @@ model SacSgqProcess {
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
   phases      SacSgqProcessPhase[]
+  complaints  Complaint[]
 
   @@index([description])
   @@map("sacsgqprocess")
@@ -144,6 +145,7 @@ model SacSgqPhaseUser {
   phaseId     Int
   userId      Int
   tagCode     Int?
+  sequence    Int               @default(1)
   allowReturn Boolean           @default(false)
   allowNext   Boolean           @default(false)
   createdAt   DateTime          @default(now())
@@ -154,6 +156,7 @@ model SacSgqPhaseUser {
 
   @@unique([phaseId, userId, tagCode])
   @@index([phaseId])
+  @@index([phaseId, tagCode, sequence])
   @@index([userId])
   @@index([tagCode])
   @@map("sacsgqphaseuser")
@@ -778,6 +781,12 @@ model Complaint {
   code                String?         @unique
   entityId            Int
   createdById         Int?
+  occurrenceDate      DateTime?
+  sacSgqProcessId     Int?
+  sacSgqPhaseId       Int?
+  responsibleUserId   Int?
+  previousUserId      Int?
+  nextUserId          Int?
   division            String?
   type                String?
   phase               String?
@@ -807,9 +816,16 @@ model Complaint {
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
   createdBy           User?           @relation(fields: [createdById], references: [id])
+  sacSgqProcess       SacSgqProcess?  @relation(fields: [sacSgqProcessId], references: [id], onDelete: SetNull)
+  sacSgqPhase         SacSgqProcessPhase? @relation(fields: [sacSgqPhaseId], references: [id], onDelete: SetNull)
+  responsibleUser     User?           @relation("ComplaintResponsibleUser", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  previousUser        User?           @relation("ComplaintPreviousUser", fields: [previousUserId], references: [id], onDelete: SetNull)
+  nextUser            User?           @relation("ComplaintNextUser", fields: [nextUserId], references: [id], onDelete: SetNull)
   entity              Entity          @relation(fields: [entityId], references: [id])
   items               ComplaintItem[]
 
+  @@index([sacSgqProcessId, sacSgqPhaseId])
+  @@index([responsibleUserId])
   @@map("complaint")
 }
 

@@ -4,6 +4,20 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../../../../lib/auth';
 import { isProgramAllowed } from '../../../../../../../lib/isProgramAllowed';
 
+async function ensurePhaseUserSequence(): Promise<void> {
+  const g = global as any;
+  if (g.__sacSgqPhaseUserSequenceEnsured) return;
+  try {
+    await prisma.$executeRawUnsafe('ALTER TABLE `sacsgqphaseuser` ADD COLUMN `sequence` INT NOT NULL DEFAULT 1;');
+  } catch {}
+  try {
+    await prisma.$executeRawUnsafe(
+      'CREATE INDEX `sacsgqphaseuser_phase_tag_seq_idx` ON `sacsgqphaseuser` (`phaseId`, `tagCode`, `sequence`);'
+    );
+  } catch {}
+  g.__sacSgqPhaseUserSequenceEnsured = true;
+}
+
 async function ensureAllowed(): Promise<boolean> {
   const session = await getServerSession(authOptions);
   const userId = session?.user ? Number((session.user as any).id) : NaN;
@@ -16,6 +30,7 @@ async function ensureAllowed(): Promise<boolean> {
 
 export async function POST(req: Request, { params }: { params: { phaseId: string } }) {
   try {
+    await ensurePhaseUserSequence();
     const allowed = await ensureAllowed();
     if (!allowed) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
 
@@ -31,18 +46,27 @@ export async function POST(req: Request, { params }: { params: { phaseId: string
     if (!Number.isFinite(userId) || userId <= 0) return NextResponse.json({ error: 'Usuário inválido' }, { status: 400 });
     if (!Number.isFinite(tagCode) || tagCode <= 0) return NextResponse.json({ error: 'TAG inválida' }, { status: 400 });
 
-    const created = await prisma.sacSgqPhaseUser.create({
-      data: {
-        phaseId: Math.trunc(phaseId),
-        userId: Math.trunc(userId),
-        tagCode: Math.trunc(tagCode),
-        allowReturn,
-        allowNext,
-      },
-      include: {
-        user: { select: { id: true, name: true, abbrevName: true } },
-        tag: { select: { code: true, description: true } },
-      },
+    const created = await prisma.$transaction(async (tx) => {
+      const last = await tx.sacSgqPhaseUser.findFirst({
+        where: { phaseId: Math.trunc(phaseId), tagCode: Math.trunc(tagCode) },
+        orderBy: [{ sequence: 'desc' }, { id: 'desc' }],
+        select: { sequence: true },
+      });
+      const nextSequence = Number(last?.sequence ?? 0) + 1;
+      return await tx.sacSgqPhaseUser.create({
+        data: {
+          phaseId: Math.trunc(phaseId),
+          userId: Math.trunc(userId),
+          tagCode: Math.trunc(tagCode),
+          sequence: nextSequence,
+          allowReturn,
+          allowNext,
+        },
+        include: {
+          user: { select: { id: true, name: true, abbrevName: true } },
+          tag: { select: { code: true, description: true } },
+        },
+      });
     });
     return NextResponse.json(created);
   } catch (err: any) {
