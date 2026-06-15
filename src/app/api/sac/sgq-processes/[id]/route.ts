@@ -46,13 +46,16 @@ async function ensureSacSgqTables(): Promise<void> {
   try {
     await prisma.$executeRawUnsafe(
       `CREATE TABLE IF NOT EXISTS \`occurrencetag\` (
-        \`code\` INT NOT NULL,
+        \`code\` INT NOT NULL AUTO_INCREMENT,
         \`description\` CHAR(60) NOT NULL,
         \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
         \`updatedAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
         PRIMARY KEY (\`code\`)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
     );
+  } catch {}
+  try {
+    await prisma.$executeRawUnsafe("ALTER TABLE `occurrencetag` MODIFY COLUMN `code` INT NOT NULL AUTO_INCREMENT");
   } catch {}
 
   try {

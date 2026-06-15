@@ -548,6 +548,8 @@ model Client {
   doc        String? @unique
   abbrevName String? @db.Char(20)
   name       String
+  email      String? @db.VarChar(191)
+  phone      String? @db.VarChar(30)
   cep        String?
   logradouro String?
   numero     String?
@@ -1134,7 +1136,7 @@ model ReimbursementType {
 }
 
 model OccurrenceTag {
-  code        Int      @id @db.Int
+  code        Int      @id @default(autoincrement()) @db.Int
   description String   @db.Char(60)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

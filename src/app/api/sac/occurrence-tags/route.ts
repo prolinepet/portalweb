@@ -29,19 +29,14 @@ async function ensureWriteAllowed(): Promise<boolean> {
 async function ensureOccurrenceTagTable() {
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS \`occurrencetag\` (
-      \`code\` INT NOT NULL,
+      \`code\` INT NOT NULL AUTO_INCREMENT,
       \`description\` CHAR(60) NOT NULL,
       \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       \`updatedAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
       PRIMARY KEY (\`code\`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
-}
-
-function validateCode(code: number) {
-  if (!Number.isFinite(code) || code <= 0 || !Number.isInteger(code)) return "Cód Tag inválido";
-  if (String(Math.trunc(code)).length > 6) return "Cód Tag excede 6 dígitos";
-  return null;
+  await prisma.$executeRawUnsafe("ALTER TABLE `occurrencetag` MODIFY COLUMN `code` INT NOT NULL AUTO_INCREMENT").catch(() => {});
 }
 
 function validateDescription(description: string) {
@@ -81,17 +76,13 @@ export async function POST(request: Request) {
     if (!(await ensureWriteAllowed())) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     await ensureOccurrenceTagTable();
     const body = await request.json().catch(() => ({}));
-    const code = Number(body?.code);
     const description = String(body?.description || "").trim();
-
-    const codeError = validateCode(code);
-    if (codeError) return NextResponse.json({ error: codeError }, { status: 400 });
 
     const descriptionError = validateDescription(description);
     if (descriptionError) return NextResponse.json({ error: descriptionError }, { status: 400 });
 
     const created = await prisma.occurrenceTag.create({
-      data: { code: Math.trunc(code), description },
+      data: { description },
       select: { code: true, description: true },
     });
 

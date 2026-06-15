@@ -78,17 +78,7 @@ export default function OccurrenceTagMaintenancePage() {
     if (saving) return;
     setSaving(true);
     try {
-      const codeValue = Number(form.code);
       const description = form.description.trim();
-      const payload = { code: codeValue, description };
-
-      if (!Number.isFinite(codeValue) || codeValue <= 0 || !Number.isInteger(codeValue)) {
-        throw new Error("Cód Tag inválido");
-      }
-
-      if (String(Math.trunc(codeValue)).length > 6) {
-        throw new Error("Cód Tag excede 6 dígitos");
-      }
 
       if (!description) {
         throw new Error("Descrição é obrigatória");
@@ -102,7 +92,7 @@ export default function OccurrenceTagMaintenancePage() {
         const res = await fetch("/api/sac/occurrence-tags", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ description }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
@@ -166,11 +156,10 @@ export default function OccurrenceTagMaintenancePage() {
             <label className="text-xs text-gray-600">Cód Tag</label>
             <input
               type="number"
-              value={form.code}
-              onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-              disabled={!canEdit || mode !== "new"}
-              className={`w-full border rounded px-2 py-1 text-sm ${canEdit && mode === "new" ? "" : "bg-gray-50"}`}
-              placeholder="Até 6 dígitos"
+              value={mode === "new" ? "" : form.code}
+              disabled={true}
+              className="w-full border rounded px-2 py-1 text-sm bg-gray-50"
+              placeholder="Automático"
             />
           </div>
           <div className="md:col-span-3">

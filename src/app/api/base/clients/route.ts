@@ -7,6 +7,19 @@ function normalizeDoc(doc: string): string {
   return (doc || '').replace(/\D+/g, '');
 }
 
+async function ensureClientContactColumns(): Promise<void> {
+  const existing = await prisma.$queryRawUnsafe<any[]>(
+    "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'client' AND COLUMN_NAME IN ('email','phone')"
+  );
+  const set = new Set((existing || []).map((r) => String(r.COLUMN_NAME || r.column_name || '').toLowerCase()));
+  if (!set.has('email')) {
+    await prisma.$executeRawUnsafe("ALTER TABLE `client` ADD COLUMN `email` VARCHAR(191) NULL");
+  }
+  if (!set.has('phone')) {
+    await prisma.$executeRawUnsafe("ALTER TABLE `client` ADD COLUMN `phone` VARCHAR(30) NULL");
+  }
+}
+
 function parseClientCode(v: any): number | null {
   if (v === null || v === undefined) return null;
   if (typeof v === 'number') return Number.isFinite(v) ? Math.trunc(v) : null;
@@ -174,6 +187,8 @@ export async function GET(request: Request) {
     // Se não houver usuário logado, retorna lista vazia (ou erro 401 se preferir)
     if (!userId) return NextResponse.json([]);
 
+    await ensureClientContactColumns().catch(() => {});
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { isSalesAdmin: true }
@@ -211,6 +226,8 @@ export async function GET(request: Request) {
         doc: true,
         abbrevName: true,
         name: true,
+        email: true,
+        phone: true,
         cep: true,
         logradouro: true,
         numero: true,
@@ -232,6 +249,8 @@ export async function GET(request: Request) {
       doc: c.doc,
       abbrevName: c.abbrevName,
       name: c.name,
+      email: (c as any).email ?? null,
+      phone: (c as any).phone ?? null,
       cep: c.cep,
       logradouro: c.logradouro,
       numero: c.numero,

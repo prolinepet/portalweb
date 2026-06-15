@@ -106,7 +106,6 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
 
   const selectedPhase = useMemo(() => phases.find((p) => p.id === selectedPhaseId) ?? null, [phases, selectedPhaseId]);
   const selectedUser = useMemo(() => (selectedUserId ? users.find((u) => u.id === selectedUserId) ?? null : null), [users, selectedUserId]);
-  const selectedTag = useMemo(() => (selectedTagCode ? tags.find((tag) => tag.code === selectedTagCode) ?? null : null), [tags, selectedTagCode]);
 
   const userSuggestions = useMemo(() => {
     const q = userQuery.trim().toLowerCase();
@@ -334,13 +333,19 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
       const res = await fetch("/api/sac/occurrence-tags", { cache: "no-store" });
       const data = await res.json().catch(() => null as any);
       const arr = Array.isArray(data) ? data : [];
-      setTags(
+      const nextTags: OccurrenceTagRow[] = 
         arr.map((row: any) => ({
           code: Number(row.code),
           description: safeString(row.description),
         }))
-      );
+      ;
+      setTags(nextTags);
       setTagsLoaded(true);
+      setSelectedTagCode((current) => {
+        if (current != null) return current;
+        if (nextTags.length === 1 && Number.isFinite(nextTags[0]?.code)) return nextTags[0].code;
+        return current;
+      });
     } finally {
       setTagsLoading(false);
     }
@@ -670,7 +675,6 @@ export default function ProcessEditor({ processId }: { processId?: number }) {
                       </option>
                     ))}
                   </select>
-                  {selectedTag && <div className="mt-1 text-xs text-gray-600">Cód: {selectedTag.code}</div>}
                 </div>
                 <div className="col-span-6">
                   <label className="text-xs text-gray-600">Usuário (Nome Abrev)</label>

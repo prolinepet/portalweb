@@ -29,13 +29,14 @@ async function ensureWriteAllowed(): Promise<boolean> {
 async function ensureOccurrenceTagTable() {
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS \`occurrencetag\` (
-      \`code\` INT NOT NULL,
+      \`code\` INT NOT NULL AUTO_INCREMENT,
       \`description\` CHAR(60) NOT NULL,
       \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       \`updatedAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
       PRIMARY KEY (\`code\`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+  await prisma.$executeRawUnsafe("ALTER TABLE `occurrencetag` MODIFY COLUMN `code` INT NOT NULL AUTO_INCREMENT").catch(() => {});
 }
 
 function parseCode(raw: string) {
