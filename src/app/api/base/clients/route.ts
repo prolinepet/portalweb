@@ -286,6 +286,8 @@ export async function POST(request: Request) {
     const abbrevNameRaw = String(body?.abbrevName || '').trim();
     const abbrevName = abbrevNameRaw ? abbrevNameRaw.slice(0, 20) : null;
     const name = String(body?.name || '').trim();
+    const email = String(body?.email || '').trim() || null;
+    const phone = String(body?.phone || '').trim() || null;
     const cep = String(body?.cep || '').trim() || null;
     const logradouro = String(body?.logradouro || '').trim() || null;
     const numero = String(body?.numero || '').trim() || null;
@@ -334,6 +336,8 @@ export async function POST(request: Request) {
         clientCode,
         abbrevName,
         name,
+        email,
+        phone,
         cep,
         logradouro,
         numero,
@@ -353,11 +357,11 @@ export async function POST(request: Request) {
             where: { doc },
             update: baseData,
             create: { ...baseData, doc },
-            select: { id: true, clientCode: true, doc: true, abbrevName: true, name: true, cep: true, logradouro: true, numero: true, bairro: true, cidade: true, estado: true, paymentTermId: true },
+            select: { id: true, clientCode: true, doc: true, abbrevName: true, name: true, email: true, phone: true, cep: true, logradouro: true, numero: true, bairro: true, cidade: true, estado: true, paymentTermId: true },
           })
         : await tx.client.create({
             data: { ...baseData, doc: null },
-            select: { id: true, clientCode: true, doc: true, abbrevName: true, name: true, cep: true, logradouro: true, numero: true, bairro: true, cidade: true, estado: true, paymentTermId: true },
+            select: { id: true, clientCode: true, doc: true, abbrevName: true, name: true, email: true, phone: true, cep: true, logradouro: true, numero: true, bairro: true, cidade: true, estado: true, paymentTermId: true },
           });
 
       if (syncPaymentTermIds !== null) {

@@ -260,6 +260,8 @@ export async function GET(_: Request, props: { params: Promise<{ id: string }> }
         doc: true,
         abbrevName: true,
         name: true,
+        email: true,
+        phone: true,
         cep: true,
         logradouro: true,
         numero: true,
@@ -311,6 +313,8 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       fields.abbrevName = raw ? raw.slice(0, 20) : null;
     }
     if (body.name !== undefined) fields.name = String(body.name || '').trim();
+    if (body.email !== undefined) fields.email = String(body.email || '').trim() || null;
+    if (body.phone !== undefined) fields.phone = String(body.phone || '').trim() || null;
     if (body.cep !== undefined) fields.cep = String(body.cep || '').trim() || null;
     if (body.logradouro !== undefined) fields.logradouro = String(body.logradouro || '').trim() || null;
     if (body.numero !== undefined) fields.numero = String(body.numero || '').trim() || null;
@@ -372,6 +376,8 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
           doc: true,
           abbrevName: true,
           name: true,
+          email: true,
+          phone: true,
           cep: true,
           logradouro: true,
           numero: true,
