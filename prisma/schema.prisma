@@ -25,12 +25,15 @@ model User {
   updatedAt          DateTime        @updatedAt
   lastEntityId       Int?
   erpIntegrationMode String          @default("TEST") // "TEST" | "PROD"
-  complaintsCreated  Complaint[]
-  salesOrdersCreated SalesOrder[]
-  lastEntity         Entity?         @relation("UserLastEntity", fields: [lastEntityId], references: [id])
-  userClientReps     UserClientRep[]
-  userEntities       UserEntity[]
-  assignedWorkOrders WorkOrder[]
+  complaintsCreated     Complaint[]
+  complaintsResponsible Complaint[] @relation("ComplaintResponsibleUser")
+  complaintsPrevious    Complaint[] @relation("ComplaintPreviousUser")
+  complaintsNext        Complaint[] @relation("ComplaintNextUser")
+  salesOrdersCreated    SalesOrder[]
+  lastEntity            Entity?     @relation("UserLastEntity", fields: [lastEntityId], references: [id])
+  userClientReps        UserClientRep[]
+  userEntities          UserEntity[]
+  assignedWorkOrders    WorkOrder[]
   userInventoryItemPrices UserInventoryItemPrice[]
   trustedDevices     TrustedDevice[]
   logisticsPhaseUsers LogisticPhaseNotifiedUser[]
@@ -131,8 +134,9 @@ model SacSgqProcessPhase {
   sequence    Int             @default(1)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
-  process     SacSgqProcess   @relation(fields: [processId], references: [id], onDelete: Cascade)
+  process     SacSgqProcess    @relation(fields: [processId], references: [id], onDelete: Cascade)
   users       SacSgqPhaseUser[]
+  complaints  Complaint[]
 
   @@unique([processId, code])
   @@index([processId])
