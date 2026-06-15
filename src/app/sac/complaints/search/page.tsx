@@ -5,9 +5,12 @@ import { safeParseJson } from "../../../../lib/safeJson";
 
 type Complaint = {
   id: number;
-  division?: string; type?: string; phase?: string;
-  counterpartyName?: string; city?: string; uf?: string; attendant?: string;
-  dateSac?: string | null; dateReceived?: string | null;
+  occurrenceDate?: string | null;
+  counterpartyName?: string;
+  sacSgqProcess?: { id: number; code: number; description: string } | null;
+  sacSgqPhase?: { id: number; code: number; description: string } | null;
+  phase?: string | null;
+  responsibleUser?: { id: number; name: string; abbrevName?: string | null } | null;
 };
 
 export default function ComplaintSearchPage() {
@@ -53,7 +56,7 @@ export default function ComplaintSearchPage() {
           <table className="min-w-full border text-xs">
             <thead>
               <tr className="bg-gray-100">
-                {['ID','Criado em','Divisão','Tipo','Fase','Cliente/Fornecedor','Cidade','UF','Atendente'].map(h=> (
+                {["Nr Ocorr", "Data Ocorr", "Cliente", "Processo SAC/SGQ", "Fase Atual", "Responsável"].map((h) => (
                   <th key={h} className="border px-2 py-1 text-left">{h}</th>
                 ))}
               </tr>
@@ -64,23 +67,26 @@ export default function ComplaintSearchPage() {
                   <td className="border px-2 py-1">{c.id}</td>
                   <td className="border px-2 py-1">
                     {(() => {
-                      const d = c.dateSac || c.dateReceived || null;
-                      if (!d) return '';
+                      const d = c.occurrenceDate || null;
+                      if (!d) return "";
                       const dt = new Date(d);
-                      return Number.isNaN(dt.getTime()) ? d : dt.toLocaleString();
+                      return Number.isNaN(dt.getTime()) ? d : dt.toLocaleDateString();
                     })()}
                   </td>
-                  <td className="border px-2 py-1">{c.division}</td>
-                  <td className="border px-2 py-1">{c.type}</td>
-                  <td className="border px-2 py-1">{c.phase}</td>
-                  <td className="border px-2 py-1">{c.counterpartyName}</td>
-                  <td className="border px-2 py-1">{c.city}</td>
-                  <td className="border px-2 py-1">{c.uf}</td>
-                  <td className="border px-2 py-1">{c.attendant}</td>
+                  <td className="border px-2 py-1">{c.counterpartyName || ""}</td>
+                  <td className="border px-2 py-1">
+                    {c.sacSgqProcess ? `${c.sacSgqProcess.code} - ${c.sacSgqProcess.description}` : ""}
+                  </td>
+                  <td className="border px-2 py-1">{c.sacSgqPhase?.description || c.phase || ""}</td>
+                  <td className="border px-2 py-1">{c.responsibleUser?.abbrevName || c.responsibleUser?.name || ""}</td>
                 </tr>
               ))}
               {data.length === 0 && (
-                <tr><td colSpan={9} className="text-center text-gray-500 py-3">Nenhum registro encontrado.</td></tr>
+                <tr>
+                  <td colSpan={6} className="text-center text-gray-500 py-3">
+                    Nenhum registro encontrado.
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
