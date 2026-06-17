@@ -15,6 +15,14 @@ type SacSgqProcessRow = { id: number; code: number; description: string; isActiv
 
 const minChars = 1;
 
+type AttachmentRow = {
+  id: number;
+  description: string;
+  originalFileName: string;
+  createdAt: string;
+  createdBy?: { id: number; name: string; abbrevName?: string | null } | null;
+};
+
 const AsyncSelect = ({
   label,
   value,
@@ -116,6 +124,19 @@ function formatToday() {
   return `${year}-${month}-${day}`;
 }
 
+function formatDatePtBR(d: Date): string {
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = String(d.getFullYear());
+  return `${day}/${month}/${year}`;
+}
+
+function formatTimePtBR(d: Date): string {
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 export default function ComplaintCreatePage() {
   const [activeTab, setActiveTab] = useState<TabKey>("nf-itens");
   const [processOptions, setProcessOptions] = useState<Array<{ value: string; label: string }>>([{ value: "", label: "Selecione" }]);
@@ -130,6 +151,14 @@ export default function ComplaintCreatePage() {
     email: "",
     phone: "",
   });
+
+  const [complaintId, setComplaintId] = useState<number | null>(null);
+  const [attachments, setAttachments] = useState<AttachmentRow[]>([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+  const [attachmentsSaving, setAttachmentsSaving] = useState(false);
+  const [attachmentDescription, setAttachmentDescription] = useState("");
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [editingAttachmentId, setEditingAttachmentId] = useState<number | null>(null);
 
   const tabDescription = useMemo(() => {
     switch (activeTab) {
@@ -170,6 +199,113 @@ export default function ComplaintCreatePage() {
       }
     })();
   }, []);
+
+  const loadAttachments = async (id: number) => {
+    setAttachmentsLoading(true);
+    try {
+      const res = await fetch(`/api/sac/complaints/${id}/attachments`, { cache: "no-store" });
+      const data = await res.json().catch(() => null as any);
+      if (!res.ok || !data?.ok) throw new Error(data?.error || "Falha ao carregar anexos");
+      const list = Array.isArray(data?.items) ? (data.items as any[]) : [];
+      setAttachments(
+        list.map((r) => ({
+          id: Number(r.id),
+          description: String(r.description || ""),
+          originalFileName: String(r.originalFileName || ""),
+          createdAt: String(r.createdAt || ""),
+          createdBy: r.createdBy ?? null,
+        }))
+      );
+    } finally {
+      setAttachmentsLoading(false);
+    }
+  };
+
+  const ensureComplaintId = async (): Promise<number> => {
+    if (complaintId) return complaintId;
+    const res = await fetch("/api/sac/complaints", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        occurrenceDate: form.occurrenceDate,
+        sacSgqProcessId: form.processSacSgq ? Number(form.processSacSgq) : null,
+        counterpartyCode: form.clientId != null ? String(form.clientId) : form.document || null,
+        counterpartyName: form.customerSupplier || null,
+        contactPhone: form.phone || null,
+        contactEmail: form.email || null,
+      }),
+    });
+    const data = await res.json().catch(() => null as any);
+    if (!res.ok || !data?.ok) throw new Error(data?.error || "Falha ao criar reclamação");
+    const id = Number(data?.id);
+    if (!Number.isFinite(id) || id <= 0) throw new Error("Falha ao criar reclamação");
+    setComplaintId(id);
+    setForm((prev) => ({ ...prev, occurrenceNumber: String(id) }));
+    await loadAttachments(id);
+    return id;
+  };
+
+  function resetAttachmentForm() {
+    setEditingAttachmentId(null);
+    setAttachmentDescription("");
+    setAttachmentFile(null);
+    const input = document.getElementById("complaint-attachment-file") as HTMLInputElement | null;
+    if (input) input.value = "";
+  }
+
+  function startEditAttachment(att: AttachmentRow) {
+    setEditingAttachmentId(att.id);
+    setAttachmentDescription(att.description);
+    setAttachmentFile(null);
+    const input = document.getElementById("complaint-attachment-file") as HTMLInputElement | null;
+    if (input) input.value = "";
+  }
+
+  async function deleteAttachment(id: number) {
+    if (!complaintId) return;
+    if (!confirm("Confirma excluir este anexo?")) return;
+    setAttachmentsSaving(true);
+    try {
+      const res = await fetch(`/api/sac/complaints/${complaintId}/attachments/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => null as any);
+      if (!res.ok || !data?.ok) throw new Error(data?.error || "Falha ao excluir anexo");
+      await loadAttachments(complaintId);
+      if (editingAttachmentId === id) resetAttachmentForm();
+    } catch (e: any) {
+      alert(String(e?.message || e));
+    } finally {
+      setAttachmentsSaving(false);
+    }
+  }
+
+  async function saveAttachment() {
+    const desc = attachmentDescription.trim();
+    if (!desc) return alert("Informe a descrição");
+
+    setAttachmentsSaving(true);
+    try {
+      const id = await ensureComplaintId();
+      const fd = new FormData();
+      fd.append("description", desc);
+      if (attachmentFile) fd.append("file", attachmentFile);
+
+      let res: Response;
+      if (editingAttachmentId) {
+        res = await fetch(`/api/sac/complaints/${id}/attachments/${editingAttachmentId}`, { method: "PUT", body: fd });
+      } else {
+        if (!attachmentFile) return alert("Selecione um arquivo");
+        res = await fetch(`/api/sac/complaints/${id}/attachments`, { method: "POST", body: fd });
+      }
+      const data = await res.json().catch(() => null as any);
+      if (!res.ok || !data?.ok) throw new Error(data?.error || "Falha ao salvar anexo");
+      await loadAttachments(id);
+      resetAttachmentForm();
+    } catch (e: any) {
+      alert(String(e?.message || e));
+    } finally {
+      setAttachmentsSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -312,12 +448,141 @@ export default function ComplaintCreatePage() {
           </div>
 
           <div className="min-h-[180px] rounded-b-lg border border-t-0 border-gray-200 bg-gray-50 p-4">
-            <div className="flex h-full items-center justify-center rounded border border-dashed border-gray-300 bg-white p-6 text-center">
-              <div>
-                <p className="text-sm font-medium text-gray-800">{TAB_ITEMS.find((tab) => tab.key === activeTab)?.label}</p>
-                <p className="mt-2 text-sm text-gray-600">{tabDescription}</p>
+            {activeTab === "anexos" ? (
+              <div className="space-y-4">
+                <div className="rounded border border-gray-200 bg-white p-4">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-12 md:items-end">
+                    <div className="md:col-span-8">
+                      <label className="mb-1 block text-sm font-medium text-gray-700">Descrição</label>
+                      <input
+                        className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                        value={attachmentDescription}
+                        onChange={(e) => setAttachmentDescription(e.target.value)}
+                        placeholder="Informar descrição"
+                      />
+                    </div>
+                    <div className="md:col-span-4">
+                      <label className="mb-1 block text-sm font-medium text-gray-700">Arquivo</label>
+                      <input
+                        id="complaint-attachment-file"
+                        type="file"
+                        className="w-full rounded border border-gray-300 px-3 py-2 text-sm bg-white"
+                        onChange={(e) => setAttachmentFile(e.target.files?.[0] ?? null)}
+                      />
+                    </div>
+                    <div className="md:col-span-12 flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700"
+                        disabled={attachmentsSaving}
+                        onClick={saveAttachment}
+                      >
+                        {editingAttachmentId ? "Alterar" : "Anexar"}
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50"
+                        disabled={attachmentsSaving}
+                        onClick={resetAttachmentForm}
+                      >
+                        Limpar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded border border-gray-200 bg-white overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-gray-100 text-gray-700">
+                        <tr>
+                          <th className="text-left px-3 py-2">Descrição</th>
+                          <th className="text-left px-3 py-2 w-32">Data Inclusão</th>
+                          <th className="text-left px-3 py-2 w-28">Hora Inclusão</th>
+                          <th className="text-left px-3 py-2 w-56">Usuário Inclusão</th>
+                          <th className="text-center px-3 py-2 w-40">Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(attachmentsLoading || attachmentsSaving) && (
+                          <tr className="border-t">
+                            <td colSpan={5} className="px-3 py-4 text-center text-gray-500">
+                              Carregando...
+                            </td>
+                          </tr>
+                        )}
+                        {!attachmentsLoading && !attachmentsSaving && attachments.length === 0 && (
+                          <tr className="border-t">
+                            <td colSpan={5} className="px-3 py-4 text-center text-gray-500">
+                              Sem arquivos anexados.
+                            </td>
+                          </tr>
+                        )}
+                        {!attachmentsLoading &&
+                          !attachmentsSaving &&
+                          attachments.map((a) => (
+                          <tr key={a.id} className="border-t hover:bg-gray-50">
+                            <td className="px-3 py-2">
+                              <div className="text-sm">{a.description}</div>
+                              <a
+                                className="text-xs text-blue-700 hover:underline"
+                                href={
+                                  complaintId
+                                    ? `/api/sac/complaints/${complaintId}/attachments/${a.id}/download`
+                                    : undefined
+                                }
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                {a.originalFileName}
+                              </a>
+                            </td>
+                            <td className="px-3 py-2">
+                              {(() => {
+                                const dt = new Date(a.createdAt);
+                                return Number.isNaN(dt.getTime()) ? "" : formatDatePtBR(dt);
+                              })()}
+                            </td>
+                            <td className="px-3 py-2">
+                              {(() => {
+                                const dt = new Date(a.createdAt);
+                                return Number.isNaN(dt.getTime()) ? "" : formatTimePtBR(dt);
+                              })()}
+                            </td>
+                            <td className="px-3 py-2">{a.createdBy?.abbrevName || a.createdBy?.name || "-"}</td>
+                            <td className="px-3 py-2 text-center">
+                              <div className="inline-flex gap-2">
+                                <button
+                                  type="button"
+                                  className="rounded border border-gray-300 bg-white px-3 py-1.5 text-xs hover:bg-gray-50"
+                                  onClick={() => startEditAttachment(a)}
+                                >
+                                  Alterar
+                                </button>
+                                <button
+                                  type="button"
+                                  className="rounded border border-red-300 bg-white px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                                  onClick={() => deleteAttachment(a.id)}
+                                >
+                                  Excluir
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex h-full items-center justify-center rounded border border-dashed border-gray-300 bg-white p-6 text-center">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">{TAB_ITEMS.find((tab) => tab.key === activeTab)?.label}</p>
+                  <p className="mt-2 text-sm text-gray-600">{tabDescription}</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

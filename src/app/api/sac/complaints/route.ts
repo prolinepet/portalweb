@@ -35,6 +35,35 @@ async function ensureComplaintWorkflowColumns(): Promise<void> {
   g.__complaintWorkflowColumnsEnsured = true;
 }
 
+async function ensureComplaintAttachmentsTable(): Promise<void> {
+  const g = global as any;
+  if (g.__complaintAttachmentsEnsured) return;
+
+  try {
+    await prisma.$executeRawUnsafe(
+      `CREATE TABLE IF NOT EXISTS \`complaintattachment\` (
+        \`id\` INT NOT NULL AUTO_INCREMENT,
+        \`complaintId\` INT NOT NULL,
+        \`description\` VARCHAR(255) NOT NULL,
+        \`storedFileName\` VARCHAR(255) NOT NULL,
+        \`originalFileName\` VARCHAR(255) NOT NULL,
+        \`mimeType\` VARCHAR(191) NULL,
+        \`sizeBytes\` INT NULL,
+        \`createdById\` INT NOT NULL,
+        \`createdAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updatedAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (\`id\`),
+        KEY \`complaintattachment_complaint_idx\` (\`complaintId\`),
+        KEY \`complaintattachment_createdby_idx\` (\`createdById\`),
+        CONSTRAINT \`complaintattachment_complaint_fk\` FOREIGN KEY (\`complaintId\`) REFERENCES \`complaint\`(\`id\`) ON DELETE CASCADE,
+        CONSTRAINT \`complaintattachment_createdby_fk\` FOREIGN KEY (\`createdById\`) REFERENCES \`user\`(\`id\`) ON DELETE RESTRICT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
+    );
+  } catch {}
+
+  g.__complaintAttachmentsEnsured = true;
+}
+
 function toDateOrNull(v: any): Date | null {
   if (v === null || v === undefined) return null;
   const s = String(v).trim();
@@ -116,6 +145,7 @@ async function resolveComplaintWorkflow(body: any) {
 export async function POST(request: Request) {
   try {
     await ensureComplaintWorkflowColumns();
+    await ensureComplaintAttachmentsTable();
     const session = await getServerSession(authOptions);
     const uid = session?.user ? Number((session.user as any).id) : undefined;
     const activeEntityId = (session as any)?.activeEntityId ?? null;
@@ -197,6 +227,7 @@ export async function POST(request: Request) {
 export async function GET() {
   try {
     await ensureComplaintWorkflowColumns();
+    await ensureComplaintAttachmentsTable();
     const complaints = await prisma.complaint.findMany({
       take: 100,
       orderBy: { id: 'desc' },

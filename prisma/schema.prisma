@@ -29,6 +29,7 @@ model User {
   complaintsResponsible Complaint[] @relation("ComplaintResponsibleUser")
   complaintsPrevious    Complaint[] @relation("ComplaintPreviousUser")
   complaintsNext        Complaint[] @relation("ComplaintNextUser")
+  complaintAttachmentsCreated ComplaintAttachment[] @relation("ComplaintAttachmentCreatedBy")
   salesOrdersCreated    SalesOrder[]
   lastEntity            Entity?     @relation("UserLastEntity", fields: [lastEntityId], references: [id])
   userClientReps        UserClientRep[]
@@ -827,6 +828,7 @@ model Complaint {
   nextUser            User?           @relation("ComplaintNextUser", fields: [nextUserId], references: [id], onDelete: SetNull)
   entity              Entity          @relation(fields: [entityId], references: [id])
   items               ComplaintItem[]
+  attachments         ComplaintAttachment[]
 
   @@index([sacSgqProcessId, sacSgqPhaseId])
   @@index([responsibleUserId])
@@ -852,6 +854,26 @@ model ComplaintItem {
   complaint         Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
 
   @@map("complaintitem")
+}
+
+model ComplaintAttachment {
+  id               Int      @id @default(autoincrement())
+  complaintId      Int
+  description      String   @db.VarChar(255)
+  storedFileName   String   @db.VarChar(255)
+  originalFileName String   @db.VarChar(255)
+  mimeType         String?  @db.VarChar(191)
+  sizeBytes        Int?
+  createdById      Int
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  createdBy User      @relation("ComplaintAttachmentCreatedBy", fields: [createdById], references: [id])
+
+  @@index([complaintId])
+  @@index([createdById])
+  @@map("complaintattachment")
 }
 
 model StandardOccurrence {
