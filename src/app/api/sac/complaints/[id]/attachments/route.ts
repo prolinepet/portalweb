@@ -3,7 +3,7 @@ import { prisma } from '../../../../../../lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../../../lib/auth';
 import { randomUUID } from 'crypto';
-import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
+import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
 
 function toPositiveInt(v: any): number | null {
