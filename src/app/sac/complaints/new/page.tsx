@@ -150,6 +150,7 @@ export default function ComplaintCreatePage() {
     document: "",
     email: "",
     phone: "",
+    observations: "",
   });
 
   const [complaintId, setComplaintId] = useState<number | null>(null);
@@ -574,6 +575,17 @@ export default function ComplaintCreatePage() {
                     </table>
                   </div>
                 </div>
+              </div>
+            ) : activeTab === "observacoes" ? (
+              <div className="rounded border border-gray-200 bg-white p-4">
+                <label className="mb-1 block text-sm font-medium text-gray-700">Observações</label>
+                <textarea
+                  rows={6}
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  value={form.observations}
+                  onChange={(e) => updateField("observations", e.target.value)}
+                  placeholder="Informar observações"
+                />
               </div>
             ) : (
               <div className="flex h-full items-center justify-center rounded border border-dashed border-gray-300 bg-white p-6 text-center">
