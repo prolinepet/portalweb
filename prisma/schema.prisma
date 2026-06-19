@@ -30,6 +30,7 @@ model User {
   complaintsPrevious    Complaint[] @relation("ComplaintPreviousUser")
   complaintsNext        Complaint[] @relation("ComplaintNextUser")
   complaintAttachmentsCreated ComplaintAttachment[] @relation("ComplaintAttachmentCreatedBy")
+  billingInvoiceRecords      BillingInvoiceRecord[]
   salesOrdersCreated    SalesOrder[]
   lastEntity            Entity?     @relation("UserLastEntity", fields: [lastEntityId], references: [id])
   userClientReps        UserClientRep[]
@@ -246,6 +247,7 @@ model InventoryItem {
   clientCartItems ClientCartItem[]
   userInventoryItemPrices UserInventoryItemPrice[]
   priceTableItems PriceTableItem[]
+  billingInvoiceRecords BillingInvoiceRecord[]
 
   @@map("inventoryitem")
 }
@@ -582,6 +584,7 @@ model Client {
   orders    SalesOrder[]
   orderTypes ClientOrderType[]
   priceTables ClientPriceTable[]
+  billingInvoiceRecords BillingInvoiceRecord[]
 
   @@index([name])
   @@index([cidade, estado])
@@ -633,6 +636,7 @@ model PriceTable {
   items PriceTableItem[]
   orderTypeLinks OrderTypePriceTable[]
   clients ClientPriceTable[]
+  billingInvoiceRecords BillingInvoiceRecord[]
 
   @@index([descricao])
   @@map("tabelapreco")
@@ -670,6 +674,7 @@ model OrderType {
   priceTables OrderTypePriceTable[]
   clients    ClientOrderType[]
   orders     SalesOrder[]
+  billingInvoiceRecords BillingInvoiceRecord[]
 
   @@index([descricao])
   @@map("tipopedido")
@@ -876,6 +881,52 @@ model ComplaintAttachment {
   @@map("complaintattachment")
 }
 
+model BillingInvoiceRecord {
+  id                 Int              @id @default(autoincrement())
+  estab              Int
+  clientId           Int?
+  canal              String?          @db.VarChar(30)
+  dtEmissao          DateTime?        @db.Date
+  natOper            String?          @db.VarChar(30)
+  priceTableId       Int?
+  inventoryItemId    Int
+  pesoUnit           Float?
+  commercialFamilyId Int?
+  nroNota            Int
+  serie              String           @db.Char(5)
+  pesoLiq            Float?
+  vlMercLiq          Float?
+  vlMercBru          Float?
+  vlCusto            Float?
+  margemPercent      Float?
+  orderTypeId        Int?
+  representativeUserId Int?
+  pedido             String?          @db.VarChar(40)
+  dataEmissaoPedido  DateTime?        @db.Date
+  valorFrete         Float?
+  descItem           Float?
+  nrSeqFat           Int
+  nrSeqDev           Int
+  tipoFatura         String           @db.VarChar(30)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  client           Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  priceTable       PriceTable?       @relation(fields: [priceTableId], references: [id], onDelete: SetNull)
+  inventoryItem    InventoryItem     @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  commercialFamily CommercialFamily? @relation(fields: [commercialFamilyId], references: [id], onDelete: SetNull)
+  orderType        OrderType?        @relation(fields: [orderTypeId], references: [id], onDelete: SetNull)
+  representativeUser User?           @relation(fields: [representativeUserId], references: [id], onDelete: SetNull)
+
+  @@unique([estab, serie, nroNota, nrSeqFat, nrSeqDev, inventoryItemId, tipoFatura])
+  @@index([clientId])
+  @@index([priceTableId])
+  @@index([commercialFamilyId])
+  @@index([orderTypeId])
+  @@index([representativeUserId])
+  @@map("billinginvoicerecord")
+}
+
 model StandardOccurrence {
   id          Int                       @id @default(autoincrement())
   description String
@@ -908,6 +959,7 @@ model CommercialFamily {
   // Itens relacionados
   inventoryItems InventoryItem[]
   standardOccurrenceFamilies StandardOccurrenceFamily[]
+  billingInvoiceRecords BillingInvoiceRecord[]
 
   @@index([description])
   @@index([erpCode])
