@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '../../../../../lib/prisma';
+import { prisma } from '../../../../lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../../../lib/auth';
-import { normalizeDoc, parseInteger, parseMoneyValue } from '../../../../../lib/bulkIntegration';
+import { authOptions } from '../../../../lib/auth';
+import { normalizeDoc, parseInteger, parseMoneyValue } from '../../../../lib/bulkIntegration';
 
 function firstNonNull<T>(...values: T[]): T | null {
   for (const value of values) {
