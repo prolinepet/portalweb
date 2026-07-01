@@ -3,6 +3,21 @@ import { prisma } from '../../../lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../lib/auth';
 
+async function hasUserInventoryItemPriceTable(): Promise<boolean> {
+  try {
+    const rows = await prisma.$queryRawUnsafe<Array<{ exists_count: bigint | number }>>(
+      `SELECT COUNT(*) AS exists_count
+       FROM INFORMATION_SCHEMA.TABLES
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'userinventoryitemprice'`
+    );
+    const count = Number(rows?.[0]?.exists_count ?? 0);
+    return Number.isFinite(count) && count > 0;
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -280,13 +295,17 @@ export async function DELETE(request: Request) {
     const blockedIds = new Set<number>(blockedRows.map((r) => Number(r.inventoryItemId)).filter((n) => Number.isFinite(n) && n > 0));
     const deletableIds = ids.filter((id) => !blockedIds.has(id));
 
+    const hasUserPriceTable = await hasUserInventoryItemPriceTable();
+
     const result = await prisma.$transaction(async (tx) => {
       if (deletableIds.length > 0) {
         await tx.entityModuleItem.deleteMany({ where: { inventoryItemId: { in: deletableIds } } });
         await tx.clientItem.deleteMany({ where: { inventoryItemId: { in: deletableIds } } });
         await tx.clientCartItem.deleteMany({ where: { inventoryItemId: { in: deletableIds } } });
         await tx.priceTableItem.deleteMany({ where: { inventoryItemId: { in: deletableIds } } });
-        await tx.userInventoryItemPrice.deleteMany({ where: { inventoryItemId: { in: deletableIds } } });
+        if (hasUserPriceTable) {
+          await tx.userInventoryItemPrice.deleteMany({ where: { inventoryItemId: { in: deletableIds } } });
+        }
       }
       return tx.inventoryItem.deleteMany({ where: { id: { in: deletableIds } } });
     });

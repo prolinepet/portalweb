@@ -1,6 +1,21 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 
+async function hasUserInventoryItemPriceTable(): Promise<boolean> {
+  try {
+    const rows = await prisma.$queryRawUnsafe<Array<{ exists_count: bigint | number }>>(
+      `SELECT COUNT(*) AS exists_count
+       FROM INFORMATION_SCHEMA.TABLES
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'userinventoryitemprice'`
+    );
+    const count = Number(rows?.[0]?.exists_count ?? 0);
+    return Number.isFinite(count) && count > 0;
+  } catch {
+    return false;
+  }
+}
+
 // GET: retorna item por ID
 export async function GET(_: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -67,12 +82,16 @@ export async function DELETE(_: Request, props: { params: Promise<{ id: string }
       return NextResponse.json({ error: 'Não é possível excluir: item possui pedido(s) vinculado(s).' }, { status: 409 });
     }
 
+    const hasUserPriceTable = await hasUserInventoryItemPriceTable();
+
     await prisma.$transaction(async (tx) => {
       await tx.entityModuleItem.deleteMany({ where: { inventoryItemId: id } });
       await tx.clientItem.deleteMany({ where: { inventoryItemId: id } });
       await tx.clientCartItem.deleteMany({ where: { inventoryItemId: id } });
       await tx.priceTableItem.deleteMany({ where: { inventoryItemId: id } });
-      await tx.userInventoryItemPrice.deleteMany({ where: { inventoryItemId: id } });
+      if (hasUserPriceTable) {
+        await tx.userInventoryItemPrice.deleteMany({ where: { inventoryItemId: id } });
+      }
       await tx.inventoryItem.delete({ where: { id } });
     });
     return NextResponse.json({ ok: true });
