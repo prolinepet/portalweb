@@ -8,6 +8,11 @@ function formatDiscountPct(v: any): string {
   return Number.isFinite(n) && n > 0 ? n.toFixed(2) : '0';
 }
 
+function formatDiscountValue(v: any): string {
+  const n = Number(v ?? 0);
+  return Number.isFinite(n) && n > 0 ? n.toFixed(2) : '0';
+}
+
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -199,6 +204,7 @@ export async function POST(request: Request) {
           quantity: item.quantity,
           discountPct: formatDiscountPct(item.discountPct),
           discountOrd: formatDiscountPct(item.discountPct),
+          discountValue: formatDiscountValue(item.discountValue),
           clientOrderNumber: item.clientOrderNumber || "",
           clientOrderItemNumber: item.clientOrderItemNumber || 0,
           deliveryDate: item.itemDeliveryDate ? new Date(item.itemDeliveryDate).toISOString().split('T')[0] : "",

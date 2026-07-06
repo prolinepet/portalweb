@@ -17,6 +17,11 @@ function formatDiscountPct(v: any): string {
   return Number.isFinite(n) && n > 0 ? n.toFixed(2) : '0';
 }
 
+function formatDiscountValue(v: any): string {
+  const n = Number(v ?? 0);
+  return Number.isFinite(n) && n > 0 ? n.toFixed(2) : '0';
+}
+
 function translateErrorSubType(v: any): string {
   const s = String(v || '').trim().toUpperCase();
   if (s === 'ERROR') return 'ERRO';
@@ -272,6 +277,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
               quantity: item.quantity,
               discountPct: formatDiscountPct((item as any)?.discountPct),
               discountOrd: formatDiscountPct((item as any)?.discountPct),
+              discountValue: formatDiscountValue((item as any)?.discountValue),
               clientOrderNumber: item.clientOrderNumber || "",
               clientOrderItemNumber: item.clientOrderItemNumber || 0,
               deliveryDate: item.itemDeliveryDate ? item.itemDeliveryDate.toISOString().split('T')[0] : "",
