@@ -320,26 +320,9 @@ function NewSalesOrderContent() {
     params.set('clientId', String(order.customerId));
     params.set('orderTypeId', String(nextOrderTypeId));
     params.set('ids', invIds.join(','));
-    const [res, ptRes] = await Promise.all([
-      fetch(`/api/items?${params.toString()}`, { cache: 'no-store' }),
-      fetch(`/api/base/order-types/${encodeURIComponent(String(Math.trunc(nextOrderTypeId)))}/price-tables`, { cache: 'no-store' })
-        .catch(() => null as any),
-    ]);
+    const res = await fetch(`/api/items?${params.toString()}`, { cache: 'no-store' });
     const arr = await res.json().catch(() => []);
     const allowedList = Array.isArray(arr) ? arr : [];
-    let allowedPtSet: Set<number> | null = null;
-    try {
-      if (ptRes && ptRes.ok) {
-        const ptArr = await ptRes.json().catch(() => []);
-        allowedPtSet = new Set<number>(
-          (Array.isArray(ptArr) ? ptArr : [])
-            .map((x: any) => Number(x?.priceTableId))
-            .filter((n: any) => Number.isFinite(n) && n > 0)
-        );
-      }
-    } catch {
-      allowedPtSet = null;
-    }
     const allowedById = new Map<number, any>();
     for (const it of allowedList) {
       const id = Number(it?.id);
@@ -349,11 +332,7 @@ function NewSalesOrderContent() {
 
     const toRemove: OrderItem[] = items.filter((it) => {
       const id = Number(it?.inventoryItem?.id);
-      const ptId = Number((it as any)?.inventoryItem?.priceTable?.id);
-      const removeByItem = Number.isFinite(id) && id > 0 && !allowedById.has(id);
-      const removeByPriceTable =
-        allowedPtSet !== null && Number.isFinite(ptId) && ptId > 0 && !allowedPtSet.has(ptId);
-      return removeByItem || removeByPriceTable;
+      return Number.isFinite(id) && id > 0 && !allowedById.has(id);
     });
 
     if (toRemove.length > 0) {

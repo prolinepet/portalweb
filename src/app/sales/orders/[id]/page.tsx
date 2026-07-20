@@ -1048,38 +1048,18 @@ export default function SalesOrderMaintenancePage() {
           params.set('clientId', String(effectiveClientId));
           params.set('orderTypeId', String(Math.trunc(nextOrderTypeId)));
           params.set('ids', invIds.join(','));
-          const [allowedRes, ptRes] = await Promise.all([
-            fetch(`/api/items?${params.toString()}`, { cache: 'no-store' }),
-            fetch(`/api/base/order-types/${encodeURIComponent(String(Math.trunc(nextOrderTypeId)))}/price-tables`, { cache: 'no-store' })
-              .catch(() => null as any),
-          ]);
+          const allowedRes = await fetch(`/api/items?${params.toString()}`, { cache: 'no-store' });
           const allowedArr = await allowedRes.json().catch(() => []);
-          const allowedSet = new Set<number>(
-            (Array.isArray(allowedArr) ? allowedArr : [])
-              .map((x: any) => Number(x?.id))
-              .filter((n: any) => Number.isFinite(n) && n > 0)
-          );
-          let allowedPtSet: Set<number> | null = null;
-          try {
-            if (ptRes && ptRes.ok) {
-              const ptArr = await ptRes.json().catch(() => []);
-              allowedPtSet = new Set<number>(
-                (Array.isArray(ptArr) ? ptArr : [])
-                  .map((x: any) => Number(x?.priceTableId))
-                  .filter((n: any) => Number.isFinite(n) && n > 0)
-              );
-            }
-          } catch {
-            allowedPtSet = null;
+          const allowedById = new Map<number, any>();
+          for (const it of Array.isArray(allowedArr) ? allowedArr : []) {
+            const invId = Number((it as any)?.id);
+            if (!Number.isFinite(invId) || invId <= 0) continue;
+            allowedById.set(invId, it);
           }
 
           const toRemove = orderItems.filter((it) => {
             const invId = Number((it as any)?.inventoryItemId ?? it?.inventoryItem?.id);
-            const ptId = Number((it as any)?.inventoryItem?.priceTable?.id);
-            const removeByItem = Number.isFinite(invId) && invId > 0 && !allowedSet.has(invId);
-            const removeByPriceTable =
-              allowedPtSet !== null && Number.isFinite(ptId) && ptId > 0 && !allowedPtSet.has(ptId);
-            return removeByItem || removeByPriceTable;
+            return Number.isFinite(invId) && invId > 0 && !allowedById.has(invId);
           });
 
           if (toRemove.length > 0) {
@@ -1098,15 +1078,37 @@ export default function SalesOrderMaintenancePage() {
               if (!Number.isFinite(itemId) || itemId <= 0) continue;
               await fetch(`/api/sales/orders/items/${encodeURIComponent(String(itemId))}`, { method: 'DELETE' }).catch(() => {});
             }
-            await refreshOrder();
           }
+
+          const toReprice = orderItems.filter((it) => {
+            const itemId = Number(it.id);
+            const invId = Number((it as any)?.inventoryItemId ?? it?.inventoryItem?.id);
+            if (!Number.isFinite(itemId) || itemId <= 0 || !Number.isFinite(invId) || invId <= 0) return false;
+            if (toRemove.some((x) => Number(x.id) === itemId)) return false;
+            const allowed = allowedById.get(invId);
+            if (!allowed || typeof allowed !== 'object') return false;
+            const nextUnitPrice = Number((allowed as any)?.unitPrice ?? it.unitPrice ?? 0);
+            return Number.isFinite(nextUnitPrice) && Number(nextUnitPrice) !== Number(it.unitPrice ?? 0);
+          });
+
+          for (const it of toReprice) {
+            const itemId = Number(it.id);
+            if (!Number.isFinite(itemId) || itemId <= 0) continue;
+            const invId = Number((it as any)?.inventoryItemId ?? it?.inventoryItem?.id);
+            const allowed = allowedById.get(invId);
+            await fetch(`/api/sales/orders/items/${encodeURIComponent(String(itemId))}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ unitPrice: Number((allowed as any)?.unitPrice ?? it.unitPrice ?? 0) }),
+            }).catch(() => {});
+          }
+
         }
       }
 
       const res = await fetch(`/api/sales/orders/${order.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(partial) });
       if (!res.ok) throw new Error('Falha ao salvar cabeçalho');
       const updated: SalesOrder = await res.json();
-      setOrder(updated);
       setHdrCustomerId((updated as any)?.clientId != null ? Number((updated as any).clientId) : hdrCustomerId);
       setHdrDraft({
         paymentTerms: updated.paymentTerms || '',
@@ -1117,6 +1119,7 @@ export default function SalesOrderMaintenancePage() {
         triangularCustomerName: updated.triangularCustomerName || '',
         triangularCustomerDoc: updated.triangularCustomerDoc || ''
       });
+      await refreshOrder();
       setIsHeaderEditing(false);
     } catch (e: any) { alert(e?.message || String(e)); }
   };

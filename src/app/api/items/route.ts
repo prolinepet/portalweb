@@ -67,6 +67,7 @@ export async function GET(request: Request) {
           }),
           prisma.orderTypePriceTable.findMany({
             where: { orderTypeId: filterOrderTypeId },
+            orderBy: { priceTable: { descricao: 'asc' } },
             select: { priceTableId: true },
           }),
         ]);
@@ -78,9 +79,12 @@ export async function GET(request: Request) {
 
         if (allowedPtIds.length === 0) return NextResponse.json([]);
 
+        const primaryPriceTableId = Number(allowedPtIds[0]);
+        if (!Number.isFinite(primaryPriceTableId) || primaryPriceTableId <= 0) return NextResponse.json([]);
+
         const rows = await prisma.priceTableItem.findMany({
           where: {
-            priceTableId: { in: allowedPtIds },
+            priceTableId: primaryPriceTableId,
             ...(filterIds.length ? { inventoryItemId: { in: Array.from(new Set(filterIds)) } } : {}),
           },
           select: {
@@ -110,20 +114,11 @@ export async function GET(request: Request) {
         for (const r of rows) {
           const invId = Number(r.inventoryItemId);
           if (!Number.isFinite(invId) || invId <= 0) continue;
-          const unitPrice = Number(r.unitPrice ?? 0);
-          const existing = byInvId.get(invId);
-          const ptId = Number((r as any)?.priceTableId);
-          const exPtId = Number((existing as any)?.priceTable?.id);
-          const shouldReplace =
-            !existing ||
-            unitPrice < existing.unitPrice ||
-            (unitPrice === existing.unitPrice &&
-              Number.isFinite(ptId) &&
-              ptId > 0 &&
-              (!Number.isFinite(exPtId) || exPtId <= 0 || ptId < exPtId));
-          if (shouldReplace) {
-            byInvId.set(invId, { item: r.inventoryItem, unitPrice, priceTable: (r as any)?.priceTable ?? null });
-          }
+          byInvId.set(invId, {
+            item: r.inventoryItem,
+            unitPrice: Number(r.unitPrice ?? 0),
+            priceTable: (r as any)?.priceTable ?? null,
+          });
         }
 
         let items = Array.from(byInvId.values())

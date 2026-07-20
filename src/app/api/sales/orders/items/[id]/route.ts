@@ -79,6 +79,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (body.tube !== undefined) allowed.tube = Number(body.tube);
     if (body.discountPct !== undefined) allowed.discountPct = Number(body.discountPct);
     if (body.discountValue !== undefined) allowed.discountValue = Number(body.discountValue);
+    if (body.unitPrice !== undefined) allowed.unitPrice = Number(body.unitPrice);
     if (body.clientOrderNumber !== undefined) allowed.clientOrderNumber = String(body.clientOrderNumber);
     if (body.clientOrderItemNumber !== undefined) allowed.clientOrderItemNumber = Number(body.clientOrderItemNumber);
     if (body.itemDeliveryDate !== undefined) allowed.itemDeliveryDate = body.itemDeliveryDate ? new Date(body.itemDeliveryDate) : null;
