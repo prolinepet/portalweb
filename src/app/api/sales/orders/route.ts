@@ -147,7 +147,19 @@ export async function GET(request: Request) {
       include: {
         entity: { select: { name: true } },
         createdBy: { select: { abbrevName: true, name: true } },
-        client: { select: { id: true, clientCode: true, abbrevName: true, name: true } },
+        client: {
+          select: {
+            id: true,
+            clientCode: true,
+            abbrevName: true,
+            name: true,
+            reps: {
+              select: {
+                user: { select: { id: true, abbrevName: true, name: true } },
+              },
+            },
+          },
+        },
         orderType: { select: { id: true, codtipoped: true, kind: true, descricao: true } },
         items: {
           include: {
@@ -159,7 +171,24 @@ export async function GET(request: Request) {
       },
       orderBy: { createdAt: 'desc' }
     });
-    const res = NextResponse.json(Array.isArray(data) ? data : []);
+    const normalized = (Array.isArray(data) ? data : []).map((order: any) => {
+      const reps = Array.isArray(order?.client?.reps) ? order.client.reps : [];
+      const firstRep = reps
+        .map((r: any) => r?.user)
+        .find((u: any) => Number.isFinite(Number(u?.id)) && Number(u.id) > 0);
+      const representativeName =
+        String(firstRep?.abbrevName || '').trim() ||
+        String(firstRep?.name || '').trim() ||
+        String(order?.createdBy?.abbrevName || '').trim() ||
+        String(order?.createdBy?.name || '').trim() ||
+        null;
+
+      return {
+        ...order,
+        representativeName,
+      };
+    });
+    const res = NextResponse.json(normalized);
     res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     return res;
   } catch (err: any) {
