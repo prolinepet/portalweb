@@ -30,9 +30,37 @@ type PreCarga = {
   isFinalized: boolean;
 };
 
+type LogisticsProcessRow = {
+  id: number;
+  plate: string | null;
+  motorista: string | null;
+  transportadora: string | null;
+  faseLogistica: string | null;
+  statusAnterior: string | null;
+  statusAtual: string | null;
+  statusProxima: string | null;
+  linkedPreCargaCount: number;
+  createdAt: string | null;
+};
+
+type ProcessPreCargaRow = {
+  id: number;
+  dtPrevCarreg: string | null;
+  cifFob: string | null;
+  isFinalized: boolean;
+  isLinkedToSelected: boolean;
+  linkedProcessId: number | null;
+  transportadora: string | null;
+  cidadesAtendidas: number;
+  clientesAtendidos: number;
+  pesoTotalKg: number;
+  valorFrete: number;
+};
+
 type CheckRow = { key: string; label: string };
 
 type TabKey = "processos" | "pre-carga" | "descarga" | "pre-devolucao";
+type ProcessViewTab = "visao-geral" | "pre-carga" | "descarga" | "devolucao" | "adicional" | "varredura";
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
@@ -95,6 +123,11 @@ export default function LogisticsPanelPage() {
   const [kBon, setKBon] = useState(true);
   const [kAmostra, setKAmostra] = useState(true);
   const [apenasAprovados, setApenasAprovados] = useState(false);
+  const [processLoading, setProcessLoading] = useState(false);
+  const [processes, setProcesses] = useState<LogisticsProcessRow[]>([]);
+  const [selectedProcessId, setSelectedProcessId] = useState<number | null>(null);
+  const [processPreCargas, setProcessPreCargas] = useState<ProcessPreCargaRow[]>([]);
+  const [processDetailTab, setProcessDetailTab] = useState<ProcessViewTab>("pre-carga");
 
   const loadPreCarga = useCallback(async () => {
     setLoading(true);
@@ -169,6 +202,149 @@ export default function LogisticsPanelPage() {
     void loadPreCarga();
     void loadPreCargas();
   }, [tab, loadPreCarga, loadPreCargas]);
+
+  const loadProcesses = useCallback(async () => {
+    setProcessLoading(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/logistics/panel/processos", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+      const normalized: LogisticsProcessRow[] = (Array.isArray(data?.processes) ? data.processes : []).map((row: any) => ({
+        id: Number(row?.id),
+        plate: row?.plate == null ? null : String(row.plate),
+        motorista: row?.motorista == null ? null : String(row.motorista),
+        transportadora: row?.transportadora == null ? null : String(row.transportadora),
+        faseLogistica: row?.faseLogistica == null ? null : String(row.faseLogistica),
+        statusAnterior: row?.statusAnterior == null ? null : String(row.statusAnterior),
+        statusAtual: row?.statusAtual == null ? null : String(row.statusAtual),
+        statusProxima: row?.statusProxima == null ? null : String(row.statusProxima),
+        linkedPreCargaCount: Number(row?.linkedPreCargaCount || 0),
+        createdAt: row?.createdAt == null ? null : String(row.createdAt),
+      }));
+      setProcesses(normalized.filter((row) => Number.isFinite(row.id) && row.id > 0));
+      setSelectedProcessId((current) => {
+        const valid = current != null && normalized.some((row) => row.id === current);
+        return valid ? current : normalized[0]?.id ?? null;
+      });
+    } catch (e: any) {
+      setProcesses([]);
+      setSelectedProcessId(null);
+      setErr(e?.message || String(e));
+    } finally {
+      setProcessLoading(false);
+    }
+  }, []);
+
+  const loadProcessPreCargas = useCallback(async (processId: number) => {
+    if (!Number.isFinite(processId) || processId <= 0) {
+      setProcessPreCargas([]);
+      return;
+    }
+    setProcessLoading(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/logistics/panel/processos/${processId}`, { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+      const normalized: ProcessPreCargaRow[] = (Array.isArray(data?.preCargas) ? data.preCargas : []).map((row: any) => ({
+        id: Number(row?.id),
+        dtPrevCarreg: row?.dtPrevCarreg == null ? null : String(row.dtPrevCarreg),
+        cifFob: row?.cifFob == null ? null : String(row.cifFob),
+        isFinalized: Boolean(row?.isFinalized),
+        isLinkedToSelected: Boolean(row?.isLinkedToSelected),
+        linkedProcessId: row?.linkedProcessId == null ? null : Number(row.linkedProcessId),
+        transportadora: row?.transportadora == null ? null : String(row.transportadora),
+        cidadesAtendidas: Number(row?.cidadesAtendidas || 0),
+        clientesAtendidos: Number(row?.clientesAtendidos || 0),
+        pesoTotalKg: Number(row?.pesoTotalKg || 0),
+        valorFrete: Number(row?.valorFrete || 0),
+      }));
+      setProcessPreCargas(normalized.filter((row) => Number.isFinite(row.id) && row.id > 0));
+    } catch (e: any) {
+      setProcessPreCargas([]);
+      setErr(e?.message || String(e));
+    } finally {
+      setProcessLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab !== "processos") return;
+    void loadProcesses();
+  }, [tab, loadProcesses]);
+
+  useEffect(() => {
+    if (tab !== "processos" || !selectedProcessId) return;
+    void loadProcessPreCargas(selectedProcessId);
+  }, [tab, selectedProcessId, loadProcessPreCargas]);
+
+  const selectedProcess = useMemo(
+    () => processes.find((row) => row.id === selectedProcessId) || null,
+    [processes, selectedProcessId]
+  );
+
+  const createProcess = useCallback(async () => {
+    setProcessLoading(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/logistics/panel/processos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statusAtual: "Pré-Carga", statusProxima: "Descarga", faseLogistica: "Pré-Carga" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+      const newId = Number(data?.process?.id);
+      await loadProcesses();
+      if (Number.isFinite(newId) && newId > 0) setSelectedProcessId(newId);
+    } catch (e: any) {
+      setErr(e?.message || String(e));
+      alert(e?.message || String(e));
+    } finally {
+      setProcessLoading(false);
+    }
+  }, [loadProcesses]);
+
+  const linkPreCargaToProcess = useCallback(
+    async (preCargaId: number) => {
+      if (!selectedProcessId) {
+        alert("Selecione um processo.");
+        return;
+      }
+      setProcessLoading(true);
+      setErr(null);
+      try {
+        const res = await fetch(`/api/logistics/panel/processos/${selectedProcessId}/pre-cargas`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ preCargaId }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+        await loadProcesses();
+        await loadProcessPreCargas(selectedProcessId);
+      } catch (e: any) {
+        setErr(e?.message || String(e));
+        alert(e?.message || String(e));
+      } finally {
+        setProcessLoading(false);
+      }
+    },
+    [loadProcessPreCargas, loadProcesses, selectedProcessId]
+  );
+
+  const processPreCargaTotals = useMemo(() => {
+    const rows = processPreCargas.filter((row) => row.isLinkedToSelected);
+    return rows.reduce(
+      (acc, row) => {
+        acc.cargaKg += Number(row.pesoTotalKg || 0);
+        acc.frete += Number(row.valorFrete || 0);
+        return acc;
+      },
+      { cargaKg: 0, devolKg: 0, adicional: 0, frete: 0 }
+    );
+  }, [processPreCargas]);
 
   const selectedPreCarga = useMemo(() => preCargas.find((p) => p.id === selectedPreCargaId) || null, [preCargas, selectedPreCargaId]);
 
@@ -582,8 +758,218 @@ export default function LogisticsPanelPage() {
         <div className="text-xl font-semibold pb-1">Painel Logístico</div>
       </div>
 
-      {tab !== "pre-carga" && (
-        <div className="bg-white rounded border p-4 text-sm text-gray-600">Tela em construção.</div>
+      {tab === "processos" && (
+        <div className="grid grid-cols-1 gap-2 xl:grid-cols-[1.05fr_1fr]">
+          <div className="bg-white rounded border p-2 space-y-2 min-w-0">
+            <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">Placa</div>
+                  <input value={selectedProcess?.plate || ""} readOnly className="w-full h-8 border rounded px-2 py-1 text-sm bg-gray-50" />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">Fase Logística</div>
+                  <input value={selectedProcess?.faseLogistica || ""} readOnly className="w-full h-8 border rounded px-2 py-1 text-sm bg-gray-50" />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">Anterior</div>
+                  <input value={selectedProcess?.statusAnterior || ""} readOnly className="w-full h-8 border rounded px-2 py-1 text-sm bg-gray-50" />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">Atual</div>
+                  <input value={selectedProcess?.statusAtual || ""} readOnly className="w-full h-8 border rounded px-2 py-1 text-sm bg-gray-50" />
+                </div>
+              </div>
+              <div className="flex items-start gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => void createProcess()}
+                  disabled={processLoading}
+                  className="px-3 h-8 text-xs border rounded bg-gray-900 text-white disabled:opacity-50"
+                >
+                  Novo Processo
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+              <div>
+                <div className="text-xs text-gray-600 mb-1">Motorista</div>
+                <input value={selectedProcess?.motorista || ""} readOnly className="w-full h-8 border rounded px-2 py-1 text-sm bg-gray-50" />
+              </div>
+              <div>
+                <div className="text-xs text-gray-600 mb-1">Transportadora</div>
+                <input value={selectedProcess?.transportadora || ""} readOnly className="w-full h-8 border rounded px-2 py-1 text-sm bg-gray-50" />
+              </div>
+              <div>
+                <div className="text-xs text-gray-600 mb-1">Próxima</div>
+                <input value={selectedProcess?.statusProxima || ""} readOnly className="w-full h-8 border rounded px-2 py-1 text-sm bg-gray-50" />
+              </div>
+            </div>
+
+            <div className="border rounded overflow-auto max-h-[340px]">
+              <table className="min-w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="text-left px-2 py-1">Placa</th>
+                    <th className="text-left px-2 py-1">D.Entrada</th>
+                    <th className="text-left px-2 py-1">Motorista</th>
+                    <th className="text-left px-2 py-1">Transportadora</th>
+                    <th className="text-left px-2 py-1">P.Carr</th>
+                    <th className="text-left px-2 py-1">Status Logístico</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {processLoading && processes.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-2 py-4 text-center text-gray-500">Carregando processos...</td>
+                    </tr>
+                  )}
+                  {!processLoading && processes.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-2 py-4 text-center text-gray-500">Nenhum processo encontrado.</td>
+                    </tr>
+                  )}
+                  {processes.map((process) => {
+                    const active = selectedProcessId === process.id;
+                    return (
+                      <tr
+                        key={process.id}
+                        className={`border-b cursor-pointer ${active ? "bg-blue-50" : "hover:bg-gray-50"}`}
+                        onClick={() => setSelectedProcessId(process.id)}
+                      >
+                        <td className="px-2 py-1 whitespace-nowrap">{process.plate || "-"}</td>
+                        <td className="px-2 py-1 whitespace-nowrap">{process.createdAt ? ymdToDmy(String(process.createdAt).slice(0, 10)) : "-"}</td>
+                        <td className="px-2 py-1 whitespace-nowrap">{process.motorista || "-"}</td>
+                        <td className="px-2 py-1 whitespace-nowrap">{process.transportadora || "-"}</td>
+                        <td className="px-2 py-1 text-right whitespace-nowrap">{process.linkedPreCargaCount}</td>
+                        <td className="px-2 py-1 whitespace-nowrap">{process.statusAtual || "-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="border rounded">
+              <div className="px-2 py-1 text-xs font-medium border-b bg-gray-50">Atualizações Status Carregamento</div>
+              <div className="px-2 py-4 text-xs text-gray-500">Sem atualizações para exibir no momento.</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded border p-2 space-y-2 min-w-0">
+            <div className="flex items-center gap-2 border-b">
+              <button
+                onClick={() => setProcessDetailTab("visao-geral")}
+                className={`px-3 py-1.5 text-sm ${processDetailTab === "visao-geral" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}
+              >
+                Visão Geral
+              </button>
+              <button
+                onClick={() => setProcessDetailTab("pre-carga")}
+                className={`px-3 py-1.5 text-sm ${processDetailTab === "pre-carga" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}
+              >
+                Pré-Carga
+              </button>
+              <button
+                onClick={() => setProcessDetailTab("descarga")}
+                className={`px-3 py-1.5 text-sm ${processDetailTab === "descarga" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}
+              >
+                Descarga
+              </button>
+              <button
+                onClick={() => setProcessDetailTab("devolucao")}
+                className={`px-3 py-1.5 text-sm ${processDetailTab === "devolucao" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}
+              >
+                Devolução
+              </button>
+              <button
+                onClick={() => setProcessDetailTab("adicional")}
+                className={`px-3 py-1.5 text-sm ${processDetailTab === "adicional" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}
+              >
+                Adicional
+              </button>
+              <button
+                onClick={() => setProcessDetailTab("varredura")}
+                className={`px-3 py-1.5 text-sm ${processDetailTab === "varredura" ? "border-b-2 border-blue-600 font-medium" : "text-gray-600"}`}
+              >
+                Varredura
+              </button>
+            </div>
+
+            {processDetailTab === "pre-carga" ? (
+              <>
+                <div className="border rounded overflow-auto max-h-[420px]">
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr className="bg-gray-50 border-b">
+                        <th className="text-left px-2 py-1">Nr PC</th>
+                        <th className="text-left px-2 py-1">Dt Prev Carreg</th>
+                        <th className="text-left px-2 py-1">C/F</th>
+                        <th className="text-left px-2 py-1">Transportador</th>
+                        <th className="text-right px-2 py-1">Cid Aten</th>
+                        <th className="text-right px-2 py-1">Cli Ate</th>
+                        <th className="text-right px-2 py-1">Peso Tot(Kg)</th>
+                        <th className="text-right px-2 py-1">Vlr. Frete(R$)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {processLoading && processPreCargas.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="px-2 py-4 text-center text-gray-500">Carregando pré-cargas...</td>
+                        </tr>
+                      )}
+                      {!processLoading && processPreCargas.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="px-2 py-4 text-center text-gray-500">Nenhuma pré-carga disponível.</td>
+                        </tr>
+                      )}
+                      {processPreCargas.map((row) => (
+                        <tr
+                          key={row.id}
+                          className={`border-b cursor-pointer hover:bg-gray-50 ${row.isLinkedToSelected ? "bg-yellow-100" : ""}`}
+                          onDoubleClick={() => void linkPreCargaToProcess(row.id)}
+                        >
+                          <td className="px-2 py-1 whitespace-nowrap">{row.id}</td>
+                          <td className="px-2 py-1 whitespace-nowrap">{row.dtPrevCarreg ? ymdToDmy(String(row.dtPrevCarreg).slice(0, 10)) : "-"}</td>
+                          <td className="px-2 py-1 whitespace-nowrap">{(row.cifFob || "").toUpperCase() || "-"}</td>
+                          <td className="px-2 py-1 whitespace-nowrap">{row.transportadora || "-"}</td>
+                          <td className="px-2 py-1 text-right whitespace-nowrap">{row.cidadesAtendidas}</td>
+                          <td className="px-2 py-1 text-right whitespace-nowrap">{row.clientesAtendidos}</td>
+                          <td className="px-2 py-1 text-right whitespace-nowrap">{row.pesoTotalKg.toFixed(2)}</td>
+                          <td className="px-2 py-1 text-right whitespace-nowrap">{row.valorFrete.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div className="border rounded px-2 py-1.5 text-xs">
+                    <div className="text-gray-600">Carga(Kg)</div>
+                    <div className="font-medium">{processPreCargaTotals.cargaKg.toFixed(2)}</div>
+                  </div>
+                  <div className="border rounded px-2 py-1.5 text-xs">
+                    <div className="text-gray-600">Devol(Kg)</div>
+                    <div className="font-medium">{processPreCargaTotals.devolKg.toFixed(2)}</div>
+                  </div>
+                  <div className="border rounded px-2 py-1.5 text-xs">
+                    <div className="text-gray-600">Adic(R$)</div>
+                    <div className="font-medium">{processPreCargaTotals.adicional.toFixed(2)}</div>
+                  </div>
+                  <div className="border rounded px-2 py-1.5 text-xs">
+                    <div className="text-gray-600">Tot. Frete(R$)</div>
+                    <div className="font-medium">{processPreCargaTotals.frete.toFixed(2)}</div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="border rounded px-3 py-6 text-sm text-gray-500">
+                Conteúdo da aba <span className="font-medium">{processDetailTab}</span> em preparação.
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {tab === "pre-carga" && (
