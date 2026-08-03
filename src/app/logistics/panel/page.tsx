@@ -815,7 +815,6 @@ export default function LogisticsPanelPage() {
                 <button onClick={loadPreCarga} className="w-full text-xs px-2 py-0.5 bg-gray-200 rounded border disabled:opacity-50 h-7" disabled={loading}>
                   Aplica Filtro
                 </button>
-                {loading && <div className="text-xs text-gray-500">Carregando...</div>}
                 {err && <div className="text-xs text-red-600">{err}</div>}
               </div>
 
