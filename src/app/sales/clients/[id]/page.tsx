@@ -42,6 +42,55 @@ type BasePriceRow = { inventoryItemId: number; unit: string; unitPrice: number }
 type OrderType = { id: number; codtipoped: number; descricao: string; situacao: number };
 type PriceTable = { id: number; nrtabpre: string; descricao: string; situacao: number };
 type StockRow = { sku: string; description?: string | null; lotSerie?: string | null; qtyCurrent: number; qtyAvailable?: number };
+type ClientInvoice = {
+  id: number;
+  clientId?: number;
+  invoiceNumber: string;
+  issueDate: string;
+  dueDate?: string | null;
+  status?: string | null;
+  totalValue: number;
+};
+
+const parseCalendarDate = (value?: string | null) => {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    return new Date(year, month - 1, day);
+  }
+  const parsed = new Date(raw);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+};
+
+const formatCalendarDateBr = (value?: string | null) => {
+  const parsed = parseCalendarDate(value);
+  return parsed ? parsed.toLocaleDateString('pt-BR') : '-';
+};
+
+const summarizeInvoiceTotals = (invoices: ClientInvoice[]) => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let titlesDue = 0;
+  let titlesOverdue = 0;
+
+  for (const inv of invoices) {
+    const status = String(inv.status || '').trim().toUpperCase();
+    if (status === 'PAGA') continue;
+    const due = parseCalendarDate(inv.dueDate);
+    if (!due) continue;
+    const amount = Number(inv.totalValue || 0);
+    if (!Number.isFinite(amount)) continue;
+    if (due < today) titlesOverdue += amount;
+    else titlesDue += amount;
+  }
+
+  return { titlesDue, titlesOverdue };
+};
 
 const statusColor = (s: string) => {
   const v = (s || '').trim();
@@ -157,7 +206,7 @@ export default function ClientDetailsPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [selected, setSelected] = useState<SalesOrder | null>(null);
   const [integratingId, setIntegratingId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"orders" | "paymentTerms" | "priceTables" | "stock" | "linkedItems" | "orderTypes">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "paymentTerms" | "priceTables" | "stock" | "linkedItems" | "orderTypes" | "invoices">("orders");
   const [ordersPage, setOrdersPage] = useState(0);
   const [paymentTermsPage, setPaymentTermsPage] = useState(0);
   const [linkedItemsPage, setLinkedItemsPage] = useState(0);
@@ -171,6 +220,10 @@ export default function ClientDetailsPage() {
   const [loadingBasePrices, setLoadingBasePrices] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
   const [applyingAdjust, setApplyingAdjust] = useState(false);
+  const [invoiceFilter, setInvoiceFilter] = useState<'due' | 'overdue' | 'all'>('all');
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<'paid' | 'open' | 'all'>('all');
+  const [clientInvoices, setClientInvoices] = useState<ClientInvoice[]>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
 
   const PAGE_SIZE = 20;
 
@@ -230,6 +283,23 @@ export default function ClientDetailsPage() {
       setCartItems([]);
     }
   }, [client]);
+
+  const loadClientInvoices = useCallback(async () => {
+    if (!Number.isFinite(id) || id <= 0) return;
+    setLoadingInvoices(true);
+    try {
+      const r = await fetch(`/api/clients/${encodeURIComponent(String(id))}/invoices?filter=all`, { cache: 'no-store' });
+      const j = await r.json();
+      const invoices = Array.isArray(j) ? j : [];
+      setClientInvoices(invoices);
+      const totals = summarizeInvoiceTotals(invoices);
+      setClient((prev) => (prev ? { ...prev, titlesDue: totals.titlesDue, titlesOverdue: totals.titlesOverdue } : prev));
+    } catch {
+      setClientInvoices([]);
+    } finally {
+      setLoadingInvoices(false);
+    }
+  }, [id]);
 
   useEffect(() => {
     const load = async () => {
@@ -386,6 +456,39 @@ export default function ClientDetailsPage() {
     });
   }, [stockBalanceFilter, stockQuery, stockRows]);
 
+  const invoicesView = useMemo(() => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const isPaid = (inv: ClientInvoice) => String(inv.status || '').trim().toUpperCase() === 'PAGA';
+    const dueDate = (inv: ClientInvoice) => parseCalendarDate(inv.dueDate);
+    const isOverdue = (inv: ClientInvoice) => {
+      const d = dueDate(inv);
+      return !isPaid(inv) && d != null && d < today;
+    };
+
+    let filtered = clientInvoices;
+
+    if (invoiceFilter === 'due') {
+      filtered = filtered.filter((inv) => {
+        if (isPaid(inv)) return false;
+        const d = dueDate(inv);
+        if (!d) return false;
+        return d >= today;
+      });
+    } else if (invoiceFilter === 'overdue') {
+      filtered = filtered.filter((inv) => isOverdue(inv));
+    }
+
+    if (invoiceStatusFilter === 'paid') {
+      filtered = filtered.filter((inv) => isPaid(inv));
+    } else if (invoiceStatusFilter === 'open') {
+      filtered = filtered.filter((inv) => !isPaid(inv));
+    }
+
+    return filtered;
+  }, [clientInvoices, invoiceFilter, invoiceStatusFilter]);
+
   useEffect(() => {
     const loadUnlinked = async () => {
       setLoadingUnlinkedItems(true);
@@ -406,6 +509,12 @@ export default function ClientDetailsPage() {
       loadUnlinked().catch(() => {});
     }
   }, [activeTab, id, itemsSubTab]);
+
+  useEffect(() => {
+    if (activeTab === 'invoices') {
+      void loadClientInvoices();
+    }
+  }, [activeTab, loadClientInvoices]);
 
   const selectedLinkedItemSet = useMemo(() => new Set(selectedLinkedItemIds), [selectedLinkedItemIds]);
   const allLinkedSelected = useMemo(() => {
@@ -754,6 +863,19 @@ export default function ClientDetailsPage() {
                 className="inline-block px-3 py-2 border-b-2 border-solid rounded-t-lg border-transparent opacity-50 cursor-not-allowed"
               >
                 Tipo Pedido
+              </button>
+            </li>
+            <li className="mr-2">
+              <button
+                onClick={() => setActiveTab("invoices")}
+                className={`inline-block px-3 py-2 border-b-2 border-solid rounded-t-lg transition-colors duration-200 ${
+                  activeTab === "invoices"
+                    ? "text-blue-600 border-blue-600 active group-hover:text-blue-600"
+                    : "border-transparent hover:text-gray-600 hover:border-gray-300"
+                }`}
+                aria-current={activeTab === "invoices" ? "page" : undefined}
+              >
+                Faturas
               </button>
             </li>
           </ul>
@@ -1170,6 +1292,137 @@ export default function ClientDetailsPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "invoices" && (
+          <div className="border rounded bg-white overflow-hidden">
+            <div className="px-3 py-2 border-b bg-gray-50 flex flex-wrap items-center gap-3">
+              <div className="text-sm text-gray-700">Faturas</div>
+              <div className="ml-auto text-xs text-gray-500">{invoicesView.length} registro(s)</div>
+            </div>
+
+            <div className="px-3 py-2 border-b flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="text-gray-600 font-medium">Status Vencto.:</span>
+                <label className="inline-flex items-center gap-2">
+                  <input type="radio" name="invoiceFilter" checked={invoiceFilter === 'due'} onChange={() => setInvoiceFilter('due')} />
+                  <span>À Vencer</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input type="radio" name="invoiceFilter" checked={invoiceFilter === 'overdue'} onChange={() => setInvoiceFilter('overdue')} />
+                  <span>Vencidos</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input type="radio" name="invoiceFilter" checked={invoiceFilter === 'all'} onChange={() => setInvoiceFilter('all')} />
+                  <span>Todos</span>
+                </label>
+              </div>
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="text-gray-600 font-medium">Status Pagto.:</span>
+                <label className="inline-flex items-center gap-2">
+                  <input type="radio" name="invoiceStatusFilter" checked={invoiceStatusFilter === 'paid'} onChange={() => setInvoiceStatusFilter('paid')} />
+                  <span>Pago</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input type="radio" name="invoiceStatusFilter" checked={invoiceStatusFilter === 'open'} onChange={() => setInvoiceStatusFilter('open')} />
+                  <span>Em Aberto</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input type="radio" name="invoiceStatusFilter" checked={invoiceStatusFilter === 'all'} onChange={() => setInvoiceStatusFilter('all')} />
+                  <span>Todos</span>
+                </label>
+              </div>
+              <button
+                className="ml-auto px-3 py-1.5 text-xs border rounded bg-white hover:bg-gray-100"
+                onClick={() => loadClientInvoices()}
+              >
+                Atualizar
+              </button>
+            </div>
+
+            {loadingInvoices && <div className="p-3 text-sm text-gray-600">Carregando…</div>}
+
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="p-2 text-left">Num Fatura</th>
+                    <th className="p-2 text-left">Data Emissão</th>
+                    <th className="p-2 text-left">Data Vencimento</th>
+                    <th className="p-2 text-right">Valor R$</th>
+                    <th className="p-2 text-left">Situação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!loadingInvoices && invoicesView.length === 0 && (
+                    <tr><td colSpan={5} className="p-3 text-gray-500">Sem faturas</td></tr>
+                  )}
+                  {invoicesView.map((inv) => (
+                    <tr key={inv.id} className="border-t">
+                      {(() => {
+                        const now = new Date();
+                        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                        const raw = String(inv.status || '').trim().toUpperCase();
+                        const isPaid = raw === 'PAGA';
+                        const due = parseCalendarDate(inv.dueDate);
+                        const isOverdue = !isPaid && due != null && due < today;
+                        const label = isPaid ? 'Paga' : (isOverdue ? 'Vencida' : 'Em Aberto');
+                        const cls = isPaid
+                          ? 'bg-green-100 text-green-800'
+                          : (isOverdue ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800');
+                        return (
+                          <>
+                            <td className="p-2">{inv.invoiceNumber}</td>
+                            <td className="p-2">{formatCalendarDateBr(inv.issueDate)}</td>
+                            <td className="p-2">{formatCalendarDateBr(inv.dueDate)}</td>
+                            <td className="p-2 text-right">{Number(inv.totalValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                            <td className="p-2">
+                              <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${cls}`}>{label}</span>
+                            </td>
+                          </>
+                        );
+                      })()}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="sm:hidden divide-y">
+              {!loadingInvoices && invoicesView.length === 0 && <div className="p-3 text-gray-500 text-sm">Sem faturas</div>}
+              {invoicesView.map((inv) => (
+                <div key={inv.id} className="p-3">
+                  {(() => {
+                    const now = new Date();
+                    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    const raw = String(inv.status || '').trim().toUpperCase();
+                    const isPaid = raw === 'PAGA';
+                    const due = parseCalendarDate(inv.dueDate);
+                    const isOverdue = !isPaid && due != null && due < today;
+                    const label = isPaid ? 'Paga' : (isOverdue ? 'Vencida' : 'Em Aberto');
+                    const cls = isPaid
+                      ? 'bg-green-100 text-green-800'
+                      : (isOverdue ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800');
+                    return (
+                      <>
+                        <div className="text-sm font-semibold text-gray-900">{inv.invoiceNumber}</div>
+                        <div className="mt-1 text-xs text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
+                          <span>Emissão: {formatCalendarDateBr(inv.issueDate)}</span>
+                          <span>Venc.: {formatCalendarDateBr(inv.dueDate)}</span>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${cls}`}>{label}</span>
+                          <span className="ml-auto text-sm font-medium text-gray-900">
+                            {Number(inv.totalValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </span>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              ))}
             </div>
           </div>
         )}

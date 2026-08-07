@@ -582,6 +582,7 @@ model Client {
   itemStocks ClientItemStock[]
   cartItems ClientCartItem[]
   orders    SalesOrder[]
+  invoices  ClientInvoice[]
   orderTypes ClientOrderType[]
   priceTables ClientPriceTable[]
   billingInvoiceRecords BillingInvoiceRecord[]
@@ -590,6 +591,26 @@ model Client {
   @@index([cidade, estado])
   @@index([paymentTermId])
   @@map("client")
+}
+
+model ClientInvoice {
+  id            Int      @id @default(autoincrement())
+  clientId      Int
+  invoiceNumber String
+  issueDate     DateTime
+  dueDate       DateTime?
+  totalValue    Float
+  status        String   @default("EM_ABERTO")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, invoiceNumber])
+  @@index([clientId])
+  @@index([dueDate])
+  @@index([status])
+  @@map("clientinvoice")
 }
 
 // Itens vinculados ao cliente (cadastro alimentado via ERP/API)
