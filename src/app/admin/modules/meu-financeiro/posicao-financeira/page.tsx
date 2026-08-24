@@ -33,6 +33,21 @@ export default function PosicaoFinanceiraPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [integratingId, setIntegratingId] = useState<number | null>(null);
+
+  const extractErpMessages = (data: any): string[] => {
+    if (!data) return [];
+    if (Array.isArray(data?.messages)) return data.messages.map((message: any) => String(message));
+    const rows = Array.isArray(data?.RowErrors) ? data.RowErrors : [];
+    const out: string[] = [];
+    for (const item of rows) {
+      const subType = String(item?.ErrorSubType || "").trim();
+      const description = String(item?.ErrorDescription || "").trim();
+      if (subType || description) out.push(`${subType || "ERRO"}: ${description || "-"}`);
+    }
+    return out;
+  };
 
   useEffect(() => {
     const nextKind = searchParams?.get("kind");
@@ -94,20 +109,43 @@ export default function PosicaoFinanceiraPage() {
   const visibleRows = kind === "RECEBER" ? data.receber : data.pagar;
 
   const handleSendToErp = async (id: number) => {
-    const res = await fetch(`/api/meu-financeiro/financial-titles/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ integrated: true }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setError(String(data?.error || "Não foi possível integrar o título."));
-      return;
+    if (!confirm("Confirma enviar este título para o ERP?")) return;
+
+    setError(null);
+    setSuccess(null);
+    setIntegratingId(id);
+
+    try {
+      const res = await fetch(`/api/meu-financeiro/financial-titles/${id}/integrate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const messages = extractErpMessages(data);
+        setError(
+          [String(data?.error || "Não foi possível integrar o título."), ...messages]
+            .filter((message) => String(message || "").trim().length > 0)
+            .join(" ")
+        );
+        return;
+      }
+
+      const messages = extractErpMessages(data);
+      setRows((current) => current.map((row) => (row.id === id ? { ...row, integrated: true } : row)));
+      setSuccess(
+        messages.length > 0 ? `Título integrado com sucesso. ${messages.join(" ")}` : "Título integrado com sucesso."
+      );
+    } catch (err: any) {
+      setError(String(err?.message || "Não foi possível integrar o título."));
+    } finally {
+      setIntegratingId(null);
     }
-    setRows((current) => current.map((row) => (row.id === id ? { ...row, integrated: true } : row)));
   };
 
   const handleDelete = async (id: number) => {
+    setError(null);
+    setSuccess(null);
     const res = await fetch(`/api/meu-financeiro/financial-titles/${id}`, { method: "DELETE" });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -180,6 +218,7 @@ export default function PosicaoFinanceiraPage() {
         </div>
 
         {error && <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+        {success && <div className="mt-3 rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{success}</div>}
 
         <div className="mt-3 overflow-x-auto border rounded">
           <table className="min-w-full text-sm">
@@ -234,15 +273,27 @@ export default function PosicaoFinanceiraPage() {
                       <button
                         type="button"
                         className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs ${
-                          r.integrated
+                          r.integrated || integratingId === r.id
                             ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
                             : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
                         }`}
-                        disabled={r.integrated}
+                        disabled={r.integrated || integratingId === r.id}
                         onClick={() => void handleSendToErp(r.id)}
                       >
-                        <Send className="h-3.5 w-3.5" />
-                        Enviar ao ERP
+                        {integratingId === r.id ? (
+                          <>
+                            <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+                            </svg>
+                            Enviando...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-3.5 w-3.5" />
+                            Enviar ao ERP
+                          </>
+                        )}
                       </button>
                       <button
                         type="button"

@@ -32,6 +32,7 @@ model User {
   complaintAttachmentsCreated ComplaintAttachment[] @relation("ComplaintAttachmentCreatedBy")
   billingInvoiceRecords      BillingInvoiceRecord[]
   salesOrdersCreated    SalesOrder[]
+  financialTitlesCreated FinancialTitle[] @relation("FinancialTitleCreatedByUser")
   lastEntity            Entity?     @relation("UserLastEntity", fields: [lastEntityId], references: [id])
   userClientReps        UserClientRep[]
   userEntities          UserEntity[]
@@ -1255,6 +1256,7 @@ model ReimbursementType {
 model FinancialTitle {
   id                  Int                 @id @default(autoincrement())
   entityId            Int
+  createdByUserId     Int?
   reimbursementTypeId Int?
   kind                String              @db.VarChar(20)
   numero              String              @db.VarChar(30)
@@ -1266,11 +1268,13 @@ model FinancialTitle {
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   entity              Entity              @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  createdByUser       User?               @relation("FinancialTitleCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   reimbursementType   ReimbursementType?  @relation(fields: [reimbursementTypeId], references: [id], onDelete: SetNull)
 
   @@unique([entityId, numero])
   @@index([entityId, kind, dueDate])
   @@index([entityId, status])
+  @@index([createdByUserId])
   @@index([reimbursementTypeId])
   @@map("financialtitle")
 }

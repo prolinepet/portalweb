@@ -56,6 +56,7 @@ export async function GET(request: Request) {
         status: true,
         integrated: true,
         description: true,
+        createdByUserId: true,
         reimbursementTypeId: true,
       },
     });
@@ -70,9 +71,12 @@ export async function POST(request: Request) {
   try {
     await ensureFinancialTitleTable();
 
-    const { entityId } = await resolveActiveEntityId();
+    const { entityId, userId } = await resolveActiveEntityId();
     if (!entityId) {
       return NextResponse.json({ error: "Entidade ativa não definida" }, { status: 400 });
+    }
+    if (!userId) {
+      return NextResponse.json({ error: "Usuário autenticado não encontrado" }, { status: 401 });
     }
 
     const body = await request.json().catch(() => ({}));
@@ -115,6 +119,7 @@ export async function POST(request: Request) {
     const created = await prisma.financialTitle.create({
       data: {
         entityId,
+        createdByUserId: userId,
         reimbursementTypeId,
         kind,
         numero,
@@ -133,6 +138,7 @@ export async function POST(request: Request) {
         status: true,
         integrated: true,
         description: true,
+        createdByUserId: true,
         reimbursementTypeId: true,
       },
     });

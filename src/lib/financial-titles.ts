@@ -20,6 +20,7 @@ export async function ensureFinancialTitleTable() {
     CREATE TABLE IF NOT EXISTS \`financialtitle\` (
       \`id\` INT NOT NULL AUTO_INCREMENT,
       \`entityId\` INT NOT NULL,
+      \`createdByUserId\` INT NULL,
       \`reimbursementTypeId\` INT NULL,
       \`kind\` VARCHAR(20) NOT NULL,
       \`numero\` VARCHAR(30) NOT NULL,
@@ -34,8 +35,14 @@ export async function ensureFinancialTitleTable() {
       UNIQUE KEY \`financialtitle_entity_numero_key\` (\`entityId\`, \`numero\`),
       KEY \`financialtitle_entity_kind_due_idx\` (\`entityId\`, \`kind\`, \`dueDate\`),
       KEY \`financialtitle_entity_status_idx\` (\`entityId\`, \`status\`),
+      KEY \`financialtitle_created_by_idx\` (\`createdByUserId\`),
       KEY \`financialtitle_reimbursement_idx\` (\`reimbursementTypeId\`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE \`financialtitle\`
+    ADD COLUMN IF NOT EXISTS \`createdByUserId\` INT NULL AFTER \`entityId\`
   `);
 }
 
