@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const kind = normalizeFinancialTitleKind(body?.kind) ?? FINANCIAL_TITLE_KIND.PAGAR;
+    const kind = normalizeFinancialTitleKind(body?.kind) ?? FINANCIAL_TITLE_KIND.RECEBER;
     const dueDate = normalizeDueDate(body?.dueDate);
     const amount = parseFinancialAmount(body?.amount);
     const status = normalizeFinancialTitleStatus(body?.status) ?? FINANCIAL_TITLE_STATUS.ABERTO;

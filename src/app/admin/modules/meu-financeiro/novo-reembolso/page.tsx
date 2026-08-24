@@ -42,6 +42,25 @@ function formatBytes(value: number | null) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function parseCurrencyInput(value: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return NaN;
+
+  const normalized = raw.replace(/\s+/g, "").replace(/\./g, "").replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function formatCurrencyInput(value: string | number) {
+  const parsed = typeof value === "number" ? value : parseCurrencyInput(value);
+  if (!Number.isFinite(parsed)) return "";
+
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(parsed);
+}
+
 export default function NovoReembolsoPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -131,7 +150,7 @@ export default function NovoReembolsoPage() {
         setReimbursementId(Number(data.id));
         setReimbursementTypeId(data.reimbursementTypeId ? String(data.reimbursementTypeId) : "");
         setDescription(String(data.description || ""));
-        setValue(String(Number(data.amount || 0).toFixed(2)).replace(".", ","));
+        setValue(formatCurrencyInput(Number(data.amount || 0)));
         setDueDate(String(data.dueDate || "").slice(0, 10) || new Date().toISOString().slice(0, 10));
         setNumero(String(data.numero || ""));
         await loadAttachments(Number(data.id));
@@ -206,7 +225,7 @@ export default function NovoReembolsoPage() {
     setSaving(true);
     try {
       const payload = {
-        kind: "PAGAR",
+        kind: "RECEBER",
         reimbursementTypeId: Number(reimbursementTypeId),
         numero: numero.trim() || undefined,
         dueDate,
@@ -285,7 +304,7 @@ export default function NovoReembolsoPage() {
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Meu Financeiro • Novo Reembolso</h1>
         <Link
-          href="/admin/modules/meu-financeiro/posicao-financeira?kind=PAGAR"
+          href="/admin/modules/meu-financeiro/posicao-financeira?kind=RECEBER"
           className="rounded border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50"
         >
           Voltar
@@ -346,6 +365,8 @@ export default function NovoReembolsoPage() {
                 placeholder="Valor (R$)"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
+                onBlur={() => setValue((current) => formatCurrencyInput(current) || current)}
+                inputMode="decimal"
                 disabled={isBusy}
               />
 
