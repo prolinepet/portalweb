@@ -33,6 +33,7 @@ model User {
   billingInvoiceRecords      BillingInvoiceRecord[]
   salesOrdersCreated    SalesOrder[]
   financialTitlesCreated FinancialTitle[] @relation("FinancialTitleCreatedByUser")
+  financialTitleAttachmentsCreated FinancialTitleAttachment[] @relation("FinancialTitleAttachmentCreatedByUser")
   lastEntity            Entity?     @relation("UserLastEntity", fields: [lastEntityId], references: [id])
   userClientReps        UserClientRep[]
   userEntities          UserEntity[]
@@ -1267,6 +1268,7 @@ model FinancialTitle {
   description         String?             @db.VarChar(255)
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
+  attachments         FinancialTitleAttachment[]
   entity              Entity              @relation(fields: [entityId], references: [id], onDelete: Cascade)
   createdByUser       User?               @relation("FinancialTitleCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   reimbursementType   ReimbursementType?  @relation(fields: [reimbursementTypeId], references: [id], onDelete: SetNull)
@@ -1277,6 +1279,24 @@ model FinancialTitle {
   @@index([createdByUserId])
   @@index([reimbursementTypeId])
   @@map("financialtitle")
+}
+
+model FinancialTitleAttachment {
+  id               Int            @id @default(autoincrement())
+  financialTitleId Int
+  createdById      Int
+  storedFileName   String         @db.VarChar(255)
+  originalFileName String         @db.VarChar(255)
+  mimeType         String?        @db.VarChar(191)
+  sizeBytes        Int?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  financialTitle   FinancialTitle @relation(fields: [financialTitleId], references: [id], onDelete: Cascade)
+  createdBy        User           @relation("FinancialTitleAttachmentCreatedByUser", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([financialTitleId])
+  @@index([createdById])
+  @@map("financialtitleattachment")
 }
 
 model OccurrenceTag {

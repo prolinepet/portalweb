@@ -14,6 +14,47 @@ function parseId(value: string) {
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
 }
 
+export async function GET(_: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+
+  try {
+    await ensureFinancialTitleTable();
+
+    const id = parseId(params.id);
+    if (!id) {
+      return NextResponse.json({ error: "Id inválido" }, { status: 400 });
+    }
+
+    const { entityId } = await resolveActiveEntityId();
+    if (!entityId) {
+      return NextResponse.json({ error: "Entidade ativa não definida" }, { status: 400 });
+    }
+
+    const current = await prisma.financialTitle.findFirst({
+      where: { id, entityId },
+      select: {
+        id: true,
+        kind: true,
+        numero: true,
+        dueDate: true,
+        amount: true,
+        status: true,
+        integrated: true,
+        description: true,
+        createdByUserId: true,
+        reimbursementTypeId: true,
+      },
+    });
+    if (!current?.id) {
+      return NextResponse.json({ error: "Título não encontrado" }, { status: 404 });
+    }
+
+    return NextResponse.json(current);
+  } catch (err: any) {
+    return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
+  }
+}
+
 export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
 
@@ -125,6 +166,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         status: true,
         integrated: true,
         description: true,
+        createdByUserId: true,
         reimbursementTypeId: true,
       },
     });

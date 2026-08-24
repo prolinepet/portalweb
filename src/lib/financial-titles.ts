@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "./auth";
 import { prisma } from "./prisma";
+import path from "path";
 
 export const FINANCIAL_TITLE_KIND = {
   RECEBER: "RECEBER",
@@ -46,6 +47,27 @@ export async function ensureFinancialTitleTable() {
   `);
 }
 
+export async function ensureFinancialTitleAttachmentTable() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS \`financialtitleattachment\` (
+      \`id\` INT NOT NULL AUTO_INCREMENT,
+      \`financialTitleId\` INT NOT NULL,
+      \`createdById\` INT NOT NULL,
+      \`storedFileName\` VARCHAR(255) NOT NULL,
+      \`originalFileName\` VARCHAR(255) NOT NULL,
+      \`mimeType\` VARCHAR(191) NULL,
+      \`sizeBytes\` INT NULL,
+      \`createdAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      \`updatedAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (\`id\`),
+      KEY \`financialtitleattachment_title_idx\` (\`financialTitleId\`),
+      KEY \`financialtitleattachment_createdby_idx\` (\`createdById\`),
+      CONSTRAINT \`financialtitleattachment_title_fk\` FOREIGN KEY (\`financialTitleId\`) REFERENCES \`financialtitle\`(\`id\`) ON DELETE CASCADE,
+      CONSTRAINT \`financialtitleattachment_createdby_fk\` FOREIGN KEY (\`createdById\`) REFERENCES \`user\`(\`id\`) ON DELETE RESTRICT
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+}
+
 export async function resolveActiveEntityId() {
   const session = await getServerSession(authOptions);
   const userId = session?.user ? Number((session.user as any).id) : null;
@@ -69,6 +91,19 @@ export async function resolveActiveEntityId() {
     userId: Math.trunc(userId),
     entityId: entityId && Number.isFinite(entityId) && entityId > 0 ? Math.trunc(entityId) : null,
   };
+}
+
+export function parsePositiveInt(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
+}
+
+export function sanitizeFinancialAttachmentFileName(fileName: string) {
+  return String(fileName || "arquivo").replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+export function getFinancialTitleAttachmentDir(financialTitleId: number) {
+  return path.join(process.cwd(), "storage", "meu-financeiro", "reembolsos", String(financialTitleId), "attachments");
 }
 
 export function normalizeFinancialTitleKind(value: unknown): FinancialTitleKind | null {
