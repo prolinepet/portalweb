@@ -47,7 +47,7 @@ export default function UsersPage() {
   const loadUsers = useCallback(async () => {
     setLoading(true); setErr(null);
     try {
-      const res = await fetch("/api/users");
+      const res = await fetch("/api/users", { cache: "no-store" });
       const data = await res.json();
       const arr = Array.isArray(data) ? data : [];
       setUsers(arr);
@@ -65,6 +65,7 @@ export default function UsersPage() {
         const res = await fetch(`/api/users`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editingUserId, ...form }) });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+        setUsers((prev) => prev.map((user) => (user.id === data.id ? { ...user, ...data } : user)));
         setEditingUserId(null);
         setForm({ name: "", abbrevName: "", email: "", password: "", doc: "", costCenter: "", pixKey: "" });
         await loadUsers();
@@ -73,7 +74,8 @@ export default function UsersPage() {
         const res = await fetch("/api/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
-          setForm({ name: "", abbrevName: "", email: "", password: "", doc: "", costCenter: "", pixKey: "" });
+        setUsers((prev) => [...prev.filter((user) => user.id !== data.id), data]);
+        setForm({ name: "", abbrevName: "", email: "", password: "", doc: "", costCenter: "", pixKey: "" });
         await loadUsers();
         setSelectedUserId(data.id);
       }
