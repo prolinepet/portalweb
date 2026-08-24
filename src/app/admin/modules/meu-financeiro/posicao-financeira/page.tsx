@@ -1,22 +1,21 @@
 "use client";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ArrowDownRight, ArrowUpRight, Send, Trash2 } from "lucide-react";
 
 type Status = "ABERTO" | "PAGO";
-type Row = { numero: string; vencimento: string; valor: number; status: Status; integrado: boolean };
+type Row = {
+  id: number;
+  kind: Kind;
+  numero: string;
+  dueDate: string;
+  amount: number;
+  status: Status;
+  integrated: boolean;
+  description: string | null;
+};
 type Kind = "RECEBER" | "PAGAR";
-
-const INITIAL_RECEBER: Row[] = [
-  { numero: "001/2024", vencimento: "2024-10-15", valor: 12000, status: "ABERTO", integrado: false },
-  { numero: "002/2024", vencimento: "2024-10-28", valor: 8500, status: "PAGO", integrado: false },
-  { numero: "003/2024", vencimento: "2024-11-05", valor: 14000, status: "ABERTO", integrado: false },
-];
-
-const INITIAL_PAGAR: Row[] = [
-  { numero: "105/2024", vencimento: "2024-10-20", valor: 6250.5, status: "ABERTO", integrado: false },
-  { numero: "106/2024", vencimento: "2024-10-25", valor: 12000, status: "PAGO", integrado: false },
-];
 
 function formatBRL(value: number): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
@@ -29,36 +28,93 @@ function formatDateBR(iso: string): string {
 }
 
 export default function PosicaoFinanceiraPage() {
+  const searchParams = useSearchParams();
   const [kind, setKind] = useState<Kind>("RECEBER");
-  const [receberRows, setReceberRows] = useState<Row[]>(INITIAL_RECEBER);
-  const [pagarRows, setPagarRows] = useState<Row[]>(INITIAL_PAGAR);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const nextKind = searchParams?.get("kind");
+    if (nextKind === "RECEBER" || nextKind === "PAGAR") {
+      setKind(nextKind);
+    }
+  }, [searchParams]);
+
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/meu-financeiro/financial-titles", { cache: "no-store" });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) {
+        setRows([]);
+        setError(String(data?.error || "Não foi possível carregar os títulos."));
+        return;
+      }
+
+      const nextRows: Row[] = Array.isArray(data)
+        ? data.map((item) => ({
+            id: Number(item.id),
+            kind: item.kind === "PAGAR" ? ("PAGAR" as Kind) : ("RECEBER" as Kind),
+            numero: String(item.numero || ""),
+            dueDate: String(item.dueDate || ""),
+            amount: Number(item.amount) || 0,
+            status: item.status === "PAGO" ? ("PAGO" as Status) : ("ABERTO" as Status),
+            integrated: Boolean(item.integrated),
+            description: item.description ? String(item.description) : null,
+          }))
+        : [];
+
+      setRows(nextRows);
+    } catch {
+      setRows([]);
+      setError("Não foi possível carregar os títulos.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadRows();
+  }, [loadRows]);
 
   const data = useMemo(() => {
     const totals = {
-      RECEBER: receberRows.reduce((sum, r) => sum + (Number(r.valor) || 0), 0),
-      PAGAR: pagarRows.reduce((sum, r) => sum + (Number(r.valor) || 0), 0),
+      RECEBER: rows.filter((r) => r.kind === "RECEBER").reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+      PAGAR: rows.filter((r) => r.kind === "PAGAR").reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
     };
-    return { receber: receberRows, pagar: pagarRows, totals };
-  }, [pagarRows, receberRows]);
+    return {
+      receber: rows.filter((r) => r.kind === "RECEBER"),
+      pagar: rows.filter((r) => r.kind === "PAGAR"),
+      totals,
+    };
+  }, [rows]);
 
-  const rows = kind === "RECEBER" ? data.receber : data.pagar;
+  const visibleRows = kind === "RECEBER" ? data.receber : data.pagar;
 
-  const updateRows = (updater: (current: Row[]) => Row[]) => {
-    if (kind === "RECEBER") {
-      setReceberRows((current) => updater(current));
+  const handleSendToErp = async (id: number) => {
+    const res = await fetch(`/api/meu-financeiro/financial-titles/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ integrated: true }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(String(data?.error || "Não foi possível integrar o título."));
       return;
     }
-    setPagarRows((current) => updater(current));
+    setRows((current) => current.map((row) => (row.id === id ? { ...row, integrated: true } : row)));
   };
 
-  const handleSendToErp = (numero: string) => {
-    updateRows((current) =>
-      current.map((row) => (row.numero === numero ? { ...row, integrado: true } : row))
-    );
-  };
-
-  const handleDelete = (numero: string) => {
-    updateRows((current) => current.filter((row) => row.numero !== numero));
+  const handleDelete = async (id: number) => {
+    const res = await fetch(`/api/meu-financeiro/financial-titles/${id}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(String(data?.error || "Não foi possível excluir o título."));
+      return;
+    }
+    setRows((current) => current.filter((row) => row.id !== id));
   };
 
   return (
@@ -106,13 +162,24 @@ export default function PosicaoFinanceiraPage() {
       <div className="bg-white rounded border p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div className="font-medium">Detalhamento: {kind === "RECEBER" ? "A Receber" : "A Pagar"}</div>
-          <Link
-            href="/admin/modules/meu-financeiro/novo-reembolso"
-            className="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
-          >
-            Criar Reembolso
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void loadRows()}
+              className="px-3 py-2 rounded border text-sm hover:bg-gray-50"
+            >
+              Atualizar
+            </button>
+            <Link
+              href="/admin/modules/meu-financeiro/novo-reembolso"
+              className="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
+            >
+              Criar Reembolso
+            </Link>
+          </div>
         </div>
+
+        {error && <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
         <div className="mt-3 overflow-x-auto border rounded">
           <table className="min-w-full text-sm">
@@ -127,11 +194,19 @@ export default function PosicaoFinanceiraPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.numero} className="border-b last:border-b-0">
+              {loading && (
+                <tr>
+                  <td colSpan={6} className="p-3 text-gray-500">
+                    Carregando títulos...
+                  </td>
+                </tr>
+              )}
+              {!loading &&
+                visibleRows.map((r) => (
+                <tr key={r.id} className="border-b last:border-b-0">
                   <td className="p-2">{r.numero}</td>
-                  <td className="p-2">{formatDateBR(r.vencimento)}</td>
-                  <td className="p-2">{formatBRL(r.valor)}</td>
+                  <td className="p-2">{formatDateBR(r.dueDate)}</td>
+                  <td className="p-2">{formatBRL(r.amount)}</td>
                   <td className="p-2">
                     {r.status === "PAGO" ? (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 border border-green-200">
@@ -144,7 +219,7 @@ export default function PosicaoFinanceiraPage() {
                     )}
                   </td>
                   <td className="p-2">
-                    {r.integrado ? (
+                    {r.integrated ? (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 border border-blue-200">
                         Sim
                       </span>
@@ -159,12 +234,12 @@ export default function PosicaoFinanceiraPage() {
                       <button
                         type="button"
                         className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs ${
-                          r.integrado
+                          r.integrated
                             ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
                             : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
                         }`}
-                        disabled={r.integrado}
-                        onClick={() => handleSendToErp(r.numero)}
+                        disabled={r.integrated}
+                        onClick={() => void handleSendToErp(r.id)}
                       >
                         <Send className="h-3.5 w-3.5" />
                         Enviar ao ERP
@@ -172,12 +247,12 @@ export default function PosicaoFinanceiraPage() {
                       <button
                         type="button"
                         className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs ${
-                          r.integrado
+                          r.integrated
                             ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
                             : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
                         }`}
-                        disabled={r.integrado}
-                        onClick={() => handleDelete(r.numero)}
+                        disabled={r.integrated}
+                        onClick={() => void handleDelete(r.id)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                         Excluir
@@ -186,7 +261,7 @@ export default function PosicaoFinanceiraPage() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && (
+              {!loading && visibleRows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="p-2 text-gray-500">
                     Nenhum título

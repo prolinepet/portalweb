@@ -329,6 +329,7 @@ model Entity {
   salesOrders     SalesOrder[]
   salesDashboardSnapshots SalesDashboardSnapshot[]
   logisticPreCargas LogisticPreCarga[]
+  financialTitles FinancialTitle[]
 
   @@map("entity")
 }
@@ -1246,8 +1247,32 @@ model ReimbursementType {
   description String   @db.VarChar(100)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  financialTitles FinancialTitle[]
 
   @@map("reimbursementtype")
+}
+
+model FinancialTitle {
+  id                  Int                 @id @default(autoincrement())
+  entityId            Int
+  reimbursementTypeId Int?
+  kind                String              @db.VarChar(20)
+  numero              String              @db.VarChar(30)
+  dueDate             DateTime
+  amount              Float
+  status              String              @default("ABERTO") @db.VarChar(20)
+  integrated          Boolean             @default(false)
+  description         String?             @db.VarChar(255)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  entity              Entity              @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  reimbursementType   ReimbursementType?  @relation(fields: [reimbursementTypeId], references: [id], onDelete: SetNull)
+
+  @@unique([entityId, numero])
+  @@index([entityId, kind, dueDate])
+  @@index([entityId, status])
+  @@index([reimbursementTypeId])
+  @@map("financialtitle")
 }
 
 model OccurrenceTag {
