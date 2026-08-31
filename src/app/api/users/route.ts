@@ -296,6 +296,26 @@ export async function PATCH(request: Request) {
       update.password = await bcrypt.hash(String(body.password), 10);
     }
 
+    if (Object.prototype.hasOwnProperty.call(update, 'doc') && update.doc) {
+      const existingDocOwner = await prisma.user.findFirst({
+        where: {
+          doc: update.doc,
+          id: { not: id },
+        },
+        select: { id: true, name: true, email: true, doc: true },
+      });
+      if (existingDocOwner) {
+        return NextResponse.json(
+          {
+            error: `CPF/CNPJ já está vinculado ao usuário ${existingDocOwner.name}${existingDocOwner.email ? ` (${existingDocOwner.email})` : ''}.`,
+            code: 'DOC_ALREADY_IN_USE',
+            owner: existingDocOwner,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const updated = await prisma.user.update({
       where: { id },
       data: update,
@@ -319,7 +339,12 @@ export async function PATCH(request: Request) {
     });
     return NextResponse.json({ ...updated, hasTwoFactorSecret: updated.twoFactorSecret != null });
   } catch (err: any) {
-    return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
+    const msg = String(err?.message || err);
+    const isUniqueDoc = msg.includes('User_doc_key') || msg.toLowerCase().includes('doc');
+    return NextResponse.json(
+      { error: isUniqueDoc ? 'CPF/CNPJ já está vinculado a outro usuário.' : msg },
+      { status: isUniqueDoc ? 409 : 500 }
+    );
   }
 }
 
