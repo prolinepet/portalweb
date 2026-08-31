@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS `financialtitle` (
   `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `financialtitle_entity_numero_key` (`entityId`, `numero`),
+  UNIQUE KEY `financialtitle_entity_user_numero_key` (`entityId`, `createdByUserId`, `numero`),
   KEY `financialtitle_entity_kind_due_idx` (`entityId`, `kind`, `dueDate`),
   KEY `financialtitle_entity_status_idx` (`entityId`, `status`),
   KEY `financialtitle_created_by_idx` (`createdByUserId`),

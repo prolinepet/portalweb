@@ -175,7 +175,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   } catch (err: any) {
     const message = String(err?.message || err);
     if (message.toLowerCase().includes("unique")) {
-      return NextResponse.json({ error: "Já existe um título com esse número para a entidade ativa" }, { status: 409 });
+      return NextResponse.json({ error: "Já existe um título com esse número para o usuário atual na entidade ativa" }, { status: 409 });
     }
     return NextResponse.json({ error: message }, { status: 500 });
   }

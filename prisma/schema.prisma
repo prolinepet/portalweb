@@ -1273,7 +1273,7 @@ model FinancialTitle {
   createdByUser       User?               @relation("FinancialTitleCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   reimbursementType   ReimbursementType?  @relation(fields: [reimbursementTypeId], references: [id], onDelete: SetNull)
 
-  @@unique([entityId, numero])
+  @@unique([entityId, createdByUserId, numero], map: "financialtitle_entity_user_numero_key")
   @@index([entityId, kind, dueDate])
   @@index([entityId, status])
   @@index([createdByUserId])

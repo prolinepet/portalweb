@@ -33,7 +33,7 @@ export async function ensureFinancialTitleTable() {
       \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       \`updatedAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
       PRIMARY KEY (\`id\`),
-      UNIQUE KEY \`financialtitle_entity_numero_key\` (\`entityId\`, \`numero\`),
+      UNIQUE KEY \`financialtitle_entity_user_numero_key\` (\`entityId\`, \`createdByUserId\`, \`numero\`),
       KEY \`financialtitle_entity_kind_due_idx\` (\`entityId\`, \`kind\`, \`dueDate\`),
       KEY \`financialtitle_entity_status_idx\` (\`entityId\`, \`status\`),
       KEY \`financialtitle_created_by_idx\` (\`createdByUserId\`),
@@ -45,6 +45,39 @@ export async function ensureFinancialTitleTable() {
     ALTER TABLE \`financialtitle\`
     ADD COLUMN IF NOT EXISTS \`createdByUserId\` INT NULL AFTER \`entityId\`
   `);
+
+  const indexes = (await prisma.$queryRawUnsafe(`
+    SELECT INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX, NON_UNIQUE
+    FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'financialtitle'
+      AND INDEX_NAME IN ('financialtitle_entity_numero_key', 'financialtitle_entity_user_numero_key')
+    ORDER BY INDEX_NAME, SEQ_IN_INDEX
+  `)) as Array<{ INDEX_NAME?: string; COLUMN_NAME?: string; NON_UNIQUE?: number }>;
+
+  const uniqueIndexes = new Map<string, string[]>();
+  for (const row of indexes) {
+    if (Number(row?.NON_UNIQUE || 0) !== 0) continue;
+    const indexName = String(row?.INDEX_NAME || "").trim();
+    const columnName = String(row?.COLUMN_NAME || "").trim();
+    if (!indexName || !columnName) continue;
+    uniqueIndexes.set(indexName, [...(uniqueIndexes.get(indexName) || []), columnName]);
+  }
+
+  const hasNewUniqueKey = JSON.stringify(uniqueIndexes.get("financialtitle_entity_user_numero_key") || []) === JSON.stringify([
+    "entityId",
+    "createdByUserId",
+    "numero",
+  ]);
+
+  if (!hasNewUniqueKey) {
+    const hasOldUniqueKey = uniqueIndexes.has("financialtitle_entity_numero_key");
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE \`financialtitle\`
+      ${hasOldUniqueKey ? "DROP INDEX `financialtitle_entity_numero_key`," : ""}
+      ADD UNIQUE KEY \`financialtitle_entity_user_numero_key\` (\`entityId\`, \`createdByUserId\`, \`numero\`)
+    `);
+  }
 }
 
 export async function ensureFinancialTitleAttachmentTable() {
@@ -143,23 +176,45 @@ export function normalizeDueDate(value: unknown): Date | null {
   return parsed;
 }
 
-export async function generateFinancialTitleNumber(entityId: number, kind: FinancialTitleKind) {
-  const now = new Date();
+export function calculateDefaultFinancialTitleDueDate(referenceDate = new Date()) {
+  const baseDate = new Date(referenceDate);
+  baseDate.setHours(0, 0, 0, 0);
+
+  // Progress ABL WEEKDAY returns 1 for Sunday through 7 for Saturday.
+  const progressWeekday = baseDate.getDay() + 1;
+  const daysToAdd = progressWeekday <= 3 ? 5 - progressWeekday : 12 - progressWeekday;
+
+  const result = new Date(baseDate);
+  result.setDate(result.getDate() + daysToAdd);
+  return result;
+}
+
+export async function generateFinancialTitleNumber(entityId: number, createdByUserId: number, referenceDate = new Date()) {
+  const now = new Date(referenceDate);
   const year = now.getFullYear();
-  const prefix = kind === FINANCIAL_TITLE_KIND.RECEBER ? "REC" : "RMB";
-  const base = `${prefix}/${year}/`;
-  const latest = await prisma.financialTitle.findFirst({
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const base = `${year}${month}/`;
+  const monthStart = new Date(year, now.getMonth(), 1);
+  const nextMonthStart = new Date(year, now.getMonth() + 1, 1);
+
+  const existing = await prisma.financialTitle.findMany({
     where: {
       entityId: Math.trunc(entityId),
-      kind,
+      createdByUserId: Math.trunc(createdByUserId),
+      createdAt: {
+        gte: monthStart,
+        lt: nextMonthStart,
+      },
       numero: { startsWith: base },
     },
-    orderBy: { numero: "desc" },
     select: { numero: true },
   });
 
-  const lastSequence = latest?.numero ? Number(String(latest.numero).slice(base.length)) : 0;
-  const nextSequence = Number.isFinite(lastSequence) ? lastSequence + 1 : 1;
+  const lastSequence = existing.reduce((maxValue, row) => {
+    const current = Number.parseInt(String(row.numero || "").slice(base.length), 10);
+    return Number.isFinite(current) && current > maxValue ? current : maxValue;
+  }, 0);
+  const nextSequence = lastSequence + 1;
 
-  return `${base}${String(nextSequence).padStart(4, "0")}`;
+  return `${base}${String(nextSequence).padStart(2, "0")}`;
 }

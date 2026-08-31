@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import {
+  calculateDefaultFinancialTitleDueDate,
   ensureFinancialTitleTable,
   FINANCIAL_TITLE_KIND,
   FINANCIAL_TITLE_STATUS,
@@ -81,7 +82,9 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => ({}));
     const kind = normalizeFinancialTitleKind(body?.kind) ?? FINANCIAL_TITLE_KIND.RECEBER;
-    const dueDate = normalizeDueDate(body?.dueDate);
+    const dueDateRaw = body?.dueDate;
+    const hasDueDateInput = dueDateRaw !== undefined && dueDateRaw !== null && String(dueDateRaw).trim() !== "";
+    const dueDate = hasDueDateInput ? normalizeDueDate(dueDateRaw) : calculateDefaultFinancialTitleDueDate();
     const amount = parseFinancialAmount(body?.amount);
     const status = normalizeFinancialTitleStatus(body?.status) ?? FINANCIAL_TITLE_STATUS.ABERTO;
     const description = String(body?.description || "").trim() || null;
@@ -113,7 +116,7 @@ export async function POST(request: Request) {
 
     let numero = String(body?.numero || "").trim().toUpperCase();
     if (!numero) {
-      numero = await generateFinancialTitleNumber(entityId, kind);
+      numero = await generateFinancialTitleNumber(entityId, userId);
     }
 
     const created = await prisma.financialTitle.create({
@@ -147,7 +150,7 @@ export async function POST(request: Request) {
   } catch (err: any) {
     const message = String(err?.message || err);
     if (message.toLowerCase().includes("unique")) {
-      return NextResponse.json({ error: "Já existe um título com esse número para a entidade ativa" }, { status: 409 });
+      return NextResponse.json({ error: "Já existe um título com esse número para o usuário atual na entidade ativa" }, { status: 409 });
     }
     return NextResponse.json({ error: message }, { status: 500 });
   }

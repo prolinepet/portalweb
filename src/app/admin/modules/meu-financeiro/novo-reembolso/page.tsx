@@ -51,6 +51,26 @@ function parseCurrencyInput(value: string) {
   return Number.isFinite(parsed) ? parsed : NaN;
 }
 
+function formatCurrencyWhileTyping(value: string) {
+  const sanitized = String(value || "").replace(/[^\d,]/g, "");
+  if (!sanitized) return "";
+
+  const hasComma = sanitized.includes(",");
+  const [integerPartRaw, decimalPartRaw = ""] = sanitized.split(",", 2);
+  const integerDigits = integerPartRaw.replace(/\D/g, "");
+  const decimalDigits = decimalPartRaw.replace(/\D/g, "").slice(0, 2);
+
+  const integerFormatted = integerDigits
+    ? new Intl.NumberFormat("pt-BR", {
+        maximumFractionDigits: 0,
+      }).format(Number(integerDigits))
+    : hasComma
+      ? "0"
+      : "";
+
+  return hasComma ? `${integerFormatted},${decimalDigits}` : integerFormatted;
+}
+
 function formatCurrencyInput(value: string | number) {
   const parsed = typeof value === "number" ? value : parseCurrencyInput(value);
   if (!Number.isFinite(parsed)) return "";
@@ -59,6 +79,19 @@ function formatCurrencyInput(value: string | number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(parsed);
+}
+
+function getDefaultDueDateValue(referenceDate = new Date()) {
+  const baseDate = new Date(referenceDate);
+  baseDate.setHours(0, 0, 0, 0);
+
+  // Progress ABL WEEKDAY returns 1 for Sunday through 7 for Saturday.
+  const progressWeekday = baseDate.getDay() + 1;
+  const daysToAdd = progressWeekday <= 3 ? 5 - progressWeekday : 12 - progressWeekday;
+
+  const result = new Date(baseDate);
+  result.setDate(result.getDate() + daysToAdd);
+  return result.toISOString().slice(0, 10);
 }
 
 export default function NovoReembolsoPage() {
@@ -73,7 +106,7 @@ export default function NovoReembolsoPage() {
   const [loadingReimbursement, setLoadingReimbursement] = useState(false);
   const [description, setDescription] = useState("");
   const [value, setValue] = useState("");
-  const [dueDate, setDueDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dueDate, setDueDate] = useState(() => getDefaultDueDateValue());
   const [numero, setNumero] = useState("");
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -130,7 +163,7 @@ export default function NovoReembolsoPage() {
       setReimbursementTypeId("");
       setDescription("");
       setValue("");
-      setDueDate(new Date().toISOString().slice(0, 10));
+      setDueDate(getDefaultDueDateValue());
       setNumero("");
       setAttachments([]);
       return;
@@ -151,7 +184,7 @@ export default function NovoReembolsoPage() {
         setReimbursementTypeId(data.reimbursementTypeId ? String(data.reimbursementTypeId) : "");
         setDescription(String(data.description || ""));
         setValue(formatCurrencyInput(Number(data.amount || 0)));
-        setDueDate(String(data.dueDate || "").slice(0, 10) || new Date().toISOString().slice(0, 10));
+        setDueDate(String(data.dueDate || "").slice(0, 10) || getDefaultDueDateValue());
         setNumero(String(data.numero || ""));
         await loadAttachments(Number(data.id));
       })
@@ -364,7 +397,7 @@ export default function NovoReembolsoPage() {
                 className="rounded border px-3 py-2"
                 placeholder="Valor (R$)"
                 value={value}
-                onChange={(e) => setValue(e.target.value)}
+                onChange={(e) => setValue(formatCurrencyWhileTyping(e.target.value))}
                 onBlur={() => setValue((current) => formatCurrencyInput(current) || current)}
                 inputMode="decimal"
                 disabled={isBusy}
