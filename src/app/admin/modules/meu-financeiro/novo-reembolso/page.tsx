@@ -93,7 +93,6 @@ export default function NovoReembolsoPage() {
   const [loadingReimbursement, setLoadingReimbursement] = useState(false);
   const [description, setDescription] = useState("");
   const [value, setValue] = useState("");
-  const [numero, setNumero] = useState("");
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -149,7 +148,6 @@ export default function NovoReembolsoPage() {
       setReimbursementTypeId("");
       setDescription("");
       setValue("");
-      setNumero("");
       setAttachments([]);
       return;
     }
@@ -169,7 +167,6 @@ export default function NovoReembolsoPage() {
         setReimbursementTypeId(data.reimbursementTypeId ? String(data.reimbursementTypeId) : "");
         setDescription(String(data.description || ""));
         setValue(formatCurrencyInput(Number(data.amount || 0)));
-        setNumero(String(data.numero || ""));
         await loadAttachments(Number(data.id));
       })
       .catch(() => {
@@ -243,7 +240,6 @@ export default function NovoReembolsoPage() {
       const payload = {
         kind: "RECEBER",
         reimbursementTypeId: Number(reimbursementTypeId),
-        numero: numero.trim() || undefined,
         amount: value,
         description: description.trim(),
         status: "ABERTO",
@@ -382,18 +378,6 @@ export default function NovoReembolsoPage() {
                 onChange={(e) => setValue(formatCurrencyWhileTyping(e.target.value))}
                 onBlur={() => setValue((current) => formatCurrencyInput(current) || current)}
                 inputMode="decimal"
-                disabled={isBusy}
-              />
-
-              <div className="rounded border bg-gray-100 px-3 py-2 text-sm text-gray-600">
-                O vencimento sera definido automaticamente no momento em que a integracao com o ERP retornar OK.
-              </div>
-
-              <input
-                className="rounded border px-3 py-2 md:col-span-2"
-                placeholder="Número do título (opcional)"
-                value={numero}
-                onChange={(e) => setNumero(e.target.value)}
                 disabled={isBusy}
               />
 
