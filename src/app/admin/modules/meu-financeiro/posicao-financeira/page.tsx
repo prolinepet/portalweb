@@ -43,9 +43,8 @@ export default function PosicaoFinanceiraPage() {
     const rows = Array.isArray(data?.RowErrors) ? data.RowErrors : [];
     const out: string[] = [];
     for (const item of rows) {
-      const subType = String(item?.ErrorSubType || "").trim();
       const description = String(item?.ErrorDescription || "").trim();
-      if (subType || description) out.push(`${subType || "ERRO"}: ${description || "-"}`);
+      if (description) out.push(description);
     }
     return out;
   };
@@ -126,7 +125,7 @@ export default function PosicaoFinanceiraPage() {
         const messages = extractErpMessages(data);
         setError(
           messages.length > 0
-            ? messages.join(" ")
+            ? messages.join("\n")
             : String(data?.error || "Não foi possível integrar o título.")
         );
         return;
@@ -228,7 +227,11 @@ export default function PosicaoFinanceiraPage() {
           </div>
         </div>
 
-        {error && <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+        {error && (
+          <div className="mt-3 whitespace-pre-line rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        )}
         {success && <div className="mt-3 rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{success}</div>}
 
         <div className="mt-3 overflow-x-auto border rounded">
