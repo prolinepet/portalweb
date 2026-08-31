@@ -1261,7 +1261,7 @@ model FinancialTitle {
   reimbursementTypeId Int?
   kind                String              @db.VarChar(20)
   numero              String              @db.VarChar(30)
-  dueDate             DateTime
+  dueDate             DateTime?
   amount              Float
   status              String              @default("ABERTO") @db.VarChar(20)
   integrated          Boolean             @default(false)

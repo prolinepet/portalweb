@@ -81,19 +81,6 @@ function formatCurrencyInput(value: string | number) {
   }).format(parsed);
 }
 
-function getDefaultDueDateValue(referenceDate = new Date()) {
-  const baseDate = new Date(referenceDate);
-  baseDate.setHours(0, 0, 0, 0);
-
-  // Progress ABL WEEKDAY returns 1 for Sunday through 7 for Saturday.
-  const progressWeekday = baseDate.getDay() + 1;
-  const daysToAdd = progressWeekday <= 3 ? 5 - progressWeekday : 12 - progressWeekday;
-
-  const result = new Date(baseDate);
-  result.setDate(result.getDate() + daysToAdd);
-  return result.toISOString().slice(0, 10);
-}
-
 export default function NovoReembolsoPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -106,7 +93,6 @@ export default function NovoReembolsoPage() {
   const [loadingReimbursement, setLoadingReimbursement] = useState(false);
   const [description, setDescription] = useState("");
   const [value, setValue] = useState("");
-  const [dueDate, setDueDate] = useState(() => getDefaultDueDateValue());
   const [numero, setNumero] = useState("");
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -163,7 +149,6 @@ export default function NovoReembolsoPage() {
       setReimbursementTypeId("");
       setDescription("");
       setValue("");
-      setDueDate(getDefaultDueDateValue());
       setNumero("");
       setAttachments([]);
       return;
@@ -184,7 +169,6 @@ export default function NovoReembolsoPage() {
         setReimbursementTypeId(data.reimbursementTypeId ? String(data.reimbursementTypeId) : "");
         setDescription(String(data.description || ""));
         setValue(formatCurrencyInput(Number(data.amount || 0)));
-        setDueDate(String(data.dueDate || "").slice(0, 10) || getDefaultDueDateValue());
         setNumero(String(data.numero || ""));
         await loadAttachments(Number(data.id));
       })
@@ -240,7 +224,6 @@ export default function NovoReembolsoPage() {
     if (!reimbursementTypeId) return "Selecione o tipo de reembolso.";
     if (!description.trim()) return "Informe a descrição.";
     if (!value.trim()) return "Informe o valor.";
-    if (!dueDate) return "Informe a data de vencimento.";
     return null;
   };
 
@@ -261,7 +244,6 @@ export default function NovoReembolsoPage() {
         kind: "RECEBER",
         reimbursementTypeId: Number(reimbursementTypeId),
         numero: numero.trim() || undefined,
-        dueDate,
         amount: value,
         description: description.trim(),
         status: "ABERTO",
@@ -403,13 +385,9 @@ export default function NovoReembolsoPage() {
                 disabled={isBusy}
               />
 
-              <input
-                type="date"
-                className="rounded border px-3 py-2"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                disabled={isBusy}
-              />
+              <div className="rounded border bg-gray-100 px-3 py-2 text-sm text-gray-600">
+                O vencimento sera definido automaticamente no momento em que a integracao com o ERP retornar OK.
+              </div>
 
               <input
                 className="rounded border px-3 py-2 md:col-span-2"

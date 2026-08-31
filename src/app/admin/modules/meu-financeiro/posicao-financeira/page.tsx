@@ -9,7 +9,7 @@ type Row = {
   id: number;
   kind: Kind;
   numero: string;
-  dueDate: string;
+  dueDate: string | null;
   amount: number;
   status: Status;
   integrated: boolean;
@@ -21,7 +21,8 @@ function formatBRL(value: number): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
 }
 
-function formatDateBR(iso: string): string {
+function formatDateBR(iso: string | null): string {
+  if (!iso) return "-";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("pt-BR");
@@ -73,7 +74,7 @@ export default function PosicaoFinanceiraPage() {
             id: Number(item.id),
             kind: item.kind === "PAGAR" ? ("PAGAR" as Kind) : ("RECEBER" as Kind),
             numero: String(item.numero || ""),
-            dueDate: String(item.dueDate || ""),
+            dueDate: item.dueDate ? String(item.dueDate) : null,
             amount: Number(item.amount) || 0,
             status: item.status === "PAGO" ? ("PAGO" as Status) : ("ABERTO" as Status),
             integrated: Boolean(item.integrated),
@@ -132,7 +133,17 @@ export default function PosicaoFinanceiraPage() {
       }
 
       const messages = extractErpMessages(data);
-      setRows((current) => current.map((row) => (row.id === id ? { ...row, integrated: true } : row)));
+      setRows((current) =>
+        current.map((row) =>
+          row.id === id
+            ? {
+                ...row,
+                integrated: true,
+                dueDate: data?.dueDate ? String(data.dueDate) : row.dueDate,
+              }
+            : row
+        )
+      );
       setSuccess(
         messages.length > 0 ? `Título integrado com sucesso. ${messages.join(" ")}` : "Título integrado com sucesso."
       );

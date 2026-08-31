@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../../../../../lib/auth";
 import { prisma } from "../../../../../../lib/prisma";
-import { ensureFinancialTitleTable } from "../../../../../../lib/financial-titles";
+import {
+  calculateDefaultFinancialTitleDueDate,
+  ensureFinancialTitleTable,
+} from "../../../../../../lib/financial-titles";
 
 function translateErrorSubType(value: unknown): string {
   const normalized = String(value || "").trim().toUpperCase();
@@ -116,6 +119,8 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       );
     }
 
+    const integrationDueDate = calculateDefaultFinancialTitleDueDate(new Date());
+
     const payload = {
       route: integrationRoute,
       module: "mpd",
@@ -131,7 +136,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           numero: financialTitle.numero,
           code: financialTitle.numero,
           kind: financialTitle.kind,
-          dueDate: formatIsoDate(financialTitle.dueDate),
+          dueDate: formatIsoDate(integrationDueDate),
           amount: Number(financialTitle.amount || 0),
           status: financialTitle.status,
           description: String(financialTitle.description || financialTitle.reimbursementType?.description || "").trim(),
@@ -193,12 +198,16 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
     await prisma.financialTitle.update({
       where: { id: financialTitle.id },
-      data: { integrated: true },
+      data: {
+        integrated: true,
+        dueDate: integrationDueDate,
+      },
     });
 
     return NextResponse.json({
       ...data,
       integrated: true,
+      dueDate: integrationDueDate.toISOString(),
       messages,
     });
   } catch (err: any) {

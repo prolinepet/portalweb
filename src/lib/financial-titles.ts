@@ -25,7 +25,7 @@ export async function ensureFinancialTitleTable() {
       \`reimbursementTypeId\` INT NULL,
       \`kind\` VARCHAR(20) NOT NULL,
       \`numero\` VARCHAR(30) NOT NULL,
-      \`dueDate\` DATETIME(3) NOT NULL,
+      \`dueDate\` DATETIME(3) NULL,
       \`amount\` DOUBLE NOT NULL,
       \`status\` VARCHAR(20) NOT NULL DEFAULT 'ABERTO',
       \`integrated\` TINYINT(1) NOT NULL DEFAULT 0,
@@ -44,6 +44,11 @@ export async function ensureFinancialTitleTable() {
   await prisma.$executeRawUnsafe(`
     ALTER TABLE \`financialtitle\`
     ADD COLUMN IF NOT EXISTS \`createdByUserId\` INT NULL AFTER \`entityId\`
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE \`financialtitle\`
+    MODIFY COLUMN \`dueDate\` DATETIME(3) NULL
   `);
 
   const indexes = (await prisma.$queryRawUnsafe(`

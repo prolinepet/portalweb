@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `financialtitle` (
   `reimbursementTypeId` INT NULL,
   `kind` VARCHAR(20) NOT NULL,
   `numero` VARCHAR(30) NOT NULL,
-  `dueDate` DATETIME(3) NOT NULL,
+  `dueDate` DATETIME(3) NULL,
   `amount` DOUBLE NOT NULL,
   `status` VARCHAR(20) NOT NULL DEFAULT 'ABERTO',
   `integrated` TINYINT(1) NOT NULL DEFAULT 0,

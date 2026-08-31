@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
 import {
   ensureFinancialTitleTable,
-  normalizeDueDate,
   normalizeFinancialTitleKind,
   normalizeFinancialTitleStatus,
   parseFinancialAmount,
@@ -96,14 +95,6 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         return NextResponse.json({ error: "Número do título é obrigatório" }, { status: 400 });
       }
       data.numero = numero;
-    }
-
-    if (body?.dueDate !== undefined) {
-      const dueDate = normalizeDueDate(body.dueDate);
-      if (!dueDate) {
-        return NextResponse.json({ error: "Data de vencimento inválida" }, { status: 400 });
-      }
-      data.dueDate = dueDate;
     }
 
     if (body?.amount !== undefined) {

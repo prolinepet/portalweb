@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import {
-  calculateDefaultFinancialTitleDueDate,
   ensureFinancialTitleTable,
   FINANCIAL_TITLE_KIND,
   FINANCIAL_TITLE_STATUS,
   generateFinancialTitleNumber,
-  normalizeDueDate,
   normalizeFinancialTitleKind,
   normalizeFinancialTitleStatus,
   parseFinancialAmount,
@@ -82,17 +80,11 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => ({}));
     const kind = normalizeFinancialTitleKind(body?.kind) ?? FINANCIAL_TITLE_KIND.RECEBER;
-    const dueDateRaw = body?.dueDate;
-    const hasDueDateInput = dueDateRaw !== undefined && dueDateRaw !== null && String(dueDateRaw).trim() !== "";
-    const dueDate = hasDueDateInput ? normalizeDueDate(dueDateRaw) : calculateDefaultFinancialTitleDueDate();
     const amount = parseFinancialAmount(body?.amount);
     const status = normalizeFinancialTitleStatus(body?.status) ?? FINANCIAL_TITLE_STATUS.ABERTO;
     const description = String(body?.description || "").trim() || null;
     const integrated = Boolean(body?.integrated);
 
-    if (!dueDate) {
-      return NextResponse.json({ error: "Data de vencimento inválida" }, { status: 400 });
-    }
     if (!Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ error: "Valor inválido" }, { status: 400 });
     }
@@ -126,7 +118,7 @@ export async function POST(request: Request) {
         reimbursementTypeId,
         kind,
         numero,
-        dueDate,
+        dueDate: null,
         amount,
         status,
         integrated,
