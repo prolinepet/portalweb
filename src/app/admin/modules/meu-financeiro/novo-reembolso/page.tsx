@@ -91,6 +91,7 @@ export default function NovoReembolsoPage() {
   const [reimbursementTypes, setReimbursementTypes] = useState<ReimbursementTypeOption[]>([]);
   const [loadingTypes, setLoadingTypes] = useState(false);
   const [loadingReimbursement, setLoadingReimbursement] = useState(false);
+  const [readOnly, setReadOnly] = useState(false);
   const [description, setDescription] = useState("");
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
@@ -145,6 +146,7 @@ export default function NovoReembolsoPage() {
     const id = Number(searchParams?.get("id") || "");
     if (!Number.isFinite(id) || id <= 0) {
       setReimbursementId(null);
+      setReadOnly(false);
       setReimbursementTypeId("");
       setDescription("");
       setValue("");
@@ -164,9 +166,12 @@ export default function NovoReembolsoPage() {
         }
 
         setReimbursementId(Number(data.id));
+        setReadOnly(Boolean(data.integrated));
         setReimbursementTypeId(data.reimbursementTypeId ? String(data.reimbursementTypeId) : "");
         setDescription(String(data.description || ""));
         setValue(formatCurrencyInput(Number(data.amount || 0)));
+        setPendingFiles([]);
+        setFileInputKey((current) => current + 1);
         await loadAttachments(Number(data.id));
       })
       .catch(() => {
@@ -184,6 +189,7 @@ export default function NovoReembolsoPage() {
   }, [loadAttachments, searchParams]);
 
   const isBusy = saving || loadingReimbursement;
+  const isReadOnly = readOnly && reimbursementId !== null;
 
   const pendingSummary = useMemo(() => {
     if (pendingFiles.length === 0) return "Nenhum arquivo selecionado.";
@@ -228,6 +234,11 @@ export default function NovoReembolsoPage() {
     e.preventDefault();
     setFeedback(null);
     setSuccess(null);
+
+    if (isReadOnly) {
+      setFeedback("Este reembolso ja foi integrado e esta disponivel apenas para visualizacao.");
+      return;
+    }
 
     const validationError = validateForm();
     if (validationError) {
@@ -283,6 +294,10 @@ export default function NovoReembolsoPage() {
   };
 
   const handleQueueFiles = (files: FileList | null) => {
+    if (isReadOnly) {
+      setFeedback("Este reembolso ja foi integrado e esta disponivel apenas para visualizacao.");
+      return;
+    }
     const nextFiles = Array.from(files || []).filter((file) => file.size > 0);
     if (nextFiles.length === 0) return;
     setPendingFiles((current) => [...current, ...nextFiles]);
@@ -291,6 +306,10 @@ export default function NovoReembolsoPage() {
   };
 
   const handleUploadPendingFiles = async () => {
+    if (isReadOnly) {
+      setFeedback("Este reembolso ja foi integrado e esta disponivel apenas para visualizacao.");
+      return;
+    }
     if (!reimbursementId) {
       setFeedback("Salve o reembolso primeiro para enviar os anexos.");
       return;
@@ -313,7 +332,9 @@ export default function NovoReembolsoPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">Meu Financeiro • Novo Reembolso</h1>
+        <h1 className="text-xl font-semibold">
+          Meu Financeiro • {isReadOnly ? "Visualizar Reembolso" : "Novo Reembolso"}
+        </h1>
         <Link
           href="/admin/modules/meu-financeiro/posicao-financeira?kind=RECEBER"
           className="rounded border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50"
@@ -346,6 +367,11 @@ export default function NovoReembolsoPage() {
         <div className="rounded-b border-t-0 border-gray-200 bg-gray-50 p-4">
           {feedback && <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{feedback}</div>}
           {success && <div className="mb-4 rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{success}</div>}
+          {isReadOnly && (
+            <div className="mb-4 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+              Este reembolso ja foi integrado ao ERP. Os dados e anexos estao disponiveis apenas para visualizacao.
+            </div>
+          )}
 
           {activeTab === "dados" ? (
             <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -353,7 +379,7 @@ export default function NovoReembolsoPage() {
                 className="rounded border px-3 py-2 bg-white"
                 value={reimbursementTypeId}
                 onChange={(e) => setReimbursementTypeId(e.target.value)}
-                disabled={isBusy}
+                disabled={isBusy || isReadOnly}
               >
                 <option value="">{loadingTypes ? "Carregando tipos..." : "Tipo de reembolso"}</option>
                 {reimbursementTypes.map((item) => (
@@ -368,7 +394,7 @@ export default function NovoReembolsoPage() {
                 placeholder="Descrição"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                disabled={isBusy}
+                disabled={isBusy || isReadOnly}
               />
 
               <input
@@ -378,90 +404,102 @@ export default function NovoReembolsoPage() {
                 onChange={(e) => setValue(formatCurrencyWhileTyping(e.target.value))}
                 onBlur={() => setValue((current) => formatCurrencyInput(current) || current)}
                 inputMode="decimal"
-                disabled={isBusy}
+                disabled={isBusy || isReadOnly}
               />
 
               <div className="md:col-span-2 flex items-center justify-between gap-3">
                 <div className="text-sm text-gray-500">
-                  {reimbursementId ? `Reembolso #${reimbursementId} em edição.` : pendingSummary}
+                  {reimbursementId
+                    ? isReadOnly
+                      ? `Reembolso #${reimbursementId} em visualizacao.`
+                      : `Reembolso #${reimbursementId} em edição.`
+                    : pendingSummary}
                 </div>
-                <button
-                  className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-blue-400"
-                  disabled={isBusy}
-                >
-                  {saving ? "Salvando..." : reimbursementId ? "Atualizar" : "Salvar"}
-                </button>
+                {!isReadOnly && (
+                  <button
+                    className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-blue-400"
+                    disabled={isBusy}
+                  >
+                    {saving ? "Salvando..." : reimbursementId ? "Atualizar" : "Salvar"}
+                  </button>
+                )}
               </div>
             </form>
           ) : (
             <div className="space-y-4">
               <div className="rounded border border-gray-200 bg-white p-4">
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-12 md:items-end">
-                  <div className="md:col-span-8">
-                    <label className="mb-1 block text-sm font-medium text-gray-700">Selecionar arquivos</label>
-                    <input
-                      key={fileInputKey}
-                      type="file"
-                      multiple
-                      className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-                      onChange={(e) => handleQueueFiles(e.target.files)}
-                      disabled={uploadingAttachments}
-                    />
-                  </div>
+                  {!isReadOnly && (
+                    <>
+                      <div className="md:col-span-8">
+                        <label className="mb-1 block text-sm font-medium text-gray-700">Selecionar arquivos</label>
+                        <input
+                          key={fileInputKey}
+                          type="file"
+                          multiple
+                          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+                          onChange={(e) => handleQueueFiles(e.target.files)}
+                          disabled={uploadingAttachments}
+                        />
+                      </div>
 
-                  <div className="md:col-span-4 flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:bg-blue-400"
-                      disabled={uploadingAttachments || pendingFiles.length === 0}
-                      onClick={() => void handleUploadPendingFiles()}
-                    >
-                      {uploadingAttachments ? "Enviando..." : "Enviar anexos"}
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50"
-                      disabled={uploadingAttachments || pendingFiles.length === 0}
-                      onClick={() => {
-                        setPendingFiles([]);
-                        setFileInputKey((current) => current + 1);
-                      }}
-                    >
-                      Limpar fila
-                    </button>
-                  </div>
+                      <div className="md:col-span-4 flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:bg-blue-400"
+                          disabled={uploadingAttachments || pendingFiles.length === 0}
+                          onClick={() => void handleUploadPendingFiles()}
+                        >
+                          {uploadingAttachments ? "Enviando..." : "Enviar anexos"}
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50"
+                          disabled={uploadingAttachments || pendingFiles.length === 0}
+                          onClick={() => {
+                            setPendingFiles([]);
+                            setFileInputKey((current) => current + 1);
+                          }}
+                        >
+                          Limpar fila
+                        </button>
+                      </div>
+                    </>
+                  )}
 
-                  {!reimbursementId && (
+                  {!isReadOnly && !reimbursementId && (
                     <div className="md:col-span-12 text-sm text-amber-700">
                       Salve o reembolso primeiro. Os arquivos que você selecionar ficam em fila e podem ser enviados junto no primeiro salvamento.
                     </div>
                   )}
                 </div>
 
-                <div className="mt-4 rounded border border-dashed border-gray-300 bg-gray-50 p-3">
-                  <div className="mb-2 text-sm font-medium text-gray-700">Arquivos na fila</div>
-                  {pendingFiles.length === 0 ? (
-                    <div className="text-sm text-gray-500">Nenhum arquivo selecionado.</div>
-                  ) : (
-                    <div className="space-y-2">
-                      {pendingFiles.map((file, index) => (
-                        <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between gap-3 rounded border bg-white px-3 py-2 text-sm">
-                          <div className="min-w-0">
-                            <div className="truncate font-medium text-gray-800">{file.name}</div>
-                            <div className="text-xs text-gray-500">{formatBytes(file.size)}</div>
+                {!isReadOnly && (
+                  <div className="mt-4 rounded border border-dashed border-gray-300 bg-gray-50 p-3">
+                    <div className="mb-2 text-sm font-medium text-gray-700">Arquivos na fila</div>
+                    {pendingFiles.length === 0 ? (
+                      <div className="text-sm text-gray-500">Nenhum arquivo selecionado.</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {pendingFiles.map((file, index) => (
+                          <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between gap-3 rounded border bg-white px-3 py-2 text-sm">
+                            <div className="min-w-0">
+                              <div className="truncate font-medium text-gray-800">{file.name}</div>
+                              <div className="text-xs text-gray-500">{formatBytes(file.size)}</div>
+                            </div>
+                            <button
+                              type="button"
+                              className="rounded border border-red-300 bg-white px-3 py-1 text-xs text-red-600 hover:bg-red-50"
+                              onClick={() => setPendingFiles((current) => current.filter((_, currentIndex) => currentIndex !== index))}
+                            >
+                              Remover
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            className="rounded border border-red-300 bg-white px-3 py-1 text-xs text-red-600 hover:bg-red-50"
-                            onClick={() => setPendingFiles((current) => current.filter((_, currentIndex) => currentIndex !== index))}
-                          >
-                            Remover
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="overflow-hidden rounded border border-gray-200 bg-white">

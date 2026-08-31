@@ -83,10 +83,13 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
     const financialTitle = await prisma.financialTitle.findFirst({
       where: { id, entityId },
-      select: { id: true },
+      select: { id: true, integrated: true },
     });
     if (!financialTitle?.id) {
       return NextResponse.json({ error: "Reembolso não encontrado" }, { status: 404 });
+    }
+    if (financialTitle.integrated) {
+      return NextResponse.json({ error: "Reembolso integrado pode apenas ser visualizado" }, { status: 409 });
     }
 
     const ct = request.headers.get("content-type") || "";

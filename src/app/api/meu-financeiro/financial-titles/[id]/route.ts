@@ -72,10 +72,13 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     const current = await prisma.financialTitle.findFirst({
       where: { id, entityId },
-      select: { id: true },
+      select: { id: true, integrated: true },
     });
     if (!current?.id) {
       return NextResponse.json({ error: "Título não encontrado" }, { status: 404 });
+    }
+    if (current.integrated) {
+      return NextResponse.json({ error: "Reembolso integrado pode apenas ser visualizado" }, { status: 409 });
     }
 
     const body = await request.json().catch(() => ({}));

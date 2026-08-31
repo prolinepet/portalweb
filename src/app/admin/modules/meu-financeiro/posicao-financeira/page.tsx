@@ -125,9 +125,9 @@ export default function PosicaoFinanceiraPage() {
       if (!res.ok) {
         const messages = extractErpMessages(data);
         setError(
-          [String(data?.error || "Não foi possível integrar o título."), ...messages]
-            .filter((message) => String(message || "").trim().length > 0)
-            .join(" ")
+          messages.length > 0
+            ? messages.join(" ")
+            : String(data?.error || "Não foi possível integrar o título.")
         );
         return;
       }
@@ -253,8 +253,18 @@ export default function PosicaoFinanceiraPage() {
               )}
               {!loading &&
                 visibleRows.map((r) => (
-                <tr key={r.id} className="border-b last:border-b-0">
-                  <td className="p-2">{r.numero}</td>
+                <tr key={r.id} className="group border-b last:border-b-0 hover:bg-gray-50">
+                  <td className="p-2">
+                    <div className="flex flex-col">
+                      <span>{r.numero}</span>
+                      <Link
+                        href={`/admin/modules/meu-financeiro/novo-reembolso?id=${r.id}`}
+                        className="mt-1 hidden text-xs font-medium text-blue-600 underline-offset-2 hover:underline group-hover:inline-flex"
+                      >
+                        {r.integrated ? "Visualizar reembolso" : "Editar reembolso"}
+                      </Link>
+                    </div>
+                  </td>
                   <td className="p-2">{formatDateBR(r.dueDate)}</td>
                   <td className="p-2">{formatBRL(r.amount)}</td>
                   <td className="p-2">

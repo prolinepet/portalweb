@@ -9,10 +9,35 @@ import {
 
 function translateErrorSubType(value: unknown): string {
   const normalized = String(value || "").trim().toUpperCase();
+  if (normalized === "SUCESS" || normalized === "SUCCESS") return "SUCESSO";
   if (normalized === "ERROR") return "ERRO";
   if (normalized === "INFORMATION" || normalized === "INFO") return "INFORMAÇÃO";
   if (normalized === "WARNING" || normalized === "WARN") return "AVISO";
   return normalized || "ERRO";
+}
+
+function collectErrorSubTypes(data: any): string[] {
+  const subTypes: string[] = [];
+
+  const pushFrom = (item: any) => {
+    if (!item || typeof item !== "object") return;
+    const subType = String(item?.ErrorSubType || "")
+      .trim()
+      .toUpperCase();
+    if (subType) subTypes.push(subType);
+  };
+
+  if (Array.isArray(data)) {
+    for (const item of data) pushFrom(item);
+    return subTypes;
+  }
+
+  pushFrom(data);
+  if (Array.isArray(data?.RowErrors)) {
+    for (const item of data.RowErrors) pushFrom(item);
+  }
+
+  return subTypes;
 }
 
 function extractMessages(data: any): string[] {
@@ -183,12 +208,16 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
     const data = await response.json();
     const messages = extractMessages(data);
-    const hasError = messages.some((message) => String(message).toUpperCase().startsWith("ERRO:"));
+    const subTypes = collectErrorSubTypes(data);
+    const hasSuccess = subTypes.some((subType) => subType === "SUCESS" || subType === "SUCCESS");
+    const hasError = subTypes.some((subType) => subType === "ERROR" || subType === "ERRO");
 
-    if (hasError) {
+    if (hasError || !hasSuccess) {
       return NextResponse.json(
         {
-          error: "Erros retornados pelo ERP na integração do título.",
+          error: hasError
+            ? "Erros retornados pelo ERP na integração do título."
+            : "O ERP não confirmou a implantação do título com retorno SUCESS.",
           messages,
           payloadSent: payload,
         },
