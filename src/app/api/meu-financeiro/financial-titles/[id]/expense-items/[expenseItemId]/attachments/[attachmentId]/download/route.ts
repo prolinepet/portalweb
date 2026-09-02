@@ -2,7 +2,7 @@ import { readFile } from "fs/promises";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import path from "path";
-import { authOptions } from "../../../../../../../../../../lib/auth";
+import { authOptions } from "@/lib/auth";
 import {
   ensureFinancialTitleExpenseAttachmentTable,
   ensureFinancialTitleExpenseTable,
@@ -10,8 +10,8 @@ import {
   getFinancialTitleExpenseAttachmentDir,
   parsePositiveInt,
   resolveActiveEntityId,
-} from "../../../../../../../../../../lib/financial-titles";
-import { prisma } from "../../../../../../../../../../lib/prisma";
+} from "@/lib/financial-titles";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(
   _: Request,
