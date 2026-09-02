@@ -3,23 +3,25 @@ import { mkdir, writeFile } from "fs/promises";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import path from "path";
-import { authOptions } from "../../../../../../lib/auth";
+import { authOptions } from "../../../../../../../../lib/auth";
 import {
-  ensureFinancialTitleAttachmentTable,
+  ensureFinancialTitleExpenseAttachmentTable,
+  ensureFinancialTitleExpenseTable,
   ensureFinancialTitleTable,
-  getFinancialTitleAttachmentDir,
+  getFinancialTitleExpenseAttachmentDir,
   parsePositiveInt,
   resolveActiveEntityId,
   sanitizeFinancialAttachmentFileName,
-} from "../../../../../../lib/financial-titles";
-import { prisma } from "../../../../../../lib/prisma";
+} from "../../../../../../../../lib/financial-titles";
+import { prisma } from "../../../../../../../../lib/prisma";
 
-export async function GET(_: Request, props: { params: Promise<{ id: string }> }) {
+export async function GET(_: Request, props: { params: Promise<{ id: string; expenseItemId: string }> }) {
   const params = await props.params;
 
   try {
     await ensureFinancialTitleTable();
-    await ensureFinancialTitleAttachmentTable();
+    await ensureFinancialTitleExpenseTable();
+    await ensureFinancialTitleExpenseAttachmentTable();
 
     const { entityId } = await resolveActiveEntityId();
     if (!entityId) {
@@ -27,20 +29,25 @@ export async function GET(_: Request, props: { params: Promise<{ id: string }> }
     }
 
     const id = parsePositiveInt(params.id);
-    if (!id) {
-      return NextResponse.json({ error: "Id inválido" }, { status: 400 });
+    const expenseItemId = parsePositiveInt(params.expenseItemId);
+    if (!id || !expenseItemId) {
+      return NextResponse.json({ error: "Parâmetros inválidos" }, { status: 400 });
     }
 
-    const financialTitle = await prisma.financialTitle.findFirst({
-      where: { id, entityId },
+    const expenseItem = await prisma.financialTitleExpense.findFirst({
+      where: {
+        id: expenseItemId,
+        financialTitleId: id,
+        financialTitle: { entityId },
+      },
       select: { id: true },
     });
-    if (!financialTitle?.id) {
-      return NextResponse.json({ error: "Reembolso não encontrado" }, { status: 404 });
+    if (!expenseItem?.id) {
+      return NextResponse.json({ error: "Despesa não encontrada" }, { status: 404 });
     }
 
-    const items = await prisma.financialTitleAttachment.findMany({
-      where: { financialTitleId: id },
+    const items = await prisma.financialTitleExpenseAttachment.findMany({
+      where: { financialTitleExpenseId: expenseItemId },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       select: {
         id: true,
@@ -58,12 +65,13 @@ export async function GET(_: Request, props: { params: Promise<{ id: string }> }
   }
 }
 
-export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string; expenseItemId: string }> }) {
   const params = await props.params;
 
   try {
     await ensureFinancialTitleTable();
-    await ensureFinancialTitleAttachmentTable();
+    await ensureFinancialTitleExpenseTable();
+    await ensureFinancialTitleExpenseAttachmentTable();
 
     const session = await getServerSession(authOptions);
     const userId = session?.user ? Number((session.user as any).id) : null;
@@ -77,18 +85,26 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     }
 
     const id = parsePositiveInt(params.id);
-    if (!id) {
-      return NextResponse.json({ error: "Id inválido" }, { status: 400 });
+    const expenseItemId = parsePositiveInt(params.expenseItemId);
+    if (!id || !expenseItemId) {
+      return NextResponse.json({ error: "Parâmetros inválidos" }, { status: 400 });
     }
 
-    const financialTitle = await prisma.financialTitle.findFirst({
-      where: { id, entityId },
-      select: { id: true, integrated: true },
+    const expenseItem = await prisma.financialTitleExpense.findFirst({
+      where: {
+        id: expenseItemId,
+        financialTitleId: id,
+        financialTitle: { entityId },
+      },
+      select: {
+        id: true,
+        financialTitle: { select: { integrated: true } },
+      },
     });
-    if (!financialTitle?.id) {
-      return NextResponse.json({ error: "Reembolso não encontrado" }, { status: 404 });
+    if (!expenseItem?.id) {
+      return NextResponse.json({ error: "Despesa não encontrada" }, { status: 404 });
     }
-    if (financialTitle.integrated) {
+    if (expenseItem.financialTitle.integrated) {
       return NextResponse.json({ error: "Reembolso integrado pode apenas ser visualizado" }, { status: 409 });
     }
 
@@ -103,7 +119,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 });
     }
 
-    const dir = getFinancialTitleAttachmentDir(id);
+    const dir = getFinancialTitleExpenseAttachmentDir(id, expenseItemId);
     await mkdir(dir, { recursive: true });
 
     const items: Array<{
@@ -123,12 +139,12 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       }
 
       const safeName = sanitizeFinancialAttachmentFileName(file.name || "arquivo");
-      const storedFileName = `financial-title-${id}-${Date.now()}-${randomUUID()}-${safeName}`;
+      const storedFileName = `financial-title-expense-${expenseItemId}-${Date.now()}-${randomUUID()}-${safeName}`;
       await writeFile(path.join(dir, storedFileName), buffer);
 
-      const created = await prisma.financialTitleAttachment.create({
+      const created = await prisma.financialTitleExpenseAttachment.create({
         data: {
-          financialTitleId: id,
+          financialTitleExpenseId: expenseItemId,
           createdById: Math.trunc(userId),
           storedFileName,
           originalFileName: file.name || storedFileName,

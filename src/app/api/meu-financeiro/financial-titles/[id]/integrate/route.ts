@@ -4,6 +4,8 @@ import { authOptions } from "../../../../../../lib/auth";
 import { prisma } from "../../../../../../lib/prisma";
 import {
   calculateDefaultFinancialTitleDueDate,
+  ensureFinancialTitleExpenseAttachmentTable,
+  ensureFinancialTitleExpenseTable,
   ensureFinancialTitleTable,
 } from "../../../../../../lib/financial-titles";
 
@@ -79,6 +81,8 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
   try {
     await ensureFinancialTitleTable();
+    await ensureFinancialTitleExpenseTable();
+    await ensureFinancialTitleExpenseAttachmentTable();
 
     const session = await getServerSession(authOptions);
     const userId = session?.user ? Number((session.user as any).id) : null;
@@ -113,6 +117,25 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         entity: { select: { id: true, name: true, cnpj: true } },
         createdByUser: { select: { id: true, name: true, doc: true } },
         reimbursementType: { select: { id: true, description: true } },
+        expenseItems: {
+          orderBy: [{ id: "asc" }],
+          select: {
+            id: true,
+            reimbursementTypeId: true,
+            description: true,
+            amount: true,
+            reimbursementType: { select: { id: true, description: true, defaultAccountingAccount: true } },
+            attachments: {
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+              select: {
+                id: true,
+                originalFileName: true,
+                mimeType: true,
+                sizeBytes: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -167,6 +190,20 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           description: String(financialTitle.description || financialTitle.reimbursementType?.description || "").trim(),
           reimbursementTypeId: financialTitle.reimbursementTypeId ?? 0,
           reimbursementTypeDescription: String(financialTitle.reimbursementType?.description || "").trim(),
+          expenseItems: financialTitle.expenseItems.map((item) => ({
+            id: item.id,
+            reimbursementTypeId: item.reimbursementTypeId,
+            reimbursementTypeDescription: String(item.reimbursementType?.description || "").trim(),
+            defaultAccountingAccount: String(item.reimbursementType?.defaultAccountingAccount || "").trim(),
+            description: item.description,
+            amount: Number(item.amount || 0),
+            attachments: item.attachments.map((attachment) => ({
+              id: attachment.id,
+              originalFileName: attachment.originalFileName,
+              mimeType: attachment.mimeType,
+              sizeBytes: attachment.sizeBytes,
+            })),
+          })),
           integrated: financialTitle.integrated ? "S" : "N",
         },
       },

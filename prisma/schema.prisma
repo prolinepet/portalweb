@@ -34,6 +34,7 @@ model User {
   salesOrdersCreated    SalesOrder[]
   financialTitlesCreated FinancialTitle[] @relation("FinancialTitleCreatedByUser")
   financialTitleAttachmentsCreated FinancialTitleAttachment[] @relation("FinancialTitleAttachmentCreatedByUser")
+  financialTitleExpenseAttachmentsCreated FinancialTitleExpenseAttachment[] @relation("FinancialTitleExpenseAttachmentCreatedByUser")
   lastEntity            Entity?     @relation("UserLastEntity", fields: [lastEntityId], references: [id])
   userClientReps        UserClientRep[]
   userEntities          UserEntity[]
@@ -1250,7 +1251,8 @@ model ReimbursementType {
   defaultAccountingAccount String? @db.Char(10)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
-  financialTitles FinancialTitle[]
+  financialTitles         FinancialTitle[]
+  financialTitleExpenses  FinancialTitleExpense[]
 
   @@map("reimbursementtype")
 }
@@ -1269,6 +1271,7 @@ model FinancialTitle {
   description         String?             @db.VarChar(255)
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
+  expenseItems        FinancialTitleExpense[]
   attachments         FinancialTitleAttachment[]
   entity              Entity              @relation(fields: [entityId], references: [id], onDelete: Cascade)
   createdByUser       User?               @relation("FinancialTitleCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -1280,6 +1283,23 @@ model FinancialTitle {
   @@index([createdByUserId])
   @@index([reimbursementTypeId])
   @@map("financialtitle")
+}
+
+model FinancialTitleExpense {
+  id                  Int                            @id @default(autoincrement())
+  financialTitleId    Int
+  reimbursementTypeId Int
+  description         String                         @db.VarChar(255)
+  amount              Float
+  createdAt           DateTime                       @default(now())
+  updatedAt           DateTime                       @updatedAt
+  financialTitle      FinancialTitle                 @relation(fields: [financialTitleId], references: [id], onDelete: Cascade)
+  reimbursementType   ReimbursementType              @relation(fields: [reimbursementTypeId], references: [id], onDelete: Restrict)
+  attachments         FinancialTitleExpenseAttachment[]
+
+  @@index([financialTitleId])
+  @@index([reimbursementTypeId])
+  @@map("financialtitleexpense")
 }
 
 model FinancialTitleAttachment {
@@ -1298,6 +1318,24 @@ model FinancialTitleAttachment {
   @@index([financialTitleId])
   @@index([createdById])
   @@map("financialtitleattachment")
+}
+
+model FinancialTitleExpenseAttachment {
+  id                     Int                  @id @default(autoincrement())
+  financialTitleExpenseId Int
+  createdById            Int
+  storedFileName         String               @db.VarChar(255)
+  originalFileName       String               @db.VarChar(255)
+  mimeType               String?              @db.VarChar(191)
+  sizeBytes              Int?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  financialTitleExpense  FinancialTitleExpense @relation(fields: [financialTitleExpenseId], references: [id], onDelete: Cascade)
+  createdBy              User                 @relation("FinancialTitleExpenseAttachmentCreatedByUser", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([financialTitleExpenseId])
+  @@index([createdById])
+  @@map("financialtitleexpenseattachment")
 }
 
 model OccurrenceTag {
