@@ -323,6 +323,10 @@ export default function NovoReembolsoPage() {
     setDraftFileInputKey((current) => current + 1);
     setFeedback(null);
     setSuccess(null);
+
+    if (!item.expanded) {
+      void handleToggleAttachments(item.clientKey);
+    }
   };
 
   const handleDeleteExpense = (clientKey: string) => {
@@ -411,6 +415,40 @@ export default function NovoReembolsoPage() {
       return Array.isArray(data.items) ? (data.items as AttachmentRow[]) : [];
     },
     []
+  );
+
+  const handleDeleteSavedAttachment = useCallback(
+    async (expenseClientKey: string, attachmentId: number) => {
+      const item = expenseItems.find((row) => row.clientKey === expenseClientKey);
+      if (!item?.id || !reimbursementId) return;
+
+      setFeedback(null);
+      setSuccess(null);
+
+      const res = await fetch(
+        `/api/meu-financeiro/financial-titles/${reimbursementId}/expense-items/${item.id}/attachments/${attachmentId}`,
+        {
+          method: "DELETE",
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(String(data?.error || "Não foi possível excluir o anexo."));
+      }
+
+      setExpenseItems((current) =>
+        current.map((row) =>
+          row.clientKey === expenseClientKey
+            ? {
+                ...row,
+                attachments: row.attachments.filter((attachment) => attachment.id !== attachmentId),
+                attachmentCount: Math.max(0, row.attachmentCount - 1),
+              }
+            : row
+        )
+      );
+    },
+    [expenseItems, reimbursementId]
   );
 
   const handleSaveReimbursement = async () => {
@@ -814,14 +852,29 @@ export default function NovoReembolsoPage() {
                                                   <td className="px-3 py-2">{formatBytes(attachment.sizeBytes)}</td>
                                                   <td className="px-3 py-2 text-center">
                                                     {reimbursementId && item.id ? (
-                                                      <a
-                                                        className="inline-flex rounded border border-blue-300 bg-white px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50"
-                                                        href={`/api/meu-financeiro/financial-titles/${reimbursementId}/expense-items/${item.id}/attachments/${attachment.id}/download`}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                      >
-                                                        Abrir
-                                                      </a>
+                                                      <div className="flex items-center justify-center gap-2">
+                                                        <a
+                                                          className="inline-flex rounded border border-blue-300 bg-white px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50"
+                                                          href={`/api/meu-financeiro/financial-titles/${reimbursementId}/expense-items/${item.id}/attachments/${attachment.id}/download`}
+                                                          target="_blank"
+                                                          rel="noreferrer"
+                                                        >
+                                                          Abrir
+                                                        </a>
+                                                        {!isReadOnly && editingClientKey === item.clientKey && (
+                                                          <button
+                                                            type="button"
+                                                            className="inline-flex rounded border border-red-300 bg-white px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                                                            onClick={() =>
+                                                              void handleDeleteSavedAttachment(item.clientKey, attachment.id).catch((err: any) => {
+                                                                setFeedback(String(err?.message || "Não foi possível excluir o anexo."));
+                                                              })
+                                                            }
+                                                          >
+                                                            Excluir
+                                                          </button>
+                                                        )}
+                                                      </div>
                                                     ) : (
                                                       "-"
                                                     )}
