@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 type ReimbursementTypeDetails = {
   id: number;
   description: string;
+  defaultAccountingAccount: string | null;
 };
 
 function Tabs({ active }: { active: "list" | "maint" }) {
@@ -37,8 +38,12 @@ export default function ReimbursementTypeMaintenancePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<{ id: string; description: string }>({ id: "", description: "" });
-  const originalRef = useRef<{ id: string; description: string } | null>(null);
+  const [form, setForm] = useState<{ id: string; description: string; defaultAccountingAccount: string }>({
+    id: "",
+    description: "",
+    defaultAccountingAccount: "",
+  });
+  const originalRef = useRef<{ id: string; description: string; defaultAccountingAccount: string } | null>(null);
 
   const reimbursementTypeId = id && Number.isFinite(id) && id > 0 ? Math.trunc(id) : null;
   const canEdit = mode === "new" || mode === "edit";
@@ -50,14 +55,18 @@ export default function ReimbursementTypeMaintenancePage() {
       const res = await fetch(`/api/base/reimbursement-types/${rowId}`, { cache: "no-store" });
       const data = (await res.json()) as ReimbursementTypeDetails;
       if (!res.ok) throw new Error((data as any)?.error || `Erro ${res.status}`);
-      const nextForm = { id: String(data.id), description: String(data.description || "") };
+      const nextForm = {
+        id: String(data.id),
+        description: String(data.description || ""),
+        defaultAccountingAccount: String(data.defaultAccountingAccount || ""),
+      };
       setForm(nextForm);
       originalRef.current = nextForm;
       setMode("view");
     } catch (e: any) {
       setError(e?.message || String(e));
       setMode("new");
-      setForm({ id: "", description: "" });
+      setForm({ id: "", description: "", defaultAccountingAccount: "" });
     } finally {
       setLoading(false);
     }
@@ -69,7 +78,7 @@ export default function ReimbursementTypeMaintenancePage() {
       return;
     }
     setMode("new");
-    setForm({ id: "", description: "" });
+    setForm({ id: "", description: "", defaultAccountingAccount: "" });
     originalRef.current = null;
   }, [load, reimbursementTypeId]);
 
@@ -77,7 +86,10 @@ export default function ReimbursementTypeMaintenancePage() {
     if (saving) return;
     setSaving(true);
     try {
-      const payload = { description: form.description.trim() };
+      const payload = {
+        description: form.description.trim(),
+        defaultAccountingAccount: form.defaultAccountingAccount.trim(),
+      };
       if (mode === "new") {
         const res = await fetch("/api/base/reimbursement-types", {
           method: "POST",
@@ -111,7 +123,7 @@ export default function ReimbursementTypeMaintenancePage() {
       return;
     }
     setMode("new");
-    setForm({ id: "", description: "" });
+    setForm({ id: "", description: "", defaultAccountingAccount: "" });
   };
 
   const remove = async () => {
@@ -141,7 +153,7 @@ export default function ReimbursementTypeMaintenancePage() {
       {error && <div className="text-sm text-red-600">{error}</div>}
 
       <div className="border rounded p-3 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
           <div>
             <label className="text-xs text-gray-600">Código</label>
             <input
@@ -157,6 +169,21 @@ export default function ReimbursementTypeMaintenancePage() {
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               disabled={!canEdit}
+              className={`w-full border rounded px-2 py-1 text-sm ${canEdit ? "" : "bg-gray-50"}`}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-600">Conta Contábil Padrão</label>
+            <input
+              value={form.defaultAccountingAccount}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  defaultAccountingAccount: e.target.value.slice(0, 10),
+                }))
+              }
+              disabled={!canEdit}
+              maxLength={10}
               className={`w-full border rounded px-2 py-1 text-sm ${canEdit ? "" : "bg-gray-50"}`}
             />
           </div>

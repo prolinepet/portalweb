@@ -1245,10 +1245,11 @@ model GestaoFintiConfiguracao {
 }
 
 model ReimbursementType {
-  id          Int      @id @default(autoincrement())
-  description String   @db.VarChar(100)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                      Int      @id @default(autoincrement())
+  description             String   @db.VarChar(100)
+  defaultAccountingAccount String? @db.Char(10)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
   financialTitles FinancialTitle[]
 
   @@map("reimbursementtype")

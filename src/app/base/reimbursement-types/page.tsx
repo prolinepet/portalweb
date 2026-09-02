@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 type ReimbursementTypeRow = {
   id: number;
   description: string;
+  defaultAccountingAccount: string | null;
 };
 
 function Tabs({ active }: { active: "list" | "maint" }) {
@@ -58,7 +59,12 @@ export default function ReimbursementTypeListPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return rows;
-    return rows.filter((r) => String(r.id).includes(q) || String(r.description || "").toLowerCase().includes(q));
+    return rows.filter(
+      (r) =>
+        String(r.id).includes(q) ||
+        String(r.description || "").toLowerCase().includes(q) ||
+        String(r.defaultAccountingAccount || "").toLowerCase().includes(q)
+    );
   }, [rows, query]);
 
   const onDelete = async (id: number) => {
@@ -90,7 +96,7 @@ export default function ReimbursementTypeListPage() {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar por código ou descrição"
+          placeholder="Buscar por código, descrição ou conta contábil"
           className="flex-1 border rounded px-3 py-2 text-sm"
         />
         <button onClick={() => void load()} className="px-3 py-2 rounded bg-blue-600 text-white text-sm">
@@ -104,19 +110,20 @@ export default function ReimbursementTypeListPage() {
             <tr>
               <th className="text-left px-3 py-2">Código</th>
               <th className="text-left px-3 py-2">Descrição</th>
+              <th className="text-left px-3 py-2">Conta Contábil Padrão</th>
               <th className="text-right px-3 py-2">Ações</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={3} className="px-3 py-6 text-center text-gray-500">
+                <td colSpan={4} className="px-3 py-6 text-center text-gray-500">
                   Carregando...
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-3 py-6 text-center text-gray-500">
+                <td colSpan={4} className="px-3 py-6 text-center text-gray-500">
                   Nenhum tipo de reembolso encontrado
                 </td>
               </tr>
@@ -125,6 +132,7 @@ export default function ReimbursementTypeListPage() {
                 <tr key={r.id} className="border-t">
                   <td className="px-3 py-2">{r.id}</td>
                   <td className="px-3 py-2">{r.description}</td>
+                  <td className="px-3 py-2">{r.defaultAccountingAccount || "-"}</td>
                   <td className="px-3 py-2 text-right">
                     <div className="inline-flex items-center gap-2">
                       <button onClick={() => router.push(`/base/reimbursement-types/maintenance?id=${r.id}`)} className="px-2 py-1 rounded border text-sm">
