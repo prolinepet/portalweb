@@ -23,9 +23,16 @@ function formatBRL(value: number): string {
 
 function formatDateBR(iso: string | null): string {
   if (!iso) return "-";
+  const datePart = String(iso).split("T")[0];
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+  if (match) {
+    const [, year, month, day] = match;
+    return `${day}/${month}/${year}`;
+  }
+
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("pt-BR");
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(d);
 }
 
 export default function PosicaoFinanceiraPage() {
