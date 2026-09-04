@@ -109,9 +109,10 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { erpIntegrationMode: true },
+      select: { erpIntegrationMode: true, costCenter: true },
     });
     const integrationRoute = user?.erpIntegrationMode === "PROD" ? "prd" : "tst";
+    const integrationCostCenter = String(user?.costCenter || "").trim();
 
     const financialTitle = await prisma.financialTitle.findUnique({
       where: { id },
@@ -178,11 +179,11 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       ),
     ];
     const userAccountingAccounts =
-      financialTitle.createdByUserId && expenseReimbursementTypeIds.length > 0
+      userId && expenseReimbursementTypeIds.length > 0
         ? await prisma.$queryRawUnsafe<Array<{ reimbursementTypeId: number; accountingAccount: string }>>(`
             SELECT reimbursementTypeId, accountingAccount
             FROM userreimbursementtypeaccount
-            WHERE userId = ${Number(financialTitle.createdByUserId)}
+            WHERE userId = ${Number(userId)}
               AND reimbursementTypeId IN (${expenseReimbursementTypeIds.join(", ")})
           `)
         : [];
@@ -201,6 +202,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           branchId: "01",
           entityDoc,
           createdByDoc,
+          costCenter: integrationCostCenter,
           titleId: financialTitle.id,
           numero: financialTitle.numero,
           code: financialTitle.numero,

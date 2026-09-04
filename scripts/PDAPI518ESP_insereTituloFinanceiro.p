@@ -23,6 +23,7 @@ DEFINE TEMP-TABLE ttTituloFinanceiroPortal NO-UNDO SERIALIZE-NAME "tituloFinance
     FIELD cod-estabel                  AS CHARACTER INITIAL ? SERIALIZE-NAME "branchId"
     FIELD entityDoc                    AS CHARACTER INITIAL ? SERIALIZE-NAME "entityDoc"
     FIELD usuario-doc                  AS CHARACTER INITIAL ? SERIALIZE-NAME "createdByDoc"
+    FIELD centro-custo                 AS CHARACTER INITIAL ? SERIALIZE-NAME "costCenter"
     FIELD id-titulo                    AS INTEGER   INITIAL ? SERIALIZE-NAME "titleId"
     FIELD numero-titulo                AS CHARACTER INITIAL ? SERIALIZE-NAME "numero"
     FIELD cod-titulo                   AS CHARACTER INITIAL ? SERIALIZE-NAME "code"
@@ -132,6 +133,7 @@ ASSIGN
     ttTituloFinanceiroPortal.cod-estabel         = oJsonTituloFinanc:GetCharacter("branchId")
     ttTituloFinanceiroPortal.entityDoc           = oJsonTituloFinanc:GetCharacter("entityDoc")
     ttTituloFinanceiroPortal.usuario-doc         = oJsonTituloFinanc:GetCharacter("createdByDoc")
+    ttTituloFinanceiroPortal.centro-custo        = oJsonTituloFinanc:GetCharacter("costCenter")
     ttTituloFinanceiroPortal.id-titulo           = oJsonTituloFinanc:GetInteger("titleId")
     ttTituloFinanceiroPortal.numero-titulo       = oJsonTituloFinanc:GetCharacter("numero")
     ttTituloFinanceiroPortal.cod-titulo          = oJsonTituloFinanc:GetCharacter("code")
