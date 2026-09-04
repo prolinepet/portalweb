@@ -8,6 +8,7 @@ import {
   ensureFinancialTitleExpenseTable,
   ensureFinancialTitleTable,
 } from "../../../../../../lib/financial-titles";
+import { ensureUserReimbursementTypeAccountingAccountTable } from "@/lib/user-reimbursement-accounting";
 
 function translateErrorSubType(value: unknown): string {
   const normalized = String(value || "").trim().toUpperCase();
@@ -83,6 +84,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     await ensureFinancialTitleTable();
     await ensureFinancialTitleExpenseTable();
     await ensureFinancialTitleExpenseAttachmentTable();
+    await ensureUserReimbursementTypeAccountingAccountTable();
 
     const session = await getServerSession(authOptions);
     const userId = session?.user ? Number((session.user as any).id) : null;
@@ -168,6 +170,25 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     }
 
     const integrationDueDate = calculateDefaultFinancialTitleDueDate(new Date());
+    const expenseReimbursementTypeIds = [
+      ...new Set(
+        financialTitle.expenseItems
+          .map((item) => Number(item.reimbursementTypeId))
+          .filter((value) => Number.isFinite(value) && value > 0)
+      ),
+    ];
+    const userAccountingAccounts =
+      financialTitle.createdByUserId && expenseReimbursementTypeIds.length > 0
+        ? await prisma.$queryRawUnsafe<Array<{ reimbursementTypeId: number; accountingAccount: string }>>(`
+            SELECT reimbursementTypeId, accountingAccount
+            FROM userreimbursementtypeaccount
+            WHERE userId = ${Number(financialTitle.createdByUserId)}
+              AND reimbursementTypeId IN (${expenseReimbursementTypeIds.join(", ")})
+          `)
+        : [];
+    const userAccountingAccountMap = new Map<number, string>(
+      userAccountingAccounts.map((item) => [Number(item.reimbursementTypeId), String(item.accountingAccount || "").trim()])
+    );
 
     const payload = {
       route: integrationRoute,
@@ -194,7 +215,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
             id: item.id,
             reimbursementTypeId: item.reimbursementTypeId,
             reimbursementTypeDescription: String(item.reimbursementType?.description || "").trim(),
-            defaultAccountingAccount: String(item.reimbursementType?.defaultAccountingAccount || "").trim(),
+            defaultAccountingAccount:
+              userAccountingAccountMap.get(Number(item.reimbursementTypeId)) ||
+              String(item.reimbursementType?.defaultAccountingAccount || "").trim(),
             description: item.description,
             amount: Number(item.amount || 0),
             attachments: item.attachments.map((attachment) => ({

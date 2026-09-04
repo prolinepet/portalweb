@@ -35,6 +35,7 @@ model User {
   financialTitlesCreated FinancialTitle[] @relation("FinancialTitleCreatedByUser")
   financialTitleAttachmentsCreated FinancialTitleAttachment[] @relation("FinancialTitleAttachmentCreatedByUser")
   financialTitleExpenseAttachmentsCreated FinancialTitleExpenseAttachment[] @relation("FinancialTitleExpenseAttachmentCreatedByUser")
+  reimbursementTypeAccountingAccounts UserReimbursementTypeAccountingAccount[]
   lastEntity            Entity?     @relation("UserLastEntity", fields: [lastEntityId], references: [id])
   userClientReps        UserClientRep[]
   userEntities          UserEntity[]
@@ -1253,8 +1254,24 @@ model ReimbursementType {
   updatedAt               DateTime @updatedAt
   financialTitles         FinancialTitle[]
   financialTitleExpenses  FinancialTitleExpense[]
+  userAccountingAccounts  UserReimbursementTypeAccountingAccount[]
 
   @@map("reimbursementtype")
+}
+
+model UserReimbursementTypeAccountingAccount {
+  id                  Int               @id @default(autoincrement())
+  userId              Int
+  reimbursementTypeId Int
+  accountingAccount   String            @db.Char(10)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reimbursementType   ReimbursementType @relation(fields: [reimbursementTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, reimbursementTypeId], map: "userreimbursementtypeaccount_user_type_key")
+  @@index([reimbursementTypeId], map: "userreimbursementtypeaccount_type_idx")
+  @@map("userreimbursementtypeaccount")
 }
 
 model FinancialTitle {

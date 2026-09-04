@@ -5,6 +5,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 type EntityItem = { id: number; name: string; cnpj: string; linked: number | boolean };
 type ModuleItem = { id: number; code: string; name: string; userLinked: number | boolean };
 type ProgramItem = { id: number; code: string; name: string; allowed: number | boolean };
+type ReimbursementAccountingRow = {
+  reimbursementTypeId: number;
+  description: string;
+  defaultAccountingAccount: string;
+  accountingAccount: string;
+};
 
 type MainTabKey = "listagem" | "manutencao";
 type MaintenanceTabKey = "geral" | "configuracoes" | "permissoes" | "meu-financeiro";
@@ -65,6 +71,9 @@ export default function UsersPage() {
   const [activeMainTab, setActiveMainTab] = useState<MainTabKey>("listagem");
   const [activeMaintenanceTab, setActiveMaintenanceTab] = useState<MaintenanceTabKey>("geral");
   const [currentPage, setCurrentPage] = useState(1);
+  const [reimbursementAccountingRows, setReimbursementAccountingRows] = useState<ReimbursementAccountingRow[]>([]);
+  const [loadingUserAccounting, setLoadingUserAccounting] = useState(false);
+  const [savingUserAccounting, setSavingUserAccounting] = useState(false);
 
   const selectedUser = useMemo(() => users.find((u) => u.id === selectedUserId) || null, [users, selectedUserId]);
   const selectedEntity = useMemo(() => entities.find((e) => e.id === selectedEntityId) || null, [entities, selectedEntityId]);
@@ -171,6 +180,31 @@ export default function UsersPage() {
     }
   };
 
+  const loadUserReimbursementAccounting = useCallback(async (uid: number) => {
+    setLoadingUserAccounting(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/users/${uid}/reimbursement-accounting-accounts`, { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+      setReimbursementAccountingRows(
+        Array.isArray(data?.items)
+          ? data.items.map((item: any) => ({
+              reimbursementTypeId: Number(item?.reimbursementTypeId),
+              description: String(item?.description || ""),
+              defaultAccountingAccount: String(item?.defaultAccountingAccount || ""),
+              accountingAccount: String(item?.accountingAccount || ""),
+            }))
+          : []
+      );
+    } catch (e: any) {
+      setErr(e?.message || String(e));
+      setReimbursementAccountingRows([]);
+    } finally {
+      setLoadingUserAccounting(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
@@ -186,6 +220,14 @@ export default function UsersPage() {
   useEffect(() => {
     if (selectedUserId && selectedEntityId && selectedModuleId) loadPrograms(selectedUserId, selectedEntityId, selectedModuleId);
   }, [selectedUserId, selectedEntityId, selectedModuleId]);
+
+  useEffect(() => {
+    if (selectedUserId && formOpen) {
+      loadUserReimbursementAccounting(selectedUserId);
+      return;
+    }
+    setReimbursementAccountingRows([]);
+  }, [selectedUserId, formOpen, loadUserReimbursementAccounting]);
 
   const fillFormFromUser = (u: any) => {
     setForm({
@@ -222,6 +264,7 @@ export default function UsersPage() {
     if (selectedUser) {
       setEditingUserId(selectedUser.id);
       fillFormFromUser(selectedUser);
+      loadUserReimbursementAccounting(selectedUser.id);
       openMaintenance(activeMaintenanceTab);
       return;
     }
@@ -283,6 +326,65 @@ export default function UsersPage() {
       setErr(e?.message || String(e));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateReimbursementAccountingRow = (reimbursementTypeId: number, value: string) => {
+    setReimbursementAccountingRows((prev) =>
+      prev.map((item) =>
+        item.reimbursementTypeId === reimbursementTypeId
+          ? { ...item, accountingAccount: value.slice(0, 10) }
+          : item
+      )
+    );
+  };
+
+  const submitMeuFinanceiro = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!editingUserId) {
+      setErr("Salve o usuário na aba Geral antes de vincular contas contábeis por tipo de reembolso.");
+      return;
+    }
+
+    setSavingUserAccounting(true);
+    setErr(null);
+    try {
+      const userRes = await fetch(`/api/users`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingUserId,
+          costCenter: form.costCenter,
+          pixKey: form.pixKey,
+        }),
+      });
+      const userData = await userRes.json();
+      if (!userRes.ok) throw new Error(userData?.error || `Erro ${userRes.status}`);
+
+      const accountRes = await fetch(`/api/users/${editingUserId}/reimbursement-accounting-accounts`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: reimbursementAccountingRows.map((item) => ({
+            reimbursementTypeId: item.reimbursementTypeId,
+            accountingAccount: item.accountingAccount,
+          })),
+        }),
+      });
+      const accountData = await accountRes.json();
+      if (!accountRes.ok) throw new Error(accountData?.error || `Erro ${accountRes.status}`);
+
+      setUsers((prev) => prev.map((user) => (user.id === userData.id ? { ...user, ...userData } : user)));
+      setSelectedUserId(userData.id);
+      setEditingUserId(userData.id);
+      fillFormFromUser(userData);
+      await loadUsers();
+      await loadUserReimbursementAccounting(userData.id);
+    } catch (error: any) {
+      setErr(error?.message || String(error));
+    } finally {
+      setSavingUserAccounting(false);
     }
   };
 
@@ -1020,21 +1122,75 @@ export default function UsersPage() {
                     {activeMaintenanceTab === "meu-financeiro" && (
                       <div className="rounded border bg-white p-3">
                         <div className="mb-3 font-medium">Meu Financeiro</div>
-                        <form onSubmit={onSubmit} className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                          <input
-                            className="rounded border px-3 py-2"
-                            placeholder="Centro Custo"
-                            value={form.costCenter}
-                            onChange={(e) => setForm({ ...form, costCenter: e.target.value })}
-                          />
-                          <input
-                            className="rounded border px-3 py-2"
-                            placeholder="Chave PIX"
-                            value={form.pixKey}
-                            onChange={(e) => setForm({ ...form, pixKey: e.target.value })}
-                          />
-                          <div className="md:col-span-2 flex flex-wrap justify-end gap-2 pt-2">
-                            <button className="rounded bg-gray-800 px-4 py-2 text-white">{editingUserId ? "Atualizar" : "Salvar"}</button>
+                        <form onSubmit={submitMeuFinanceiro} className="grid grid-cols-1 gap-4">
+                          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                            <input
+                              className="rounded border px-3 py-2"
+                              placeholder="Centro Custo"
+                              value={form.costCenter}
+                              onChange={(e) => setForm({ ...form, costCenter: e.target.value })}
+                            />
+                            <input
+                              className="rounded border px-3 py-2"
+                              placeholder="Chave PIX"
+                              value={form.pixKey}
+                              onChange={(e) => setForm({ ...form, pixKey: e.target.value })}
+                            />
+                          </div>
+
+                          <div className="rounded border p-3">
+                            <div className="mb-1 font-medium">Conta Contábil por Tipo de Reembolso</div>
+                            <div className="mb-3 text-xs text-gray-600">
+                              Aqui você pode sobrescrever a conta contábil padrão de cada tipo de reembolso para este usuário.
+                            </div>
+
+                            {!editingUserId ? (
+                              <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                                Salve o usuário na aba Geral antes de informar contas contábeis por tipo de reembolso.
+                              </div>
+                            ) : loadingUserAccounting ? (
+                              <div className="text-sm text-gray-500">Carregando tipos de reembolso...</div>
+                            ) : reimbursementAccountingRows.length === 0 ? (
+                              <div className="text-sm text-gray-500">Nenhum tipo de reembolso encontrado.</div>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <table className="min-w-full text-sm">
+                                  <thead>
+                                    <tr className="border-b bg-gray-50 text-left">
+                                      <th className="px-3 py-2">Tipo de Reembolso</th>
+                                      <th className="px-3 py-2">Conta Padrão</th>
+                                      <th className="px-3 py-2">Conta do Usuário</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {reimbursementAccountingRows.map((item) => (
+                                      <tr key={item.reimbursementTypeId} className="border-b last:border-b-0">
+                                        <td className="px-3 py-2">{item.description}</td>
+                                        <td className="px-3 py-2 text-gray-600">{item.defaultAccountingAccount || "-"}</td>
+                                        <td className="px-3 py-2">
+                                          <input
+                                            className="w-full rounded border px-3 py-2"
+                                            placeholder="Conta contábil"
+                                            value={item.accountingAccount}
+                                            maxLength={10}
+                                            onChange={(e) => updateReimbursementAccountingRow(item.reimbursementTypeId, e.target.value)}
+                                          />
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap justify-end gap-2 pt-2">
+                            <button
+                              className="rounded bg-gray-800 px-4 py-2 text-white disabled:opacity-50"
+                              disabled={savingUserAccounting || loadingUserAccounting}
+                            >
+                              {savingUserAccounting ? "Atualizando..." : editingUserId ? "Atualizar" : "Salvar"}
+                            </button>
                             {editingUserId && (
                               <button type="button" onClick={cancelEdit} className="rounded border px-4 py-2">
                                 Cancelar
