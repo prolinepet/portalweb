@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     const customerNameParam = url.searchParams.get('customerName');
     const qParam = url.searchParams.get('q');
     const idsParam = url.searchParams.get('ids');
+    const onlyActive = ['1', 'true', 'yes', 'sim'].includes(String(url.searchParams.get('onlyActive') || '').toLowerCase());
 
     let filterClientId: number | null = null;
     const filterOrderTypeIdRaw = orderTypeIdParam ? Number(orderTypeIdParam) : null;
@@ -86,6 +87,7 @@ export async function GET(request: Request) {
           where: {
             priceTableId: primaryPriceTableId,
             ...(filterIds.length ? { inventoryItemId: { in: Array.from(new Set(filterIds)) } } : {}),
+            ...(onlyActive && filterIds.length === 0 ? { inventoryItem: { is: { active: true } } } : {}),
           },
           select: {
             inventoryItemId: true,
@@ -97,6 +99,7 @@ export async function GET(request: Request) {
                 id: true,
                 name: true,
                 sku: true,
+                active: true,
                 unit: true,
                 unitWeightKg: true,
                 width: true,
@@ -140,6 +143,7 @@ export async function GET(request: Request) {
           clientId: filterClientId,
           allowed: true,
           ...(filterIds.length ? { inventoryItemId: { in: Array.from(new Set(filterIds)) } } : {}),
+          ...(onlyActive && filterIds.length === 0 ? { inventoryItem: { is: { active: true } } } : {}),
         },
         select: {
           unitPrice: true,
@@ -148,6 +152,7 @@ export async function GET(request: Request) {
               id: true,
               name: true,
               sku: true,
+              active: true,
               unit: true,
               unitWeightKg: true,
               width: true,
@@ -202,11 +207,15 @@ export async function GET(request: Request) {
       if (itemIds.length === 0) return NextResponse.json([]);
 
       const items = await prisma.inventoryItem.findMany({
-        where: { id: { in: itemIds } },
+        where: {
+          id: { in: itemIds },
+          ...(onlyActive && filterIds.length === 0 ? { active: true } : {}),
+        },
         select: {
           id: true,
           name: true,
           sku: true,
+          active: true,
           unit: true,
           unitWeightKg: true,
           width: true,
@@ -221,6 +230,9 @@ export async function GET(request: Request) {
     }
 
     const where: any = {};
+    if (onlyActive && filterIds.length === 0) {
+      where.active = true;
+    }
     if (qParam) {
       where.OR = [
         { name: { contains: qParam } },
@@ -233,6 +245,7 @@ export async function GET(request: Request) {
         id: true,
         name: true,
         sku: true,
+        active: true,
         unit: true,
         unitWeightKg: true,
         width: true,
@@ -253,6 +266,7 @@ export async function POST(request: Request) {
   const body = await request.json();
   const data: any = { name: String(body.name || '').trim() };
   if (body.sku !== undefined) data.sku = String(body.sku || '').trim();
+  if (body.active !== undefined) data.active = Boolean(body.active);
   if (body.unit !== undefined) data.unit = String(body.unit || '').trim();
   if (body.quantity !== undefined) data.quantity = Number(body.quantity);
   if (body.minStock !== undefined) data.minStock = Number(body.minStock);

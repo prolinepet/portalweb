@@ -6,6 +6,7 @@ type Item = {
   id: number;
   name: string;
   sku?: string | null;
+  active?: boolean;
   unit?: string | null;
   unitWeightKg?: number | null;
   thumbnailMime?: string | null;
@@ -94,7 +95,7 @@ export default function BaseItemMaintenancePage() {
   // Formulário unificado (inclusão/alteração)
   const [formOpen, setFormOpen] = useState<boolean>(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState<{ sku: string; name: string; unit: string; unitWeightKg: string; commercialFamilyId: number | null }>({ sku: "", name: "", unit: "", unitWeightKg: "", commercialFamilyId: null });
+  const [form, setForm] = useState<{ sku: string; name: string; active: boolean; unit: string; unitWeightKg: string; commercialFamilyId: number | null }>({ sku: "", name: "", active: true, unit: "", unitWeightKg: "", commercialFamilyId: null });
   const [saving, setSaving] = useState<boolean>(false);
   const [saveMsg, setSaveMsg] = useState<string>("");
   const [thumbDataUrl, setThumbDataUrl] = useState<string | null>(null);
@@ -182,7 +183,7 @@ export default function BaseItemMaintenancePage() {
 
   const openAddForm = () => {
     setEditingId(null);
-    setForm({ sku: "", name: "", unit: "", unitWeightKg: "", commercialFamilyId: null });
+    setForm({ sku: "", name: "", active: true, unit: "", unitWeightKg: "", commercialFamilyId: null });
     setFamilyQuery("");
     setFamilySug([]);
     setShowFamilySug(false);
@@ -196,7 +197,7 @@ export default function BaseItemMaintenancePage() {
 
   const openEditForm = (item: Item) => {
     setEditingId(item.id);
-    setForm({ sku: item.sku || "", name: item.name || "", unit: item.unit || "", unitWeightKg: item.unitWeightKg != null ? String(item.unitWeightKg) : "", commercialFamilyId: item.commercialFamilyId ?? null });
+    setForm({ sku: item.sku || "", name: item.name || "", active: item.active !== false, unit: item.unit || "", unitWeightKg: item.unitWeightKg != null ? String(item.unitWeightKg) : "", commercialFamilyId: item.commercialFamilyId ?? null });
     setFamilyQuery(item.commercialFamily?.description || "");
     setShowFamilySug(false);
     setThumbDataUrl(null);
@@ -225,7 +226,7 @@ export default function BaseItemMaintenancePage() {
   const cancelForm = () => {
     setFormOpen(false);
     setEditingId(null);
-    setForm({ sku: "", name: "", unit: "", unitWeightKg: "", commercialFamilyId: null });
+    setForm({ sku: "", name: "", active: true, unit: "", unitWeightKg: "", commercialFamilyId: null });
     setFamilyQuery("");
     setFamilySug([]);
     setShowFamilySug(false);
@@ -245,6 +246,7 @@ export default function BaseItemMaintenancePage() {
     const payload = {
       sku: form.sku.trim(),
       name: form.name.trim(),
+      active: Boolean(form.active),
       unit: form.unit.trim(),
       unitWeightKg: unitWeightNum != null && Number.isFinite(unitWeightNum) ? unitWeightNum : null,
       commercialFamilyId: form.commercialFamilyId,
@@ -488,6 +490,16 @@ export default function BaseItemMaintenancePage() {
                     )}
                   </div>
                 </div>
+                <div className="md:col-span-4">
+                  <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={form.active}
+                      onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
+                    />
+                    <span>Ativo?</span>
+                  </label>
+                </div>
 
                 <div className="md:col-span-4">
                   <label className="text-xs text-gray-600">Miniatura</label>
@@ -619,6 +631,7 @@ export default function BaseItemMaintenancePage() {
                   <th className="p-2 border-b">ID</th>
                   <th className="p-2 border-b">Código</th>
                   <th className="p-2 border-b">Descrição</th>
+                  <th className="p-2 border-b">Ativo</th>
                   <th className="p-2 border-b">Unidade</th>
                   <th className="p-2 border-b">Ações</th>
                 </tr>
@@ -645,6 +658,7 @@ export default function BaseItemMaintenancePage() {
                     <td className="p-2">{it.id}</td>
                     <td className="p-2">{it.sku || ""}</td>
                     <td className="p-2">{it.name || ""}</td>
+                    <td className="p-2">{it.active === false ? "Não" : "Sim"}</td>
                     <td className="p-2">{it.unit || ""}</td>
                     <td className="p-2">
                       <div className="flex items-center gap-2">
@@ -654,10 +668,10 @@ export default function BaseItemMaintenancePage() {
                   </tr>
                 ))}
                 {loading && (
-                  <tr><td colSpan={7} className="p-2 text-gray-500">Carregando...</td></tr>
+                  <tr><td colSpan={8} className="p-2 text-gray-500">Carregando...</td></tr>
                 )}
                 {!loading && filtered.length === 0 && (
-                  <tr><td colSpan={7} className="p-2 text-gray-500">Nenhum item encontrado</td></tr>
+                  <tr><td colSpan={8} className="p-2 text-gray-500">Nenhum item encontrado</td></tr>
                 )}
               </tbody>
             </table>

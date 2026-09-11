@@ -701,6 +701,7 @@ export default function SalesOrderMaintenancePage() {
     try {
       const params = new URLSearchParams();
       params.set('q', term);
+      params.set('onlyActive', '1');
       if (hdrCustomerId) {
         params.set('clientId', String(hdrCustomerId));
       } else if (order?.customerDoc) {

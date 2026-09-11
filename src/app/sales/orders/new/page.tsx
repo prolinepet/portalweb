@@ -569,6 +569,7 @@ function NewSalesOrderContent() {
     try {
       const params = new URLSearchParams();
       params.set('q', term);
+      params.set('onlyActive', '1');
       if (order.customerId) {
         params.set('clientId', String(order.customerId));
       }
