@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowDownRight, ArrowUpRight, Send, Trash2 } from "lucide-react";
 
-type Status = "ABERTO" | "PAGO";
+type Status = "EM_DIGITACAO" | "EM_AVALIACAO" | "AGUARDANDO_INTEGRACAO" | "INTEGRADO";
+type ApprovalStatus = "PENDENTE" | "APROVADO" | "REPROVADO";
 type Row = {
   id: number;
   kind: Kind;
@@ -12,6 +13,7 @@ type Row = {
   dueDate: string | null;
   amount: number;
   status: Status;
+  approvalStatus: ApprovalStatus;
   integrated: boolean;
   description: string | null;
 };
@@ -35,6 +37,71 @@ function formatDateBR(iso: string | null): string {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(d);
 }
 
+function normalizeWorkflowStatus(value: unknown, integrated: boolean): Status {
+  const normalized = String(value || "").trim().toUpperCase();
+  if (normalized === "EM_AVALIACAO") return "EM_AVALIACAO";
+  if (normalized === "AGUARDANDO_INTEGRACAO") return "AGUARDANDO_INTEGRACAO";
+  if (normalized === "INTEGRADO") return "INTEGRADO";
+  if (normalized === "EM_DIGITACAO") return "EM_DIGITACAO";
+  return integrated ? "INTEGRADO" : "EM_DIGITACAO";
+}
+
+function normalizeApprovalStatus(value: unknown, integrated: boolean): ApprovalStatus {
+  const normalized = String(value || "").trim().toUpperCase();
+  if (normalized === "APROVADO") return "APROVADO";
+  if (normalized === "REPROVADO") return "REPROVADO";
+  if (normalized === "PENDENTE") return "PENDENTE";
+  return integrated ? "APROVADO" : "PENDENTE";
+}
+
+function getStatusBadge(status: Status) {
+  switch (status) {
+    case "EM_DIGITACAO":
+      return "inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700 border border-gray-200";
+    case "EM_AVALIACAO":
+      return "inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 border border-amber-200";
+    case "AGUARDANDO_INTEGRACAO":
+      return "inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200";
+    case "INTEGRADO":
+      return "inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 border border-green-200";
+  }
+}
+
+function getStatusLabel(status: Status) {
+  switch (status) {
+    case "EM_DIGITACAO":
+      return "Em digitação";
+    case "EM_AVALIACAO":
+      return "Em avaliação";
+    case "AGUARDANDO_INTEGRACAO":
+      return "Aguardando Integração";
+    case "INTEGRADO":
+      return "Integrado";
+  }
+}
+
+function getApprovalBadge(status: ApprovalStatus) {
+  switch (status) {
+    case "PENDENTE":
+      return "inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700 border border-gray-200";
+    case "APROVADO":
+      return "inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 border border-green-200";
+    case "REPROVADO":
+      return "inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-700 border border-red-200";
+  }
+}
+
+function getApprovalLabel(status: ApprovalStatus) {
+  switch (status) {
+    case "PENDENTE":
+      return "Pendente";
+    case "APROVADO":
+      return "Aprovado";
+    case "REPROVADO":
+      return "Reprovado";
+  }
+}
+
 export default function PosicaoFinanceiraPage() {
   const searchParams = useSearchParams();
   const [kind, setKind] = useState<Kind>("RECEBER");
@@ -43,6 +110,7 @@ export default function PosicaoFinanceiraPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [integratingId, setIntegratingId] = useState<number | null>(null);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   const extractErpMessages = (data: any): string[] => {
     if (!data) return [];
@@ -82,8 +150,9 @@ export default function PosicaoFinanceiraPage() {
             numero: String(item.numero || ""),
             dueDate: item.dueDate ? String(item.dueDate) : null,
             amount: Number(item.amount) || 0,
-            status: item.status === "PAGO" ? ("PAGO" as Status) : ("ABERTO" as Status),
             integrated: Boolean(item.integrated),
+            status: normalizeWorkflowStatus(item.status, Boolean(item.integrated)),
+            approvalStatus: normalizeApprovalStatus(item.approvalStatus, Boolean(item.integrated)),
             description: item.description ? String(item.description) : null,
           }))
         : [];
@@ -146,6 +215,8 @@ export default function PosicaoFinanceiraPage() {
                 ...row,
                 integrated: true,
                 dueDate: data?.dueDate ? String(data.dueDate) : row.dueDate,
+                status: normalizeWorkflowStatus(data?.status, true),
+                approvalStatus: normalizeApprovalStatus(data?.approvalStatus, true),
               }
             : row
         )
@@ -157,6 +228,47 @@ export default function PosicaoFinanceiraPage() {
       setError(String(err?.message || "Não foi possível integrar o título."));
     } finally {
       setIntegratingId(null);
+    }
+  };
+
+  const handleWorkflowUpdate = async (
+    row: Row,
+    updates: Partial<Pick<Row, "status" | "approvalStatus">>,
+    successMessage: string
+  ) => {
+    setError(null);
+    setSuccess(null);
+    setUpdatingId(row.id);
+
+    try {
+      const res = await fetch(`/api/meu-financeiro/financial-titles/${row.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(String(data?.error || "Não foi possível atualizar o reembolso."));
+        return;
+      }
+
+      setRows((current) =>
+        current.map((item) =>
+          item.id === row.id
+            ? {
+                ...item,
+                status: normalizeWorkflowStatus(data?.status, Boolean(data?.integrated ?? item.integrated)),
+                approvalStatus: normalizeApprovalStatus(data?.approvalStatus, Boolean(data?.integrated ?? item.integrated)),
+                integrated: Boolean(data?.integrated ?? item.integrated),
+              }
+            : item
+        )
+      );
+      setSuccess(successMessage);
+    } catch (err: any) {
+      setError(String(err?.message || "Não foi possível atualizar o reembolso."));
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -249,14 +361,16 @@ export default function PosicaoFinanceiraPage() {
                 <th className="p-2">Data Vencimento</th>
                 <th className="p-2">Valor R$</th>
                 <th className="p-2">Situação</th>
+                <th className="p-2">Aprovação</th>
                 <th className="p-2">Integrado</th>
+                <th className="p-2 text-center">Avaliação</th>
                 <th className="p-2 text-center">Ações</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={6} className="p-3 text-gray-500">
+                  <td colSpan={8} className="p-3 text-gray-500">
                     Carregando títulos...
                   </td>
                 </tr>
@@ -270,15 +384,10 @@ export default function PosicaoFinanceiraPage() {
                   <td className="p-2">{formatDateBR(r.dueDate)}</td>
                   <td className="p-2">{formatBRL(r.amount)}</td>
                   <td className="p-2">
-                    {r.status === "PAGO" ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 border border-green-200">
-                        Pago
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-700 border border-red-200">
-                        Aberto
-                      </span>
-                    )}
+                    <span className={getStatusBadge(r.status)}>{getStatusLabel(r.status)}</span>
+                  </td>
+                  <td className="p-2">
+                    <span className={getApprovalBadge(r.approvalStatus)}>{getApprovalLabel(r.approvalStatus)}</span>
                   </td>
                   <td className="p-2">
                     {r.integrated ? (
@@ -292,15 +401,101 @@ export default function PosicaoFinanceiraPage() {
                     )}
                   </td>
                   <td className="p-2">
-                    <div className="flex items-center justify-center gap-2">
+                    {(() => {
+                      const canApproveOrReject = r.status === "EM_AVALIACAO" && updatingId !== r.id;
+                      const canReturnToPending =
+                        updatingId !== r.id &&
+                        (r.approvalStatus === "APROVADO" || r.approvalStatus === "REPROVADO") &&
+                        (r.status === "EM_DIGITACAO" || r.status === "AGUARDANDO_INTEGRACAO");
+
+                      return (
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            className={`inline-flex items-center rounded border px-2 py-1 text-xs ${
+                              canApproveOrReject
+                                ? "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+                                : "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                            }`}
+                            disabled={!canApproveOrReject}
+                            onClick={() =>
+                              void handleWorkflowUpdate(
+                                r,
+                                { approvalStatus: "APROVADO", status: "AGUARDANDO_INTEGRACAO" },
+                                "Reembolso aprovado com sucesso."
+                              )
+                            }
+                          >
+                            Aprovar
+                          </button>
+                          <button
+                            type="button"
+                            className={`inline-flex items-center rounded border px-2 py-1 text-xs ${
+                              canApproveOrReject
+                                ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                                : "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                            }`}
+                            disabled={!canApproveOrReject}
+                            onClick={() =>
+                              void handleWorkflowUpdate(
+                                r,
+                                { approvalStatus: "REPROVADO", status: "EM_DIGITACAO" },
+                                "Reembolso reprovado com sucesso."
+                              )
+                            }
+                          >
+                            Reprovar
+                          </button>
+                          <button
+                            type="button"
+                            className={`inline-flex items-center rounded border px-2 py-1 text-xs ${
+                              canReturnToPending
+                                ? "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                                : "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                            }`}
+                            disabled={!canReturnToPending}
+                            onClick={() =>
+                              void handleWorkflowUpdate(
+                                r,
+                                { approvalStatus: "PENDENTE", status: "EM_DIGITACAO" },
+                                "Reembolso voltou para pendente."
+                              )
+                            }
+                          >
+                            Voltar para pendente
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </td>
+                  <td className="p-2">
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        className={`inline-flex items-center rounded border px-2 py-1 text-xs ${
+                          r.status === "EM_DIGITACAO" && updatingId !== r.id
+                            ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                            : "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                        }`}
+                        disabled={r.status !== "EM_DIGITACAO" || updatingId === r.id}
+                        onClick={() =>
+                          void handleWorkflowUpdate(
+                            r,
+                            { approvalStatus: "PENDENTE", status: "EM_AVALIACAO" },
+                            "Reembolso enviado para avaliação."
+                          )
+                        }
+                      >
+                        Enviar para avaliação
+                      </button>
                       <button
                         type="button"
                         className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs ${
-                          r.integrated || integratingId === r.id
+                          r.integrated || integratingId === r.id || r.status !== "AGUARDANDO_INTEGRACAO"
                             ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
                             : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
                         }`}
-                        disabled={r.integrated || integratingId === r.id}
+                        disabled={r.integrated || integratingId === r.id || r.status !== "AGUARDANDO_INTEGRACAO"}
                         onClick={() => void handleSendToErp(r.id)}
                       >
                         {integratingId === r.id ? (
@@ -343,7 +538,7 @@ export default function PosicaoFinanceiraPage() {
               ))}
               {!loading && visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-2 text-gray-500">
+                  <td colSpan={8} className="p-2 text-gray-500">
                     Nenhum título
                   </td>
                 </tr>

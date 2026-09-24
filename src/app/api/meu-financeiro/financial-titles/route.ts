@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import {
   buildFinancialTitleSummary,
+  FINANCIAL_TITLE_APPROVAL_STATUS,
   ensureFinancialTitleExpenseAttachmentTable,
   ensureFinancialTitleExpenseTable,
   ensureFinancialTitleTable,
   FINANCIAL_TITLE_KIND,
   FINANCIAL_TITLE_STATUS,
   generateFinancialTitleNumber,
+  normalizeFinancialTitleApprovalStatus,
   normalizeFinancialTitleKind,
   normalizeFinancialTitleStatus,
   parseFinancialAmount,
@@ -75,12 +77,14 @@ async function parseExpenseItemsPayload(rawItems: any[]) {
 function buildWhere(entityId: number, url: URL) {
   const kind = normalizeFinancialTitleKind(url.searchParams.get("kind"));
   const status = normalizeFinancialTitleStatus(url.searchParams.get("status"));
+  const approvalStatus = normalizeFinancialTitleApprovalStatus(url.searchParams.get("approvalStatus"));
   const q = String(url.searchParams.get("q") || "").trim();
 
   return {
     entityId,
     ...(kind ? { kind } : {}),
     ...(status ? { status } : {}),
+    ...(approvalStatus ? { approvalStatus } : {}),
     ...(q
       ? {
           OR: [
@@ -114,6 +118,7 @@ export async function GET(request: Request) {
         dueDate: true,
         amount: true,
         status: true,
+        approvalStatus: true,
         integrated: true,
         description: true,
         createdByUserId: true,
@@ -143,8 +148,9 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => ({}));
     const kind = normalizeFinancialTitleKind(body?.kind) ?? FINANCIAL_TITLE_KIND.RECEBER;
-    const status = normalizeFinancialTitleStatus(body?.status) ?? FINANCIAL_TITLE_STATUS.ABERTO;
-    const integrated = Boolean(body?.integrated);
+    const status = FINANCIAL_TITLE_STATUS.EM_DIGITACAO;
+    const approvalStatus = FINANCIAL_TITLE_APPROVAL_STATUS.PENDENTE;
+    const integrated = false;
     const expenseItems = await parseExpenseItemsPayload(Array.isArray(body?.expenseItems) ? body.expenseItems : []);
     const summary = buildFinancialTitleSummary(expenseItems);
 
@@ -164,6 +170,7 @@ export async function POST(request: Request) {
           dueDate: null,
           amount: summary.amount,
           status,
+          approvalStatus,
           integrated,
           description: summary.description,
         },
@@ -174,6 +181,7 @@ export async function POST(request: Request) {
           dueDate: true,
           amount: true,
           status: true,
+          approvalStatus: true,
           integrated: true,
           description: true,
           createdByUserId: true,

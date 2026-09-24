@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
 import {
   buildFinancialTitleSummary,
+  FINANCIAL_TITLE_APPROVAL_STATUS,
+  FINANCIAL_TITLE_STATUS,
   ensureFinancialTitleExpenseAttachmentTable,
   ensureFinancialTitleExpenseTable,
   ensureFinancialTitleTable,
+  normalizeFinancialTitleApprovalStatus,
   normalizeFinancialTitleKind,
   normalizeFinancialTitleStatus,
   parseFinancialAmount,
@@ -99,6 +102,7 @@ export async function GET(_: Request, props: { params: Promise<{ id: string }> }
         dueDate: true,
         amount: true,
         status: true,
+        approvalStatus: true,
         integrated: true,
         description: true,
         createdByUserId: true,
@@ -146,7 +150,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     const current = await prisma.financialTitle.findFirst({
       where: { id, entityId },
-      select: { id: true, integrated: true },
+      select: { id: true, integrated: true, status: true, approvalStatus: true },
     });
     if (!current?.id) {
       return NextResponse.json({ error: "Título não encontrado" }, { status: 404 });
@@ -191,6 +195,14 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       data.status = status;
     }
 
+    if (body?.approvalStatus !== undefined) {
+      const approvalStatus = normalizeFinancialTitleApprovalStatus(body.approvalStatus);
+      if (!approvalStatus) {
+        return NextResponse.json({ error: "Aprovação inválida" }, { status: 400 });
+      }
+      data.approvalStatus = approvalStatus;
+    }
+
     if (body?.integrated !== undefined) {
       data.integrated = Boolean(body.integrated);
     }
@@ -226,6 +238,36 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       data.reimbursementTypeId = summary.reimbursementTypeId;
     }
 
+    const nextStatus = String((data.status ?? current.status) || "").trim().toUpperCase();
+    const nextApprovalStatus = String((data.approvalStatus ?? current.approvalStatus) || "").trim().toUpperCase();
+    if (
+      nextStatus === FINANCIAL_TITLE_STATUS.EM_AVALIACAO &&
+      nextApprovalStatus !== FINANCIAL_TITLE_APPROVAL_STATUS.PENDENTE
+    ) {
+      return NextResponse.json(
+        { error: "Reembolsos em avaliação devem permanecer com aprovação pendente." },
+        { status: 400 }
+      );
+    }
+    if (
+      nextStatus === FINANCIAL_TITLE_STATUS.AGUARDANDO_INTEGRACAO &&
+      nextApprovalStatus !== FINANCIAL_TITLE_APPROVAL_STATUS.APROVADO
+    ) {
+      return NextResponse.json(
+        { error: "Reembolsos aguardando integração devem estar aprovados." },
+        { status: 400 }
+      );
+    }
+    if (
+      nextStatus === FINANCIAL_TITLE_STATUS.INTEGRADO &&
+      nextApprovalStatus !== FINANCIAL_TITLE_APPROVAL_STATUS.APROVADO
+    ) {
+      return NextResponse.json(
+        { error: "Reembolsos integrados devem estar aprovados." },
+        { status: 400 }
+      );
+    }
+
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: "Nada para atualizar" }, { status: 400 });
     }
@@ -241,6 +283,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
           dueDate: true,
           amount: true,
           status: true,
+          approvalStatus: true,
           integrated: true,
           description: true,
           createdByUserId: true,

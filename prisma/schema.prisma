@@ -1284,7 +1284,8 @@ model FinancialTitle {
   numero              String              @db.VarChar(30)
   dueDate             DateTime?
   amount              Float
-  status              String              @default("ABERTO") @db.VarChar(20)
+  status              String              @default("EM_DIGITACAO") @db.VarChar(30)
+  approvalStatus      String              @default("PENDENTE") @db.VarChar(20)
   integrated          Boolean             @default(false)
   description         String?             @db.VarChar(255)
   createdAt           DateTime            @default(now())
@@ -1298,6 +1299,7 @@ model FinancialTitle {
   @@unique([entityId, createdByUserId, numero], map: "financialtitle_entity_user_numero_key")
   @@index([entityId, kind, dueDate])
   @@index([entityId, status])
+  @@index([entityId, approvalStatus])
   @@index([createdByUserId])
   @@index([reimbursementTypeId])
   @@map("financialtitle")

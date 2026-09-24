@@ -9,12 +9,22 @@ export const FINANCIAL_TITLE_KIND = {
 } as const;
 
 export const FINANCIAL_TITLE_STATUS = {
-  ABERTO: "ABERTO",
-  PAGO: "PAGO",
+  EM_DIGITACAO: "EM_DIGITACAO",
+  EM_AVALIACAO: "EM_AVALIACAO",
+  AGUARDANDO_INTEGRACAO: "AGUARDANDO_INTEGRACAO",
+  INTEGRADO: "INTEGRADO",
+} as const;
+
+export const FINANCIAL_TITLE_APPROVAL_STATUS = {
+  PENDENTE: "PENDENTE",
+  APROVADO: "APROVADO",
+  REPROVADO: "REPROVADO",
 } as const;
 
 export type FinancialTitleKind = (typeof FINANCIAL_TITLE_KIND)[keyof typeof FINANCIAL_TITLE_KIND];
 export type FinancialTitleStatus = (typeof FINANCIAL_TITLE_STATUS)[keyof typeof FINANCIAL_TITLE_STATUS];
+export type FinancialTitleApprovalStatus =
+  (typeof FINANCIAL_TITLE_APPROVAL_STATUS)[keyof typeof FINANCIAL_TITLE_APPROVAL_STATUS];
 
 export async function ensureFinancialTitleTable() {
   await prisma.$executeRawUnsafe(`
@@ -27,7 +37,8 @@ export async function ensureFinancialTitleTable() {
       \`numero\` VARCHAR(30) NOT NULL,
       \`dueDate\` DATETIME(3) NULL,
       \`amount\` DOUBLE NOT NULL,
-      \`status\` VARCHAR(20) NOT NULL DEFAULT 'ABERTO',
+      \`status\` VARCHAR(30) NOT NULL DEFAULT 'EM_DIGITACAO',
+      \`approvalStatus\` VARCHAR(20) NOT NULL DEFAULT 'PENDENTE',
       \`integrated\` TINYINT(1) NOT NULL DEFAULT 0,
       \`description\` VARCHAR(255) NULL,
       \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -49,6 +60,31 @@ export async function ensureFinancialTitleTable() {
   await prisma.$executeRawUnsafe(`
     ALTER TABLE \`financialtitle\`
     MODIFY COLUMN \`dueDate\` DATETIME(3) NULL
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE \`financialtitle\`
+    MODIFY COLUMN \`status\` VARCHAR(30) NOT NULL DEFAULT 'EM_DIGITACAO'
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE \`financialtitle\`
+    ADD COLUMN IF NOT EXISTS \`approvalStatus\` VARCHAR(20) NOT NULL DEFAULT 'PENDENTE' AFTER \`status\`
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    UPDATE \`financialtitle\`
+    SET
+      \`status\` = CASE
+        WHEN \`integrated\` = 1 THEN 'INTEGRADO'
+        WHEN UPPER(TRIM(COALESCE(\`status\`, ''))) IN ('ABERTO', 'PAGO', '') THEN 'EM_DIGITACAO'
+        ELSE \`status\`
+      END,
+      \`approvalStatus\` = CASE
+        WHEN \`integrated\` = 1 THEN 'APROVADO'
+        WHEN UPPER(TRIM(COALESCE(\`approvalStatus\`, ''))) IN ('', 'NULL') THEN 'PENDENTE'
+        ELSE \`approvalStatus\`
+      END
   `);
 
   const indexes = (await prisma.$queryRawUnsafe(`
@@ -255,7 +291,24 @@ export function normalizeFinancialTitleKind(value: unknown): FinancialTitleKind 
 
 export function normalizeFinancialTitleStatus(value: unknown): FinancialTitleStatus | null {
   const normalized = String(value || "").trim().toUpperCase();
-  if (normalized === FINANCIAL_TITLE_STATUS.ABERTO || normalized === FINANCIAL_TITLE_STATUS.PAGO) {
+  if (
+    normalized === FINANCIAL_TITLE_STATUS.EM_DIGITACAO ||
+    normalized === FINANCIAL_TITLE_STATUS.EM_AVALIACAO ||
+    normalized === FINANCIAL_TITLE_STATUS.AGUARDANDO_INTEGRACAO ||
+    normalized === FINANCIAL_TITLE_STATUS.INTEGRADO
+  ) {
+    return normalized;
+  }
+  return null;
+}
+
+export function normalizeFinancialTitleApprovalStatus(value: unknown): FinancialTitleApprovalStatus | null {
+  const normalized = String(value || "").trim().toUpperCase();
+  if (
+    normalized === FINANCIAL_TITLE_APPROVAL_STATUS.PENDENTE ||
+    normalized === FINANCIAL_TITLE_APPROVAL_STATUS.APROVADO ||
+    normalized === FINANCIAL_TITLE_APPROVAL_STATUS.REPROVADO
+  ) {
     return normalized;
   }
   return null;

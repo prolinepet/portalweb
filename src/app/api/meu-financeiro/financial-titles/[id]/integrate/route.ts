@@ -4,6 +4,8 @@ import { authOptions } from "../../../../../../lib/auth";
 import { prisma } from "../../../../../../lib/prisma";
 import {
   calculateDefaultFinancialTitleDueDate,
+  FINANCIAL_TITLE_APPROVAL_STATUS,
+  FINANCIAL_TITLE_STATUS,
   ensureFinancialTitleExpenseAttachmentTable,
   ensureFinancialTitleExpenseTable,
   ensureFinancialTitleTable,
@@ -145,6 +147,21 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     if (!financialTitle) {
       return NextResponse.json({ error: "Título não encontrado" }, { status: 404 });
     }
+    if (financialTitle.integrated || String(financialTitle.status || "").trim().toUpperCase() === FINANCIAL_TITLE_STATUS.INTEGRADO) {
+      return NextResponse.json({ error: "Reembolso já está integrado." }, { status: 409 });
+    }
+    if (String(financialTitle.status || "").trim().toUpperCase() !== FINANCIAL_TITLE_STATUS.AGUARDANDO_INTEGRACAO) {
+      return NextResponse.json(
+        { error: "Somente reembolsos em Aguardando Integração podem ser enviados ao ERP." },
+        { status: 409 }
+      );
+    }
+    if (String((financialTitle as any).approvalStatus || "").trim().toUpperCase() !== FINANCIAL_TITLE_APPROVAL_STATUS.APROVADO) {
+      return NextResponse.json(
+        { error: "Somente reembolsos aprovados podem ser enviados ao ERP." },
+        { status: 409 }
+      );
+    }
 
     const sessionEntityIdRaw = (session as any)?.entityId ?? (session as any)?.activeEntityId ?? null;
     const sessionEntityId = sessionEntityIdRaw == null ? null : Number(sessionEntityIdRaw);
@@ -209,7 +226,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           kind: financialTitle.kind,
           dueDate: formatIsoDate(integrationDueDate),
           amount: Number(financialTitle.amount || 0),
-          status: financialTitle.status,
+          status: "ABERTO",
           description: String(financialTitle.description || financialTitle.reimbursementType?.description || "").trim(),
           reimbursementTypeId: financialTitle.reimbursementTypeId ?? 0,
           reimbursementTypeDescription: String(financialTitle.reimbursementType?.description || "").trim(),
@@ -292,6 +309,8 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       data: {
         integrated: true,
         dueDate: integrationDueDate,
+        status: FINANCIAL_TITLE_STATUS.INTEGRADO,
+        approvalStatus: FINANCIAL_TITLE_APPROVAL_STATUS.APROVADO,
       },
     });
 
@@ -299,6 +318,8 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       ...data,
       integrated: true,
       dueDate: integrationDueDate.toISOString(),
+      status: FINANCIAL_TITLE_STATUS.INTEGRADO,
+      approvalStatus: FINANCIAL_TITLE_APPROVAL_STATUS.APROVADO,
       messages,
     });
   } catch (err: any) {

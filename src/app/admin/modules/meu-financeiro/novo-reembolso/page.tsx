@@ -474,7 +474,8 @@ export default function NovoReembolsoPage() {
     try {
       const payload = {
         kind: "RECEBER",
-        status: "ABERTO",
+        status: "EM_DIGITACAO",
+        approvalStatus: "PENDENTE",
         integrated: false,
         expenseItems: expenseItems.map((item) => ({
           id: item.id || undefined,
