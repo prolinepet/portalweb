@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowDownRight, ArrowUpRight, Send, Trash2 } from "lucide-react";
+import { ArrowDownRight, ArrowRight, ArrowUpRight, Check, Eye, RotateCcw, Send, Trash2, X } from "lucide-react";
 
 type Status = "EM_DIGITACAO" | "EM_AVALIACAO" | "AGUARDANDO_INTEGRACAO" | "INTEGRADO";
 type ApprovalStatus = "PENDENTE" | "APROVADO" | "REPROVADO";
@@ -100,6 +101,59 @@ function getApprovalLabel(status: ApprovalStatus) {
     case "REPROVADO":
       return "Reprovado";
   }
+}
+
+type ActionIconButtonProps = {
+  title: string;
+  className: string;
+  disabled?: boolean;
+  onClick?: () => void;
+  children: ReactNode;
+};
+
+function ActionIconButton({ title, className, disabled = false, onClick, children }: ActionIconButtonProps) {
+  return (
+    <div className="group relative inline-flex">
+      <button
+        type="button"
+        title={title}
+        aria-label={title}
+        disabled={disabled}
+        onClick={onClick}
+        className={`inline-flex h-8 w-8 items-center justify-center rounded border shadow-sm transition-colors ${className}`}
+      >
+        {children}
+      </button>
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-[11px] text-white opacity-0 shadow transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        {title}
+      </span>
+    </div>
+  );
+}
+
+type ActionIconLinkProps = {
+  title: string;
+  href: string;
+  className: string;
+  children: ReactNode;
+};
+
+function ActionIconLink({ title, href, className, children }: ActionIconLinkProps) {
+  return (
+    <div className="group relative inline-flex">
+      <Link
+        href={href}
+        title={title}
+        aria-label={title}
+        className={`inline-flex h-8 w-8 items-center justify-center rounded border shadow-sm transition-colors ${className}`}
+      >
+        {children}
+      </Link>
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-[11px] text-white opacity-0 shadow transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        {title}
+      </span>
+    </div>
+  );
 }
 
 export default function PosicaoFinanceiraPage() {
@@ -362,7 +416,6 @@ export default function PosicaoFinanceiraPage() {
                 <th className="p-2">Valor R$</th>
                 <th className="p-2">Situação</th>
                 <th className="p-2">Aprovação</th>
-                <th className="p-2">Integrado</th>
                 <th className="p-2 text-center">Avaliação</th>
                 <th className="p-2 text-center">Ações</th>
               </tr>
@@ -370,7 +423,7 @@ export default function PosicaoFinanceiraPage() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={8} className="p-3 text-gray-500">
+                  <td colSpan={7} className="p-3 text-gray-500">
                     Carregando títulos...
                   </td>
                 </tr>
@@ -390,17 +443,6 @@ export default function PosicaoFinanceiraPage() {
                     <span className={getApprovalBadge(r.approvalStatus)}>{getApprovalLabel(r.approvalStatus)}</span>
                   </td>
                   <td className="p-2">
-                    {r.integrated ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 border border-blue-200">
-                        Sim
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700 border border-gray-200">
-                        Não
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-2">
                     {(() => {
                       const canApproveOrReject = r.status === "EM_AVALIACAO" && updatingId !== r.id;
                       const canReturnToPending =
@@ -410,13 +452,13 @@ export default function PosicaoFinanceiraPage() {
 
                       return (
                         <div className="flex flex-wrap items-center justify-center gap-2">
-                          <button
-                            type="button"
-                            className={`inline-flex items-center rounded border px-2 py-1 text-xs ${
+                          <ActionIconButton
+                            title="Aprovar"
+                            className={
                               canApproveOrReject
                                 ? "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
-                                : "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
-                            }`}
+                                : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                            }
                             disabled={!canApproveOrReject}
                             onClick={() =>
                               void handleWorkflowUpdate(
@@ -426,15 +468,15 @@ export default function PosicaoFinanceiraPage() {
                               )
                             }
                           >
-                            Aprovar
-                          </button>
-                          <button
-                            type="button"
-                            className={`inline-flex items-center rounded border px-2 py-1 text-xs ${
+                            <Check className="h-4 w-4" />
+                          </ActionIconButton>
+                          <ActionIconButton
+                            title="Reprovar"
+                            className={
                               canApproveOrReject
                                 ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                                : "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
-                            }`}
+                                : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                            }
                             disabled={!canApproveOrReject}
                             onClick={() =>
                               void handleWorkflowUpdate(
@@ -444,15 +486,15 @@ export default function PosicaoFinanceiraPage() {
                               )
                             }
                           >
-                            Reprovar
-                          </button>
-                          <button
-                            type="button"
-                            className={`inline-flex items-center rounded border px-2 py-1 text-xs ${
+                            <X className="h-4 w-4" />
+                          </ActionIconButton>
+                          <ActionIconButton
+                            title="Voltar para pendente"
+                            className={
                               canReturnToPending
                                 ? "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                                : "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
-                            }`}
+                                : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                            }
                             disabled={!canReturnToPending}
                             onClick={() =>
                               void handleWorkflowUpdate(
@@ -462,21 +504,21 @@ export default function PosicaoFinanceiraPage() {
                               )
                             }
                           >
-                            Voltar para pendente
-                          </button>
+                            <RotateCcw className="h-4 w-4" />
+                          </ActionIconButton>
                         </div>
                       );
                     })()}
                   </td>
                   <td className="p-2">
                     <div className="flex flex-wrap items-center justify-center gap-2">
-                      <button
-                        type="button"
-                        className={`inline-flex items-center rounded border px-2 py-1 text-xs ${
+                      <ActionIconButton
+                        title="Enviar para avaliação"
+                        className={
                           r.status === "EM_DIGITACAO" && updatingId !== r.id
                             ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                            : "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
-                        }`}
+                            : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                        }
                         disabled={r.status !== "EM_DIGITACAO" || updatingId === r.id}
                         onClick={() =>
                           void handleWorkflowUpdate(
@@ -486,59 +528,53 @@ export default function PosicaoFinanceiraPage() {
                           )
                         }
                       >
-                        Enviar para avaliação
-                      </button>
-                      <button
-                        type="button"
-                        className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs ${
+                        <ArrowRight className="h-4 w-4" />
+                      </ActionIconButton>
+                      <ActionIconButton
+                        title={integratingId === r.id ? "Enviando ao ERP" : "Enviar ao ERP"}
+                        className={
                           r.integrated || integratingId === r.id || r.status !== "AGUARDANDO_INTEGRACAO"
-                            ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                            ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
                             : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                        }`}
+                        }
                         disabled={r.integrated || integratingId === r.id || r.status !== "AGUARDANDO_INTEGRACAO"}
                         onClick={() => void handleSendToErp(r.id)}
                       >
                         {integratingId === r.id ? (
-                          <>
-                            <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
-                            </svg>
-                            Enviando...
-                          </>
+                          <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+                          </svg>
                         ) : (
-                          <>
-                            <Send className="h-3.5 w-3.5" />
-                            Enviar ao ERP
-                          </>
+                          <Send className="h-4 w-4" />
                         )}
-                      </button>
-                      <Link
+                      </ActionIconButton>
+                      <ActionIconLink
+                        title="Detalhes"
                         href={`/admin/modules/meu-financeiro/novo-reembolso?id=${r.id}`}
-                        className="inline-flex items-center rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                        className="border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
                       >
-                        Detalhes
-                      </Link>
-                      <button
-                        type="button"
-                        className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs ${
+                        <Eye className="h-4 w-4" />
+                      </ActionIconLink>
+                      <ActionIconButton
+                        title="Excluir"
+                        className={
                           r.integrated
-                            ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                            ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
                             : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                        }`}
+                        }
                         disabled={r.integrated}
                         onClick={() => void handleDelete(r.id)}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Excluir
-                      </button>
+                        <Trash2 className="h-4 w-4" />
+                      </ActionIconButton>
                     </div>
                   </td>
                 </tr>
               ))}
               {!loading && visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="p-2 text-gray-500">
+                  <td colSpan={7} className="p-2 text-gray-500">
                     Nenhum título
                   </td>
                 </tr>
