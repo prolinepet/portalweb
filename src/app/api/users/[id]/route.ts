@@ -20,11 +20,14 @@ async function ensureUserRepCodeColumn(): Promise<void> {
   if (g.__userRepCodeEnsuredIdRoute) return;
   try {
     const rows = (await prisma.$queryRawUnsafe(
-      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user' AND COLUMN_NAME IN ('repCode')"
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user' AND COLUMN_NAME IN ('repCode','reimbursementApprover')"
     )) as any[];
     const existing = new Set<string>((Array.isArray(rows) ? rows : []).map((row) => String(row?.COLUMN_NAME || row?.column_name || '').trim()));
     if (!existing.has('repCode')) {
       await prisma.$executeRawUnsafe('ALTER TABLE `user` ADD COLUMN `repCode` INT NULL');
+    }
+    if (!existing.has('reimbursementApprover')) {
+      await prisma.$executeRawUnsafe('ALTER TABLE `user` ADD COLUMN `reimbursementApprover` TINYINT(1) NOT NULL DEFAULT 0');
     }
   } catch {}
   g.__userRepCodeEnsuredIdRoute = true;
@@ -47,6 +50,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (body.repCode !== undefined) update.repCode = parseOptionalInt(body.repCode);
     if (body.email !== undefined) update.email = body.email == null ? null : String(body.email);
     if (body.erpIntegrationMode !== undefined) update.erpIntegrationMode = String(body.erpIntegrationMode);
+    if (body.reimbursementApprover !== undefined) update.reimbursementApprover = Boolean(body.reimbursementApprover);
     if (body.doc !== undefined) update.doc = normalizeDoc(String(body.doc || '')) || null;
     if (body.password !== undefined && String(body.password).length > 0) {
       update.password = await bcrypt.hash(String(body.password), 10);
@@ -57,9 +61,10 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         ...update,
         salesRepAdmin: body.salesRepAdmin !== undefined ? Boolean(body.salesRepAdmin) : undefined,
         isSalesAdmin: body.isSalesAdmin !== undefined ? Boolean(body.isSalesAdmin) : undefined,
+        reimbursementApprover: body.reimbursementApprover !== undefined ? Boolean(body.reimbursementApprover) : undefined,
         twoFactorRequired: body.twoFactorRequired !== undefined ? Boolean(body.twoFactorRequired) : undefined,
       },
-      select: { id: true, name: true, abbrevName: true, repCode: true, email: true, doc: true, createdAt: true, updatedAt: true, salesRepAdmin: true, isSalesAdmin: true, twoFactorRequired: true, erpIntegrationMode: true }
+      select: { id: true, name: true, abbrevName: true, repCode: true, email: true, doc: true, createdAt: true, updatedAt: true, salesRepAdmin: true, isSalesAdmin: true, reimbursementApprover: true, twoFactorRequired: true, erpIntegrationMode: true }
     });
     return NextResponse.json(updated);
   } catch (err: any) {

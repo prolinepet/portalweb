@@ -18,6 +18,28 @@ import {
 
 export const dynamic = "force-dynamic";
 
+async function ensureUserReimbursementApproverColumn() {
+  const g = global as any;
+  if (g.__userReimbursementApproverEnsuredFinancialTitles) return;
+  try {
+    const rows = (await prisma.$queryRawUnsafe(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'user'
+        AND COLUMN_NAME = 'reimbursementApprover'
+    `)) as Array<{ COLUMN_NAME?: string; column_name?: string }>;
+    const hasColumn = Array.isArray(rows) && rows.some((row) => String(row?.COLUMN_NAME || row?.column_name || "").trim() === "reimbursementApprover");
+    if (!hasColumn) {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE \`user\`
+        ADD COLUMN \`reimbursementApprover\` TINYINT(1) NOT NULL DEFAULT 0
+      `);
+    }
+  } catch {}
+  g.__userReimbursementApproverEnsuredFinancialTitles = true;
+}
+
 type ExpenseItemPayload = {
   id?: number;
   clientKey?: string | null;
@@ -74,14 +96,33 @@ async function parseExpenseItemsPayload(rawItems: any[]) {
   return items;
 }
 
-function buildWhere(entityId: number, url: URL) {
+function buildWhere(entityId: number, userId: number, url: URL, canApproveReimbursements: boolean) {
   const kind = normalizeFinancialTitleKind(url.searchParams.get("kind"));
   const status = normalizeFinancialTitleStatus(url.searchParams.get("status"));
   const approvalStatus = normalizeFinancialTitleApprovalStatus(url.searchParams.get("approvalStatus"));
+  const scope = String(url.searchParams.get("scope") || "").trim().toLowerCase();
   const q = String(url.searchParams.get("q") || "").trim();
+
+  if (scope === "approval" && canApproveReimbursements) {
+    return {
+      entityId,
+      kind: FINANCIAL_TITLE_KIND.RECEBER,
+      status: FINANCIAL_TITLE_STATUS.EM_AVALIACAO,
+      approvalStatus: FINANCIAL_TITLE_APPROVAL_STATUS.PENDENTE,
+      ...(q
+        ? {
+            OR: [
+              { numero: { contains: q } },
+              { description: { contains: q } },
+            ],
+          }
+        : {}),
+    };
+  }
 
   return {
     entityId,
+    createdByUserId: userId,
     ...(kind ? { kind } : {}),
     ...(status ? { status } : {}),
     ...(approvalStatus ? { approvalStatus } : {}),
@@ -101,15 +142,30 @@ export async function GET(request: Request) {
     await ensureFinancialTitleTable();
     await ensureFinancialTitleExpenseTable();
     await ensureFinancialTitleExpenseAttachmentTable();
+    await ensureUserReimbursementApproverColumn();
 
-    const { entityId } = await resolveActiveEntityId();
+    const { entityId, userId } = await resolveActiveEntityId();
     if (!entityId) {
       return NextResponse.json({ error: "Entidade ativa não definida" }, { status: 400 });
     }
+    if (!userId) {
+      return NextResponse.json({ error: "Usuário autenticado não encontrado" }, { status: 401 });
+    }
 
     const url = new URL(request.url);
+    const includeMeta = ["1", "true", "yes", "sim"].includes(String(url.searchParams.get("includeMeta") || "").trim().toLowerCase());
+    const scope = String(url.searchParams.get("scope") || "").trim().toLowerCase();
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { reimbursementApprover: true },
+    });
+    const canApproveReimbursements = Boolean((currentUser as any)?.reimbursementApprover);
+    if (scope === "approval" && !canApproveReimbursements) {
+      return NextResponse.json({ error: "Usuário sem permissão para aprovar reembolsos." }, { status: 403 });
+    }
+
     const rows = await prisma.financialTitle.findMany({
-      where: buildWhere(entityId, url),
+      where: buildWhere(entityId, userId, url, canApproveReimbursements),
       orderBy: [{ dueDate: "asc" }, { numero: "asc" }],
       select: {
         id: true,
@@ -125,6 +181,15 @@ export async function GET(request: Request) {
         reimbursementTypeId: true,
       },
     });
+
+    if (includeMeta) {
+      return NextResponse.json({
+        items: rows,
+        meta: {
+          canApproveReimbursements,
+        },
+      });
+    }
 
     return NextResponse.json(rows);
   } catch (err: any) {

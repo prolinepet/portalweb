@@ -430,6 +430,27 @@ export default function UsersPage() {
     }
   };
 
+  const toggleReimbursementApprover = async (checked: boolean) => {
+    if (!selectedUserId) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/users`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: selectedUserId, reimbursementApprover: checked }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Erro ${res.status}`);
+      await loadUsers();
+      setSelectedUserId(data.id);
+    } catch (e: any) {
+      setErr(e?.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleTwoFactorRequired = async (checked: boolean) => {
     if (!selectedUserId) return;
     setLoading(true);
@@ -946,6 +967,15 @@ export default function UsersPage() {
                               onChange={(ev) => toggleSalesAdmin(ev.target.checked)}
                             />
                             Adm Vendas
+                          </label>
+                          <label className="mt-2 flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              disabled={!selectedUser}
+                              checked={Boolean((selectedUser as any)?.reimbursementApprover)}
+                              onChange={(ev) => toggleReimbursementApprover(ev.target.checked)}
+                            />
+                            Aprovador Reembolso
                           </label>
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             <label className="flex items-center gap-2 text-sm">

@@ -7,6 +7,7 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight, Check, Eye, RotateCcw, Send, 
 
 type Status = "EM_DIGITACAO" | "EM_AVALIACAO" | "AGUARDANDO_INTEGRACAO" | "INTEGRADO";
 type ApprovalStatus = "PENDENTE" | "APROVADO" | "REPROVADO";
+type ViewKind = Kind | "APROVAR";
 type Row = {
   id: number;
   kind: Kind;
@@ -158,8 +159,10 @@ function ActionIconLink({ title, href, className, children }: ActionIconLinkProp
 
 export default function PosicaoFinanceiraPage() {
   const searchParams = useSearchParams();
-  const [kind, setKind] = useState<Kind>("RECEBER");
-  const [rows, setRows] = useState<Row[]>([]);
+  const [kind, setKind] = useState<ViewKind>("RECEBER");
+  const [ownRows, setOwnRows] = useState<Row[]>([]);
+  const [approvalRows, setApprovalRows] = useState<Row[]>([]);
+  const [canApproveReimbursements, setCanApproveReimbursements] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -180,45 +183,76 @@ export default function PosicaoFinanceiraPage() {
 
   useEffect(() => {
     const nextKind = searchParams?.get("kind");
-    if (nextKind === "RECEBER" || nextKind === "PAGAR") {
+    if (nextKind === "RECEBER" || nextKind === "PAGAR" || nextKind === "APROVAR") {
       setKind(nextKind);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!canApproveReimbursements && kind === "APROVAR") {
+      setKind("RECEBER");
+    }
+  }, [canApproveReimbursements, kind]);
+
+  const mapRowsFromApi = useCallback((data: any): Row[] => {
+    return Array.isArray(data)
+      ? data.map((item) => ({
+          id: Number(item.id),
+          kind: item.kind === "PAGAR" ? ("PAGAR" as Kind) : ("RECEBER" as Kind),
+          numero: String(item.numero || ""),
+          dueDate: item.dueDate ? String(item.dueDate) : null,
+          amount: Number(item.amount) || 0,
+          integrated: Boolean(item.integrated),
+          status: normalizeWorkflowStatus(item.status, Boolean(item.integrated)),
+          approvalStatus: normalizeApprovalStatus(item.approvalStatus, Boolean(item.integrated)),
+          description: item.description ? String(item.description) : null,
+        }))
+      : [];
+  }, []);
 
   const loadRows = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/meu-financeiro/financial-titles", { cache: "no-store" });
-      const data = await res.json().catch(() => []);
-      if (!res.ok) {
-        setRows([]);
-        setError(String(data?.error || "Não foi possível carregar os títulos."));
+      const ownRes = await fetch("/api/meu-financeiro/financial-titles?includeMeta=1", { cache: "no-store" });
+      const ownData = await ownRes.json().catch(() => ({}));
+      if (!ownRes.ok) {
+        setOwnRows([]);
+        setApprovalRows([]);
+        setCanApproveReimbursements(false);
+        setError(String(ownData?.error || "Não foi possível carregar os títulos."));
         return;
       }
 
-      const nextRows: Row[] = Array.isArray(data)
-        ? data.map((item) => ({
-            id: Number(item.id),
-            kind: item.kind === "PAGAR" ? ("PAGAR" as Kind) : ("RECEBER" as Kind),
-            numero: String(item.numero || ""),
-            dueDate: item.dueDate ? String(item.dueDate) : null,
-            amount: Number(item.amount) || 0,
-            integrated: Boolean(item.integrated),
-            status: normalizeWorkflowStatus(item.status, Boolean(item.integrated)),
-            approvalStatus: normalizeApprovalStatus(item.approvalStatus, Boolean(item.integrated)),
-            description: item.description ? String(item.description) : null,
-          }))
-        : [];
+      const canApprove = Boolean(ownData?.meta?.canApproveReimbursements);
+      const nextOwnRows = mapRowsFromApi(Array.isArray(ownData) ? ownData : ownData?.items);
+      let nextApprovalRows: Row[] = [];
 
-      setRows(nextRows);
+      if (canApprove) {
+        const approvalRes = await fetch("/api/meu-financeiro/financial-titles?scope=approval", { cache: "no-store" });
+        const approvalData = await approvalRes.json().catch(() => []);
+        if (!approvalRes.ok) {
+          setOwnRows([]);
+          setApprovalRows([]);
+          setCanApproveReimbursements(false);
+          setError(String(approvalData?.error || "Não foi possível carregar os títulos para aprovação."));
+          return;
+        }
+        nextApprovalRows = mapRowsFromApi(approvalData);
+      }
+
+      setOwnRows(nextOwnRows);
+      setApprovalRows(nextApprovalRows);
+      setCanApproveReimbursements(canApprove);
     } catch {
-      setRows([]);
+      setOwnRows([]);
+      setApprovalRows([]);
+      setCanApproveReimbursements(false);
       setError("Não foi possível carregar os títulos.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [mapRowsFromApi]);
 
   useEffect(() => {
     void loadRows();
@@ -226,17 +260,21 @@ export default function PosicaoFinanceiraPage() {
 
   const data = useMemo(() => {
     const totals = {
-      RECEBER: rows.filter((r) => r.kind === "RECEBER").reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
-      PAGAR: rows.filter((r) => r.kind === "PAGAR").reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+      RECEBER: ownRows.filter((r) => r.kind === "RECEBER").reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+      PAGAR: ownRows.filter((r) => r.kind === "PAGAR").reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+      APROVAR: approvalRows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
     };
     return {
-      receber: rows.filter((r) => r.kind === "RECEBER"),
-      pagar: rows.filter((r) => r.kind === "PAGAR"),
+      receber: ownRows.filter((r) => r.kind === "RECEBER"),
+      pagar: ownRows.filter((r) => r.kind === "PAGAR"),
+      aprovar: approvalRows,
       totals,
     };
-  }, [rows]);
+  }, [ownRows, approvalRows]);
 
-  const visibleRows = kind === "RECEBER" ? data.receber : data.pagar;
+  const visibleRows = kind === "RECEBER" ? data.receber : kind === "PAGAR" ? data.pagar : data.aprovar;
+  const detailLabel = kind === "RECEBER" ? "A Receber" : kind === "PAGAR" ? "A Pagar" : "A Aprovar";
+  const showEvaluationColumn = kind === "APROVAR";
 
   const handleSendToErp = async (id: number) => {
     if (!confirm("Confirma enviar este título para o ERP?")) return;
@@ -262,19 +300,7 @@ export default function PosicaoFinanceiraPage() {
       }
 
       const messages = extractErpMessages(data);
-      setRows((current) =>
-        current.map((row) =>
-          row.id === id
-            ? {
-                ...row,
-                integrated: true,
-                dueDate: data?.dueDate ? String(data.dueDate) : row.dueDate,
-                status: normalizeWorkflowStatus(data?.status, true),
-                approvalStatus: normalizeApprovalStatus(data?.approvalStatus, true),
-              }
-            : row
-        )
-      );
+      await loadRows();
       setSuccess(
         messages.length > 0 ? `Título integrado com sucesso. ${messages.join(" ")}` : "Título integrado com sucesso."
       );
@@ -306,18 +332,7 @@ export default function PosicaoFinanceiraPage() {
         return;
       }
 
-      setRows((current) =>
-        current.map((item) =>
-          item.id === row.id
-            ? {
-                ...item,
-                status: normalizeWorkflowStatus(data?.status, Boolean(data?.integrated ?? item.integrated)),
-                approvalStatus: normalizeApprovalStatus(data?.approvalStatus, Boolean(data?.integrated ?? item.integrated)),
-                integrated: Boolean(data?.integrated ?? item.integrated),
-              }
-            : item
-        )
-      );
+      await loadRows();
       setSuccess(successMessage);
     } catch (err: any) {
       setError(String(err?.message || "Não foi possível atualizar o reembolso."));
@@ -335,14 +350,14 @@ export default function PosicaoFinanceiraPage() {
       setError(String(data?.error || "Não foi possível excluir o título."));
       return;
     }
-    setRows((current) => current.filter((row) => row.id !== id));
+    await loadRows();
   };
 
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Meu Financeiro • Posição Financeira</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className={`grid grid-cols-1 gap-4 ${canApproveReimbursements ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
         <button
           type="button"
           onClick={() => setKind("RECEBER")}
@@ -378,11 +393,31 @@ export default function PosicaoFinanceiraPage() {
             </div>
           </div>
         </button>
+
+        {canApproveReimbursements && (
+          <button
+            type="button"
+            onClick={() => setKind("APROVAR")}
+            className={`text-left rounded border bg-white p-4 shadow-sm transition-colors ${
+              kind === "APROVAR" ? "border-amber-400 ring-1 ring-amber-200" : "border-gray-200 hover:border-gray-300"
+            }`}
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-sm text-amber-600 font-medium">A Aprovar</div>
+                <div className="text-2xl font-semibold text-amber-700 mt-1">{formatBRL(data.totals.APROVAR)}</div>
+              </div>
+              <div className="text-amber-600">
+                <Check className="w-5 h-5" />
+              </div>
+            </div>
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded border p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3">
-          <div className="font-medium">Detalhamento: {kind === "RECEBER" ? "A Receber" : "A Pagar"}</div>
+          <div className="font-medium">Detalhamento: {detailLabel}</div>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -391,12 +426,14 @@ export default function PosicaoFinanceiraPage() {
             >
               Atualizar
             </button>
-            <Link
-              href="/admin/modules/meu-financeiro/novo-reembolso"
-              className="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
-            >
-              Criar Reembolso
-            </Link>
+            {kind !== "APROVAR" && (
+              <Link
+                href="/admin/modules/meu-financeiro/novo-reembolso"
+                className="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
+              >
+                Criar Reembolso
+              </Link>
+            )}
           </div>
         </div>
 
@@ -416,14 +453,14 @@ export default function PosicaoFinanceiraPage() {
                 <th className="p-2">Valor R$</th>
                 <th className="p-2">Situação</th>
                 <th className="p-2">Aprovação</th>
-                <th className="p-2 text-center">Avaliação</th>
+                {showEvaluationColumn && <th className="p-2 text-center">Avaliação</th>}
                 <th className="p-2 text-center">Ações</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={7} className="p-3 text-gray-500">
+                  <td colSpan={showEvaluationColumn ? 7 : 6} className="p-3 text-gray-500">
                     Carregando títulos...
                   </td>
                 </tr>
@@ -442,113 +479,119 @@ export default function PosicaoFinanceiraPage() {
                   <td className="p-2">
                     <span className={getApprovalBadge(r.approvalStatus)}>{getApprovalLabel(r.approvalStatus)}</span>
                   </td>
-                  <td className="p-2">
-                    {(() => {
-                      const canApproveOrReject = r.status === "EM_AVALIACAO" && updatingId !== r.id;
-                      const canReturnToPending =
-                        updatingId !== r.id &&
-                        (r.approvalStatus === "APROVADO" || r.approvalStatus === "REPROVADO") &&
-                        (r.status === "EM_DIGITACAO" || r.status === "AGUARDANDO_INTEGRACAO");
+                  {showEvaluationColumn && (
+                    <td className="p-2">
+                      {(() => {
+                        const canApproveOrReject = r.status === "EM_AVALIACAO" && updatingId !== r.id;
+                        const canReturnToPending =
+                          updatingId !== r.id &&
+                          (r.approvalStatus === "APROVADO" || r.approvalStatus === "REPROVADO") &&
+                          (r.status === "EM_DIGITACAO" || r.status === "AGUARDANDO_INTEGRACAO");
 
-                      return (
-                        <div className="flex flex-wrap items-center justify-center gap-2">
-                          <ActionIconButton
-                            title="Aprovar"
-                            className={
-                              canApproveOrReject
-                                ? "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
-                                : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
-                            }
-                            disabled={!canApproveOrReject}
-                            onClick={() =>
-                              void handleWorkflowUpdate(
-                                r,
-                                { approvalStatus: "APROVADO", status: "AGUARDANDO_INTEGRACAO" },
-                                "Reembolso aprovado com sucesso."
-                              )
-                            }
-                          >
-                            <Check className="h-4 w-4" />
-                          </ActionIconButton>
-                          <ActionIconButton
-                            title="Reprovar"
-                            className={
-                              canApproveOrReject
-                                ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                                : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
-                            }
-                            disabled={!canApproveOrReject}
-                            onClick={() =>
-                              void handleWorkflowUpdate(
-                                r,
-                                { approvalStatus: "REPROVADO", status: "EM_DIGITACAO" },
-                                "Reembolso reprovado com sucesso."
-                              )
-                            }
-                          >
-                            <X className="h-4 w-4" />
-                          </ActionIconButton>
-                          <ActionIconButton
-                            title="Voltar para pendente"
-                            className={
-                              canReturnToPending
-                                ? "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                                : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
-                            }
-                            disabled={!canReturnToPending}
-                            onClick={() =>
-                              void handleWorkflowUpdate(
-                                r,
-                                { approvalStatus: "PENDENTE", status: "EM_DIGITACAO" },
-                                "Reembolso voltou para pendente."
-                              )
-                            }
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                          </ActionIconButton>
-                        </div>
-                      );
-                    })()}
-                  </td>
+                        return (
+                          <div className="flex flex-wrap items-center justify-center gap-2">
+                            <ActionIconButton
+                              title="Aprovar"
+                              className={
+                                canApproveOrReject
+                                  ? "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+                                  : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                              }
+                              disabled={!canApproveOrReject}
+                              onClick={() =>
+                                void handleWorkflowUpdate(
+                                  r,
+                                  { approvalStatus: "APROVADO", status: "AGUARDANDO_INTEGRACAO" },
+                                  "Reembolso aprovado com sucesso."
+                                )
+                              }
+                            >
+                              <Check className="h-4 w-4" />
+                            </ActionIconButton>
+                            <ActionIconButton
+                              title="Reprovar"
+                              className={
+                                canApproveOrReject
+                                  ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                                  : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                              }
+                              disabled={!canApproveOrReject}
+                              onClick={() =>
+                                void handleWorkflowUpdate(
+                                  r,
+                                  { approvalStatus: "REPROVADO", status: "EM_DIGITACAO" },
+                                  "Reembolso reprovado com sucesso."
+                                )
+                              }
+                            >
+                              <X className="h-4 w-4" />
+                            </ActionIconButton>
+                            <ActionIconButton
+                              title="Voltar para pendente"
+                              className={
+                                canReturnToPending
+                                  ? "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                                  : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                              }
+                              disabled={!canReturnToPending}
+                              onClick={() =>
+                                void handleWorkflowUpdate(
+                                  r,
+                                  { approvalStatus: "PENDENTE", status: "EM_DIGITACAO" },
+                                  "Reembolso voltou para pendente."
+                                )
+                              }
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </ActionIconButton>
+                          </div>
+                        );
+                      })()}
+                    </td>
+                  )}
                   <td className="p-2">
                     <div className="flex flex-wrap items-center justify-center gap-2">
-                      <ActionIconButton
-                        title="Enviar para avaliação"
-                        className={
-                          r.status === "EM_DIGITACAO" && updatingId !== r.id
-                            ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                            : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
-                        }
-                        disabled={r.status !== "EM_DIGITACAO" || updatingId === r.id}
-                        onClick={() =>
-                          void handleWorkflowUpdate(
-                            r,
-                            { approvalStatus: "PENDENTE", status: "EM_AVALIACAO" },
-                            "Reembolso enviado para avaliação."
-                          )
-                        }
-                      >
-                        <ArrowRight className="h-4 w-4" />
-                      </ActionIconButton>
-                      <ActionIconButton
-                        title={integratingId === r.id ? "Enviando ao ERP" : "Enviar ao ERP"}
-                        className={
-                          r.integrated || integratingId === r.id || r.status !== "AGUARDANDO_INTEGRACAO"
-                            ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
-                            : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                        }
-                        disabled={r.integrated || integratingId === r.id || r.status !== "AGUARDANDO_INTEGRACAO"}
-                        onClick={() => void handleSendToErp(r.id)}
-                      >
-                        {integratingId === r.id ? (
-                          <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
-                          </svg>
-                        ) : (
-                          <Send className="h-4 w-4" />
-                        )}
-                      </ActionIconButton>
+                      {!showEvaluationColumn && (
+                        <ActionIconButton
+                          title="Enviar para avaliação"
+                          className={
+                            r.status === "EM_DIGITACAO" && updatingId !== r.id
+                              ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                              : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                          }
+                          disabled={r.status !== "EM_DIGITACAO" || updatingId === r.id}
+                          onClick={() =>
+                            void handleWorkflowUpdate(
+                              r,
+                              { approvalStatus: "PENDENTE", status: "EM_AVALIACAO" },
+                              "Reembolso enviado para avaliação."
+                            )
+                          }
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                        </ActionIconButton>
+                      )}
+                      {!showEvaluationColumn && (
+                        <ActionIconButton
+                          title={integratingId === r.id ? "Enviando ao ERP" : "Enviar ao ERP"}
+                          className={
+                            r.integrated || integratingId === r.id || r.status !== "AGUARDANDO_INTEGRACAO"
+                              ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                              : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                          }
+                          disabled={r.integrated || integratingId === r.id || r.status !== "AGUARDANDO_INTEGRACAO"}
+                          onClick={() => void handleSendToErp(r.id)}
+                        >
+                          {integratingId === r.id ? (
+                            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+                            </svg>
+                          ) : (
+                            <Send className="h-4 w-4" />
+                          )}
+                        </ActionIconButton>
+                      )}
                       <ActionIconLink
                         title="Detalhes"
                         href={`/admin/modules/meu-financeiro/novo-reembolso?id=${r.id}`}
@@ -556,25 +599,27 @@ export default function PosicaoFinanceiraPage() {
                       >
                         <Eye className="h-4 w-4" />
                       </ActionIconLink>
-                      <ActionIconButton
-                        title="Excluir"
-                        className={
-                          r.integrated
-                            ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
-                            : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                        }
-                        disabled={r.integrated}
-                        onClick={() => void handleDelete(r.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </ActionIconButton>
+                      {!showEvaluationColumn && (
+                        <ActionIconButton
+                          title="Excluir"
+                          className={
+                            r.integrated
+                              ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                              : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                          }
+                          disabled={r.integrated}
+                          onClick={() => void handleDelete(r.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </ActionIconButton>
+                      )}
                     </div>
                   </td>
                 </tr>
               ))}
               {!loading && visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="p-2 text-gray-500">
+                  <td colSpan={showEvaluationColumn ? 7 : 6} className="p-2 text-gray-500">
                     Nenhum título
                   </td>
                 </tr>

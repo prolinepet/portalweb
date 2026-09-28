@@ -21,7 +21,7 @@ async function ensureUserAbbrevNameColumn(): Promise<void> {
   if (g.__userColumnsEnsured) return;
   try {
     const rows = (await prisma.$queryRawUnsafe(
-      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user' AND COLUMN_NAME IN ('abbrevName','costCenter','pixKey','repCode')"
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user' AND COLUMN_NAME IN ('abbrevName','costCenter','pixKey','repCode','reimbursementApprover')"
     )) as any[];
     const existing = new Set<string>((Array.isArray(rows) ? rows : []).map((r) => String(r?.COLUMN_NAME || r?.column_name || '').trim()));
 
@@ -36,6 +36,9 @@ async function ensureUserAbbrevNameColumn(): Promise<void> {
     }
     if (!existing.has('repCode')) {
       await prisma.$executeRawUnsafe('ALTER TABLE `user` ADD COLUMN `repCode` INT NULL');
+    }
+    if (!existing.has('reimbursementApprover')) {
+      await prisma.$executeRawUnsafe('ALTER TABLE `user` ADD COLUMN `reimbursementApprover` TINYINT(1) NOT NULL DEFAULT 0');
     }
   } catch {}
   g.__userColumnsEnsured = true;
@@ -119,6 +122,7 @@ export async function GET(request: Request) {
       doc: true,
       salesRepAdmin: true,
       isSalesAdmin: true,
+      reimbursementApprover: true,
       twoFactorRequired: true,
       twoFactorSecret: true,
       erpIntegrationMode: true,
@@ -139,6 +143,7 @@ export async function GET(request: Request) {
       doc: u.doc,
       salesRepAdmin: u.salesRepAdmin,
       isSalesAdmin: u.isSalesAdmin,
+      reimbursementApprover: (u as any).reimbursementApprover ?? false,
       twoFactorRequired: u.twoFactorRequired,
       erpIntegrationMode: u.erpIntegrationMode,
       createdAt: u.createdAt,
@@ -160,6 +165,7 @@ export async function POST(request: Request) {
     const passwordStr = String(data?.password || '');
     const erpIntegrationMode = String(data?.erpIntegrationMode || 'TEST');
     const salesRepAdmin = data?.salesRepAdmin;
+    const reimbursementApprover = data?.reimbursementApprover;
     const doc = normalizeDoc(String((data as any)?.doc || '')) || null;
     const repCode = parseOptionalInt((data as any)?.repCode);
     const costCenterRaw = data?.costCenter == null ? null : String(data.costCenter);
@@ -198,6 +204,7 @@ export async function POST(request: Request) {
         erpIntegrationMode,
       };
       if (salesRepAdmin !== undefined) update.salesRepAdmin = Boolean(salesRepAdmin);
+      if (reimbursementApprover !== undefined) update.reimbursementApprover = Boolean(reimbursementApprover);
 
       const create: any = {
         name,
@@ -210,6 +217,7 @@ export async function POST(request: Request) {
         doc,
         salesRepAdmin: Boolean(salesRepAdmin),
         isSalesAdmin: false,
+        reimbursementApprover: Boolean(reimbursementApprover),
         erpIntegrationMode,
       };
       const upserted = await prisma.user.upsert({
@@ -227,6 +235,7 @@ export async function POST(request: Request) {
           doc: true,
           salesRepAdmin: true,
           isSalesAdmin: true,
+          reimbursementApprover: true,
           erpIntegrationMode: true,
           createdAt: true,
           updatedAt: true,
@@ -250,8 +259,9 @@ export async function POST(request: Request) {
         erpIntegrationMode,
         salesRepAdmin: Boolean(salesRepAdmin),
         isSalesAdmin: false,
+        reimbursementApprover: Boolean(reimbursementApprover),
       },
-      select: { id: true, name: true, abbrevName: true, repCode: true, costCenter: true, pixKey: true, email: true, createdAt: true, updatedAt: true, salesRepAdmin: true, isSalesAdmin: true, erpIntegrationMode: true },
+      select: { id: true, name: true, abbrevName: true, repCode: true, costCenter: true, pixKey: true, email: true, createdAt: true, updatedAt: true, salesRepAdmin: true, isSalesAdmin: true, reimbursementApprover: true, erpIntegrationMode: true },
     });
     if (shouldEnsureRepDefaults) {
       await ensureSalesRepDefaults(Number(created.id)).catch(() => {});
@@ -290,6 +300,7 @@ export async function PATCH(request: Request) {
     if (body.erpIntegrationMode !== undefined) update.erpIntegrationMode = String(body.erpIntegrationMode);
     if (body.salesRepAdmin !== undefined) update.salesRepAdmin = Boolean(body.salesRepAdmin);
     if (body.isSalesAdmin !== undefined) update.isSalesAdmin = Boolean(body.isSalesAdmin);
+    if (body.reimbursementApprover !== undefined) update.reimbursementApprover = Boolean(body.reimbursementApprover);
     if (body.twoFactorRequired !== undefined) update.twoFactorRequired = Boolean(body.twoFactorRequired);
     if (body.doc !== undefined) update.doc = normalizeDoc(String(body.doc || '')) || null;
     if (body.password !== undefined && String(body.password).length > 0) {
@@ -332,6 +343,7 @@ export async function PATCH(request: Request) {
         updatedAt: true,
         salesRepAdmin: true,
         isSalesAdmin: true,
+        reimbursementApprover: true,
         twoFactorRequired: true,
         twoFactorSecret: true,
         erpIntegrationMode: true,

@@ -18,6 +18,7 @@ model User {
   password           String
   salesRepAdmin      Boolean         @default(false)
   isSalesAdmin       Boolean         @default(false)
+  reimbursementApprover Boolean      @default(false)
   twoFactorRequired  Boolean         @default(false)
   twoFactorSecret    String?
   doc                String?         @unique
