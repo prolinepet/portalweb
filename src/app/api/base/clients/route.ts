@@ -50,15 +50,15 @@ async function searchClients(userId: number, isSalesAdmin: boolean, q: string): 
   if (q) {
     const qLike = `%${escapeLike(q)}%`;
     const conditions = [
-      "COALESCE(c.`name`, '') COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci ESCAPE '\\'",
-      "COALESCE(c.`abbrevName`, '') COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci ESCAPE '\\'",
-      "COALESCE(c.`cidade`, '') COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci ESCAPE '\\'",
-      "COALESCE(c.`estado`, '') COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci ESCAPE '\\'",
+      "COALESCE(c.`name`, '') COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci ESCAPE '\\\\'",
+      "COALESCE(c.`abbrevName`, '') COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci ESCAPE '\\\\'",
+      "COALESCE(c.`cidade`, '') COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci ESCAPE '\\\\'",
+      "COALESCE(c.`estado`, '') COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci ESCAPE '\\\\'",
     ];
     params.push(qLike, qLike, qLike, qLike);
 
     if (digits) {
-      conditions.push("COALESCE(c.`doc`, '') COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci ESCAPE '\\'");
+      conditions.push("COALESCE(c.`doc`, '') COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci ESCAPE '\\\\'");
       params.push(`%${escapeLike(digits)}%`);
     }
     if (idCandidate !== null) {
