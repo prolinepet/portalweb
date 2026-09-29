@@ -7,6 +7,101 @@ function normalizeDoc(doc: string): string {
   return (doc || '').replace(/\D+/g, '');
 }
 
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, '\\$&');
+}
+
+type ClientSearchRow = {
+  id: number;
+  clientCode: number | null;
+  doc: string | null;
+  abbrevName: string | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  cep: string | null;
+  logradouro: string | null;
+  numero: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  estado: string | null;
+  creditLimit: number | null;
+  availableLimit: number | null;
+  titlesDue: number | null;
+  titlesOverdue: number | null;
+  paymentTermId: number | null;
+  paymentTermCode: number | null;
+  paymentTermDescription: string | null;
+};
+
+async function searchClients(userId: number, isSalesAdmin: boolean, q: string): Promise<ClientSearchRow[]> {
+  const params: Array<string | number> = [];
+  const where: string[] = [];
+
+  if (!isSalesAdmin) {
+    where.push("EXISTS (SELECT 1 FROM `userclientrep` ucr WHERE ucr.`clientId` = c.`id` AND ucr.`userId` = ?)");
+    params.push(userId);
+  }
+
+  const digits = q ? normalizeDoc(q) : '';
+  const qNum = q ? Number(q) : NaN;
+  const idCandidate = Number.isFinite(qNum) ? Math.trunc(qNum) : null;
+
+  if (q) {
+    const qLike = `%${escapeLike(q)}%`;
+    const conditions = [
+      "COALESCE(c.`name`, '') COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci ESCAPE '\\'",
+      "COALESCE(c.`abbrevName`, '') COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci ESCAPE '\\'",
+      "COALESCE(c.`cidade`, '') COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci ESCAPE '\\'",
+      "COALESCE(c.`estado`, '') COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci ESCAPE '\\'",
+    ];
+    params.push(qLike, qLike, qLike, qLike);
+
+    if (digits) {
+      conditions.push("COALESCE(c.`doc`, '') COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci ESCAPE '\\'");
+      params.push(`%${escapeLike(digits)}%`);
+    }
+    if (idCandidate !== null) {
+      conditions.push("c.`id` = ?");
+      conditions.push("c.`clientCode` = ?");
+      params.push(idCandidate, idCandidate);
+    }
+
+    where.push(`(${conditions.join(' OR ')})`);
+  }
+
+  const sql = `
+    SELECT
+      c.\`id\`,
+      c.\`clientCode\`,
+      c.\`doc\`,
+      c.\`abbrevName\`,
+      c.\`name\`,
+      c.\`email\`,
+      c.\`phone\`,
+      c.\`cep\`,
+      c.\`logradouro\`,
+      c.\`numero\`,
+      c.\`bairro\`,
+      c.\`cidade\`,
+      c.\`estado\`,
+      c.\`creditLimit\`,
+      c.\`availableLimit\`,
+      c.\`titlesDue\`,
+      c.\`titlesOverdue\`,
+      c.\`paymentTermId\`,
+      pt.\`code\` AS paymentTermCode,
+      pt.\`description\` AS paymentTermDescription
+    FROM \`client\` c
+    LEFT JOIN \`paymentterm\` pt
+      ON pt.\`id\` = c.\`paymentTermId\`
+    ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
+    ORDER BY c.\`name\` ASC
+  `;
+
+  return prisma.$queryRawUnsafe<ClientSearchRow[]>(sql, ...params);
+}
+
 let clientInvoiceTableExistsPromise: Promise<boolean> | null = null;
 
 async function hasClientInvoiceTable(): Promise<boolean> {
@@ -217,51 +312,7 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url);
     const q = (url.searchParams.get('q') || '').trim();
-    const digits = q ? normalizeDoc(q) : '';
-    const qNum = q ? Number(q) : NaN;
-    const idCandidate = Number.isFinite(qNum) ? Math.trunc(qNum) : null;
-
-    const where: any = {};
-    if (!isSalesAdmin) where.reps = { some: { userId } };
-
-    if (q) {
-      const or: any[] = [
-        { name: { contains: q } },
-        { abbrevName: { contains: q } },
-        { cidade: { contains: q } },
-        { estado: { contains: q } },
-      ];
-      if (digits) or.push({ doc: { contains: digits } });
-      if (idCandidate !== null) or.push({ id: idCandidate });
-      if (idCandidate !== null) or.push({ clientCode: idCandidate });
-      where.OR = or;
-    }
-
-    const clients = await prisma.client.findMany({
-      where,
-      orderBy: { name: 'asc' },
-      select: {
-        id: true,
-        clientCode: true,
-        doc: true,
-        abbrevName: true,
-        name: true,
-        email: true,
-        phone: true,
-        cep: true,
-        logradouro: true,
-        numero: true,
-        bairro: true,
-        cidade: true,
-        estado: true,
-        creditLimit: true,
-        availableLimit: true,
-        titlesDue: true,
-        titlesOverdue: true,
-        paymentTermId: true,
-        paymentTerm: { select: { code: true, description: true } },
-      },
-    });
+    const clients = await searchClients(userId, isSalesAdmin, q);
 
     const clientIds = clients.map((c) => c.id);
     const totalsByClient = new Map<number, { titlesDue: number; titlesOverdue: number }>();
@@ -312,8 +363,8 @@ export async function GET(request: Request) {
       titlesDue: canReadClientInvoice ? (totalsByClient.get(c.id)?.titlesDue ?? 0) : Number(c.titlesDue ?? 0),
       titlesOverdue: canReadClientInvoice ? (totalsByClient.get(c.id)?.titlesOverdue ?? 0) : Number(c.titlesOverdue ?? 0),
       paymentTermId: c.paymentTermId,
-      paymentTermCode: c.paymentTerm?.code ?? null,
-      paymentTermDescription: c.paymentTerm?.description ?? null,
+      paymentTermCode: c.paymentTermCode ?? null,
+      paymentTermDescription: c.paymentTermDescription ?? null,
     }));
     return NextResponse.json(out);
   } catch (err: any) {

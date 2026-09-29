@@ -7,12 +7,33 @@ const next = require('next')
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = process.env.HOSTNAME || (dev ? 'localhost' : '0.0.0.0')
 const port = process.env.PORT || 3000
-// app inicializado
 const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler()
+let server = null
+let shuttingDown = false
+
+function shutdown(signal) {
+  if (shuttingDown) return
+  shuttingDown = true
+
+  if (!server || !server.listening) {
+    console.error(`[server] ${signal} received, but server is not running.`)
+    process.exit(0)
+    return
+  }
+
+  server.close((err) => {
+    if (err) {
+      console.error(`[server] Error during shutdown after ${signal}:`, err)
+      process.exit(1)
+      return
+    }
+    process.exit(0)
+  })
+}
 
 app.prepare().then(() => {
-  createServer(async (req, res) => {
+  server = createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url, true)
       const { pathname, query } = parsedUrl
@@ -30,7 +51,18 @@ app.prepare().then(() => {
       res.end('internal server error')
     }
   })
-    .listen(port, hostname, () => {
-      console.log(`> Ready on http://${hostname}:${port}`)
-    })
+
+  server.on('error', (err) => {
+    console.error('[server] HTTP lifecycle error:', err)
+  })
+
+  server.listen(port, hostname, () => {
+    console.log(`> Ready on http://${hostname}:${port}`)
+  })
+}).catch((err) => {
+  console.error('[server] Failed to prepare Next app:', err)
+  process.exit(1)
 })
+
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
