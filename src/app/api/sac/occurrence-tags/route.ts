@@ -3,6 +3,7 @@ import { prisma } from "../../../../lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../../../lib/auth";
 import { isProgramAllowed } from "../../../../lib/isProgramAllowed";
+import { includesSearchText } from "../../../../lib/text-search";
 
 async function ensureReadAllowed(): Promise<boolean> {
   const session = await getServerSession(authOptions);
@@ -53,19 +54,15 @@ export async function GET(request: Request) {
     const q = String(url.searchParams.get("q") || "").trim();
 
     const rows = await prisma.occurrenceTag.findMany({
-      where: q
-        ? {
-            OR: [
-              { description: { contains: q } },
-              Number.isFinite(Number(q)) ? { code: Math.trunc(Number(q)) } : {},
-            ],
-          }
-        : undefined,
       orderBy: [{ code: "asc" }],
       select: { code: true, description: true },
     });
 
-    return NextResponse.json(rows);
+    return NextResponse.json(
+      q
+        ? rows.filter((row) => includesSearchText(row.description, q) || (Number.isFinite(Number(q)) && row.code === Math.trunc(Number(q))))
+        : rows
+    );
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }

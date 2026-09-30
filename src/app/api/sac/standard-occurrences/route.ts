@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
+import { includesSearchText } from '../../../../lib/text-search';
 
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const q = (url.searchParams.get('q') || '').trim();
     const items = await prisma.standardOccurrence.findMany({
-      where: q ? { description: { contains: q } } : undefined,
       orderBy: { description: 'asc' },
       select: { id: true, description: true },
     });
-    return NextResponse.json(items);
+    return NextResponse.json(q ? items.filter((item) => includesSearchText(item.description, q)) : items);
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }

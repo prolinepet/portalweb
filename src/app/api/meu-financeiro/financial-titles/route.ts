@@ -15,6 +15,7 @@ import {
   parseFinancialAmount,
   resolveActiveEntityId,
 } from "../../../../lib/financial-titles";
+import { includesAnySearchText } from "../../../../lib/text-search";
 
 export const dynamic = "force-dynamic";
 
@@ -101,7 +102,6 @@ function buildWhere(entityId: number, userId: number, url: URL, canApproveReimbu
   const status = normalizeFinancialTitleStatus(url.searchParams.get("status"));
   const approvalStatus = normalizeFinancialTitleApprovalStatus(url.searchParams.get("approvalStatus"));
   const scope = String(url.searchParams.get("scope") || "").trim().toLowerCase();
-  const q = String(url.searchParams.get("q") || "").trim();
 
   if (scope === "approval" && canApproveReimbursements) {
     return {
@@ -109,14 +109,6 @@ function buildWhere(entityId: number, userId: number, url: URL, canApproveReimbu
       kind: FINANCIAL_TITLE_KIND.RECEBER,
       status: FINANCIAL_TITLE_STATUS.EM_AVALIACAO,
       approvalStatus: FINANCIAL_TITLE_APPROVAL_STATUS.PENDENTE,
-      ...(q
-        ? {
-            OR: [
-              { numero: { contains: q } },
-              { description: { contains: q } },
-            ],
-          }
-        : {}),
     };
   }
 
@@ -126,14 +118,6 @@ function buildWhere(entityId: number, userId: number, url: URL, canApproveReimbu
     ...(kind ? { kind } : {}),
     ...(status ? { status } : {}),
     ...(approvalStatus ? { approvalStatus } : {}),
-    ...(q
-      ? {
-          OR: [
-            { numero: { contains: q } },
-            { description: { contains: q } },
-          ],
-        }
-      : {}),
   };
 }
 
@@ -155,6 +139,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const includeMeta = ["1", "true", "yes", "sim"].includes(String(url.searchParams.get("includeMeta") || "").trim().toLowerCase());
     const scope = String(url.searchParams.get("scope") || "").trim().toLowerCase();
+    const q = String(url.searchParams.get("q") || "").trim();
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
       select: { reimbursementApprover: true },
@@ -182,16 +167,20 @@ export async function GET(request: Request) {
       },
     });
 
+    const filteredRows = q
+      ? rows.filter((row) => includesAnySearchText([row.numero, row.description], q))
+      : rows;
+
     if (includeMeta) {
       return NextResponse.json({
-        items: rows,
+        items: filteredRows,
         meta: {
           canApproveReimbursements,
         },
       });
     }
 
-    return NextResponse.json(rows);
+    return NextResponse.json(filteredRows);
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }

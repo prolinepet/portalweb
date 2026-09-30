@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../../../lib/auth";
+import { includesAnySearchText } from "../../../../lib/text-search";
 
 export async function GET(request: Request) {
   try {
@@ -9,19 +10,13 @@ export async function GET(request: Request) {
     const q = (url.searchParams.get("q") || "").trim();
 
     const rows = await prisma.priceTable.findMany({
-      where: q
-        ? {
-            OR: [
-              { nrtabpre: { contains: q } },
-              { descricao: { contains: q } },
-            ],
-          }
-        : undefined,
       orderBy: [{ descricao: "asc" }, { nrtabpre: "asc" }],
       select: { id: true, nrtabpre: true, descricao: true, situacao: true },
     });
 
-    return NextResponse.json(rows);
+    return NextResponse.json(
+      q ? rows.filter((row) => includesAnySearchText([row.nrtabpre, row.descricao], q)) : rows
+    );
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }

@@ -391,13 +391,14 @@ export async function generateFinancialTitleNumber(entityId: number, createdByUs
         gte: monthStart,
         lt: nextMonthStart,
       },
-      numero: { startsWith: base },
     },
     select: { numero: true },
   });
 
   const lastSequence = existing.reduce((maxValue, row) => {
-    const current = Number.parseInt(String(row.numero || "").slice(base.length), 10);
+    const numero = String(row.numero || "");
+    if (!numero.startsWith(base)) return maxValue;
+    const current = Number.parseInt(numero.slice(base.length), 10);
     return Number.isFinite(current) && current > maxValue ? current : maxValue;
   }, 0);
   const nextSequence = lastSequence + 1;

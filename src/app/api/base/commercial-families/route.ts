@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
+import { includesSearchText } from '../../../../lib/text-search';
 
 export async function GET(request: Request) {
   try {
@@ -7,12 +8,11 @@ export async function GET(request: Request) {
     const q = (url.searchParams.get('q') || '').trim();
 
     const rows = await prisma.commercialFamily.findMany({
-      where: q ? { description: { contains: q } } : undefined,
       orderBy: { description: 'asc' },
       select: { id: true, description: true, erpCode: true, priceBy: true },
     });
 
-    return NextResponse.json(rows);
+    return NextResponse.json(q ? rows.filter((row) => includesSearchText(row.description, q)) : rows);
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }

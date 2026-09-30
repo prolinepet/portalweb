@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
+import { includesSearchText } from "../../../../lib/text-search";
 
 function parseKind(raw: unknown): "VENDA" | "BONIFICACAO" | "AMOSTRA" | undefined {
   const s = String(raw ?? "").trim().toUpperCase();
@@ -14,21 +15,18 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const q = (url.searchParams.get("q") || "").trim();
+    const qNumber = Number(q);
 
     const rows = await prisma.orderType.findMany({
-      where: q
-        ? {
-            OR: [
-              { descricao: { contains: q } },
-              ...(Number.isFinite(Number(q)) ? [{ codtipoped: Number(q) }] : []),
-            ],
-          }
-        : undefined,
       orderBy: [{ descricao: "asc" }, { codtipoped: "asc" }],
       select: { id: true, codtipoped: true, kind: true, descricao: true, situacao: true },
     });
 
-    return NextResponse.json(rows);
+    return NextResponse.json(
+      q
+        ? rows.filter((row) => includesSearchText(row.descricao, q) || (Number.isFinite(qNumber) && row.codtipoped === qNumber))
+        : rows
+    );
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }

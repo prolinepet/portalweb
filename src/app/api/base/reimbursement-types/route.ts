@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
+import { includesAnySearchText } from "../../../../lib/text-search";
 
 async function ensureReimbursementTypeTable() {
   await prisma.$executeRawUnsafe(`
@@ -25,19 +26,15 @@ export async function GET(request: Request) {
     const q = String(url.searchParams.get("q") || "").trim();
 
     const rows = await prisma.reimbursementType.findMany({
-      where: q
-        ? {
-            OR: [
-              { description: { contains: q } },
-              { defaultAccountingAccount: { contains: q } },
-            ],
-          }
-        : undefined,
       orderBy: [{ description: "asc" }, { id: "asc" }],
       select: { id: true, description: true, defaultAccountingAccount: true },
     });
 
-    return NextResponse.json(rows);
+    return NextResponse.json(
+      q
+        ? rows.filter((row) => includesAnySearchText([row.description, row.defaultAccountingAccount], q))
+        : rows
+    );
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }

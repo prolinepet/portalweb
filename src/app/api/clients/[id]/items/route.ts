@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../../lib/prisma';
+import { includesAnySearchText } from '../../../../../lib/text-search';
 
 async function ensureSalesOrderItemSdoPedColumn(): Promise<void> {
   const g = global as any;
@@ -45,12 +46,6 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
         clientItems: { none: { clientId: client.id, allowed: true } },
         userInventoryItemPrices: { some: { userId: { in: repUserIds } } },
       };
-      if (q) {
-        where.OR = [
-          { name: { contains: q, mode: 'insensitive' } },
-          { sku: { contains: q, mode: 'insensitive' } },
-        ];
-      }
 
       const items = await prisma.inventoryItem.findMany({
         where,
@@ -59,8 +54,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
         take,
       });
 
-      return NextResponse.json(
-        items.map((it) => ({
+      const normalizedItems = items.map((it) => ({
           id: it.id,
           sku: it.sku,
           name: it.name,
@@ -70,7 +64,10 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
           width: it.width,
           length: it.length,
           grammage: it.grammage,
-        }))
+        }));
+
+      return NextResponse.json(
+        q ? normalizedItems.filter((item) => includesAnySearchText([item.name, item.sku], q)) : normalizedItems
       );
     }
 

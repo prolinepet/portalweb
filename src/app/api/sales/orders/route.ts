@@ -38,13 +38,14 @@ function formatSalesOrderCode(seq: number): string {
 }
 
 async function generateNextSalesOrderCode(db: any): Promise<string> {
-  const last = await db.salesOrder.findFirst({
-    where: { code: { startsWith: SALES_ORDER_CODE_PREFIX } },
+  const rows = await db.salesOrder.findMany({
     orderBy: { code: 'desc' },
     select: { code: true },
+    take: 200,
   });
 
-  const lastCode = typeof last?.code === 'string' ? last.code : '';
+  const lastCode =
+    rows.find((row: { code?: string | null }) => typeof row?.code === 'string' && row.code.startsWith(SALES_ORDER_CODE_PREFIX))?.code || '';
   const suffix = lastCode.startsWith(SALES_ORDER_CODE_PREFIX) ? lastCode.slice(SALES_ORDER_CODE_PREFIX.length) : '';
   const lastSeq = /^\d+$/.test(suffix) ? Number.parseInt(suffix, 10) : 0;
   return formatSalesOrderCode(lastSeq + 1);

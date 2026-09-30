@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '../../../lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../lib/auth';
+import { includesAnySearchText } from '../../../lib/text-search';
 
 async function hasUserInventoryItemPriceTable(): Promise<boolean> {
   try {
@@ -233,12 +234,6 @@ export async function GET(request: Request) {
     if (onlyActive && filterIds.length === 0) {
       where.active = true;
     }
-    if (qParam) {
-      where.OR = [
-        { name: { contains: qParam } },
-        { sku: { contains: qParam } }
-      ];
-    }
     const items = await prisma.inventoryItem.findMany({
       where,
       select: {
@@ -256,7 +251,9 @@ export async function GET(request: Request) {
         commercialFamily: { select: { id: true, description: true } },
       },
     });
-    return NextResponse.json(items);
+    return NextResponse.json(
+      qParam ? items.filter((item) => includesAnySearchText([item.name, item.sku], qParam)) : items
+    );
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
