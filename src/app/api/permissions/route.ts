@@ -56,12 +56,11 @@ export async function GET() {
         if (!userEntityModuleId || !Number.isFinite(userEntityModuleId)) continue;
 
         // 3. Buscar programas do módulo (Program)
-        // Devem estar ativos, showInMenu=true, e permitidos na entidade (EntityModuleProgram)
+        // O guard de rotas precisa conhecer também programas ocultos no menu.
         const allPrograms = await prisma.program.findMany({
           where: {
             moduleId: mod.id,
             isActive: true,
-            showInMenu: true
           },
           orderBy: { name: 'asc' }
         });
@@ -116,7 +115,8 @@ export async function GET() {
             allowedPrograms.push({
               id: prog.id,
               code: prog.code,
-              name: prog.name
+              name: prog.name,
+              showInMenu: Boolean((prog as any).showInMenu),
             });
           }
         }

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import React from "react";
 
-type Program = { code: string; name: string };
+type Program = { code: string; name: string; showInMenu?: boolean };
 type ModulePerm = { code: string; name: string; programs: Program[] };
 type Permissions = { activeEntityId: number | null; entities: { id: number; name: string }[]; modules: ModulePerm[] };
 

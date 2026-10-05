@@ -3,7 +3,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import React, { useEffect, useState } from "react";
 
-type Program = { code: string; name: string };
+type Program = { code: string; name: string; showInMenu?: boolean };
 type ModulePerm = { code: string; name: string; programs: Program[] };
 type Permissions = { activeEntityId: number | null; entities: { id: number; name: string }[]; modules: ModulePerm[] } | null;
 
@@ -233,7 +233,7 @@ export default function Sidebar({ perms, mobileOpen, setMobileOpen, pathname, us
               </button>
               {isExpanded && (
                 <div className="mt-1 space-y-1">
-                  {(m.programs || []).map((p) => {
+                  {(m.programs || []).filter((p) => p.showInMenu !== false).map((p) => {
                     const href = programHref(p.code);
                     if (!href) return null;
                     const icon = (() => {

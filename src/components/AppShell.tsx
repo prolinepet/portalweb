@@ -8,7 +8,7 @@ import ProgramGuard from "./ProgramGuard";
 import { KeyRound, Loader2 } from "lucide-react";
 
 type Entity = { id: number; name: string; cnpj?: string };
-type Program = { code: string; name: string };
+type Program = { code: string; name: string; showInMenu?: boolean };
 type ModulePerm = { code: string; name: string; programs: Program[] };
 type Permissions = { activeEntityId: number | null; entities: Entity[]; modules: ModulePerm[] };
 
