@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowDownRight, ArrowRight, ArrowUpRight, Check, Eye, RotateCcw, Send, Trash2, X } from "lucide-react";
+import { ArrowDownRight, ArrowRight, ArrowUpRight, Check, ChevronDown, Eye, RotateCcw, Send, Trash2, X } from "lucide-react";
 
 type Status = "EM_DIGITACAO" | "EM_AVALIACAO" | "AGUARDANDO_INTEGRACAO" | "INTEGRADO";
 type ApprovalStatus = "PENDENTE" | "APROVADO" | "REPROVADO";
@@ -21,6 +21,9 @@ type Row = {
   createdByUserAbbrevName: string | null;
 };
 type Kind = "RECEBER" | "PAGAR";
+type FilterableViewKind = "RECEBER" | "APROVAR";
+
+const APPROVAL_FILTER_OPTIONS: ApprovalStatus[] = ["PENDENTE", "APROVADO", "REPROVADO"];
 
 function formatBRL(value: number): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
@@ -105,6 +108,12 @@ function getApprovalLabel(status: ApprovalStatus) {
   }
 }
 
+function getApprovalFilterSummary(selected: ApprovalStatus[]) {
+  if (selected.length === 0) return "Selecione...";
+  if (selected.length === APPROVAL_FILTER_OPTIONS.length) return "Todos";
+  return selected.map((status) => getApprovalLabel(status)).join(", ");
+}
+
 type ActionIconButtonProps = {
   title: string;
   className: string;
@@ -169,6 +178,11 @@ export default function PosicaoFinanceiraPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [integratingId, setIntegratingId] = useState<number | null>(null);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [approvalFilters, setApprovalFilters] = useState<Record<FilterableViewKind, ApprovalStatus[]>>({
+    RECEBER: ["PENDENTE"],
+    APROVAR: ["PENDENTE"],
+  });
+  const [openApprovalFilter, setOpenApprovalFilter] = useState<FilterableViewKind | null>(null);
 
   const extractErpMessages = (data: any): string[] => {
     if (!data) return [];
@@ -278,9 +292,40 @@ export default function PosicaoFinanceiraPage() {
     };
   }, [ownRows, approvalRows]);
 
-  const visibleRows = kind === "RECEBER" ? data.receber : kind === "PAGAR" ? data.pagar : data.aprovar;
-  const detailLabel = kind === "RECEBER" ? "A Receber" : kind === "PAGAR" ? "A Pagar" : "A Aprovar";
+  const baseVisibleRows = kind === "RECEBER" ? data.receber : kind === "PAGAR" ? data.pagar : data.aprovar;
+  const activeApprovalFilterView: FilterableViewKind | null =
+    kind === "RECEBER" ? "RECEBER" : kind === "APROVAR" ? "APROVAR" : null;
+  const visibleRows =
+    activeApprovalFilterView == null
+      ? baseVisibleRows
+      : baseVisibleRows.filter((row) => approvalFilters[activeApprovalFilterView].includes(row.approvalStatus));
   const showEvaluationColumn = kind === "APROVAR";
+  const showApprovalFilter = activeApprovalFilterView !== null;
+
+  const toggleApprovalFilterOption = (view: FilterableViewKind, status: ApprovalStatus) => {
+    setApprovalFilters((current) => {
+      const selected = current[view];
+      const nextSelected = selected.includes(status)
+        ? selected.filter((item) => item !== status)
+        : [...selected, status];
+      return {
+        ...current,
+        [view]: nextSelected,
+      };
+    });
+  };
+
+  const toggleAllApprovalFilterOptions = (view: FilterableViewKind) => {
+    setApprovalFilters((current) => {
+      const selected = current[view];
+      const nextSelected =
+        selected.length === APPROVAL_FILTER_OPTIONS.length ? [] : [...APPROVAL_FILTER_OPTIONS];
+      return {
+        ...current,
+        [view]: nextSelected,
+      };
+    });
+  };
 
   const handleSendToErp = async (id: number) => {
     if (!confirm("Confirma enviar este título para o ERP?")) return;
@@ -476,7 +521,53 @@ export default function PosicaoFinanceiraPage() {
 
       <div className="bg-white rounded border p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3">
-          <div className="font-medium">Detalhamento: {detailLabel}</div>
+          <div className="relative">
+            {showApprovalFilter && activeApprovalFilterView ? (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenApprovalFilter((current) => (current === activeApprovalFilterView ? null : activeApprovalFilterView))
+                  }
+                  className="flex min-w-[260px] items-center justify-between gap-3 rounded border bg-white px-3 py-2 text-left text-sm shadow-sm hover:bg-gray-50"
+                >
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Aprovação</div>
+                    <div className="truncate text-sm text-gray-900">
+                      {getApprovalFilterSummary(approvalFilters[activeApprovalFilterView])}
+                    </div>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${openApprovalFilter === activeApprovalFilterView ? "rotate-180" : ""}`} />
+                </button>
+
+                {openApprovalFilter === activeApprovalFilterView && (
+                  <div className="absolute left-0 top-full z-20 mt-2 w-[280px] rounded border bg-white p-2 shadow-lg">
+                    <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm hover:bg-gray-50">
+                      <input
+                        type="checkbox"
+                        checked={approvalFilters[activeApprovalFilterView].length === APPROVAL_FILTER_OPTIONS.length}
+                        onChange={() => toggleAllApprovalFilterOptions(activeApprovalFilterView)}
+                      />
+                      <span>Selecionar todos</span>
+                    </label>
+                    <div className="my-1 border-t" />
+                    {APPROVAL_FILTER_OPTIONS.map((status) => (
+                      <label key={status} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm hover:bg-gray-50">
+                        <input
+                          type="checkbox"
+                          checked={approvalFilters[activeApprovalFilterView].includes(status)}
+                          onChange={() => toggleApprovalFilterOption(activeApprovalFilterView, status)}
+                        />
+                        <span>{getApprovalLabel(status)}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="font-medium">Detalhamento: A Pagar</div>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
