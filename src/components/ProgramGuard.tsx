@@ -14,6 +14,16 @@ function pathToProgramCodes(pathname: string): string[] {
   if (pathname.startsWith("/users")) return ["USERS"];
   if (pathname.startsWith("/settings")) return ["SETTINGS"];
   if (pathname.startsWith("/admin/entities")) return ["ADMIN_ENTITIES"];
+  // Program pages under /admin/modules must be matched before the generic admin modules screen.
+  if (pathname.startsWith("/admin/modules/meu-financeiro/posicao-financeira")) return ["POSICAO_FINANCEIRA"];
+  if (pathname.startsWith("/admin/modules/meu-financeiro/novo-reembolso")) return ["NOVO_REEMBOLSO"];
+  if (pathname.startsWith("/admin/modules/gestao-finti/despesas")) return ["DESPESAS"];
+  if (pathname.startsWith("/admin/modules/gestao-finti/pagamentos")) return ["PAGAMENTOS"];
+  if (pathname.startsWith("/admin/modules/gestao-finti/analise")) return ["ANALISE"];
+  if (pathname.startsWith("/admin/modules/gestao-finti/orcamentos")) return ["ORCAMENTOS"];
+  if (pathname.startsWith("/admin/modules/gestao-finti/ativos")) return ["ATIVOS"];
+  if (pathname.startsWith("/admin/modules/gestao-finti/contratos")) return ["CONTRATOS"];
+  if (pathname.startsWith("/admin/modules/gestao-finti/configuracoes")) return ["CONFIGURACOES"];
   if (pathname.startsWith("/admin/modules")) return ["ADMIN_MODULES"];
   if (pathname.startsWith("/sales/orders")) return ["SALES_ORDER_SEARCH"];
   if (pathname.startsWith("/sales/clients")) return ["SALES_CLIENT_SEARCH"];
