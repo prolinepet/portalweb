@@ -311,6 +311,59 @@ export default function PosicaoFinanceiraPage() {
     }
   };
 
+  const handleApproveAndIntegrate = async (row: Row) => {
+    setError(null);
+    setSuccess(null);
+    setUpdatingId(row.id);
+    setIntegratingId(row.id);
+
+    try {
+      const approveRes = await fetch(`/api/meu-financeiro/financial-titles/${row.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          approvalStatus: "APROVADO",
+          status: "AGUARDANDO_INTEGRACAO",
+        }),
+      });
+      const approveData = await approveRes.json().catch(() => ({}));
+      if (!approveRes.ok) {
+        setError(String(approveData?.error || "Não foi possível aprovar o reembolso."));
+        return;
+      }
+
+      const integrateRes = await fetch(`/api/meu-financeiro/financial-titles/${row.id}/integrate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const integrateData = await integrateRes.json().catch(() => ({}));
+      if (!integrateRes.ok) {
+        const messages = extractErpMessages(integrateData);
+        await loadRows();
+        setError(
+          messages.length > 0
+            ? `Reembolso aprovado, mas a integração com o ERP falhou:\n${messages.join("\n")}`
+            : String(integrateData?.error || "Reembolso aprovado, mas não foi possível integrar o título.")
+        );
+        return;
+      }
+
+      const messages = extractErpMessages(integrateData);
+      await loadRows();
+      setSuccess(
+        messages.length > 0
+          ? `Reembolso aprovado e integrado com sucesso. ${messages.join(" ")}`
+          : "Reembolso aprovado e integrado com sucesso."
+      );
+    } catch (err: any) {
+      await loadRows();
+      setError(String(err?.message || "Não foi possível aprovar e integrar o reembolso."));
+    } finally {
+      setUpdatingId(null);
+      setIntegratingId(null);
+    }
+  };
+
   const handleWorkflowUpdate = async (
     row: Row,
     updates: Partial<Pick<Row, "status" | "approvalStatus">>,
@@ -482,9 +535,11 @@ export default function PosicaoFinanceiraPage() {
                   {showEvaluationColumn && (
                     <td className="p-2">
                       {(() => {
-                        const canApproveOrReject = r.status === "EM_AVALIACAO" && updatingId !== r.id;
+                        const canApproveOrReject =
+                          r.status === "EM_AVALIACAO" && updatingId !== r.id && integratingId !== r.id;
                         const canReturnToPending =
                           updatingId !== r.id &&
+                          integratingId !== r.id &&
                           (r.approvalStatus === "APROVADO" || r.approvalStatus === "REPROVADO") &&
                           (r.status === "EM_DIGITACAO" || r.status === "AGUARDANDO_INTEGRACAO");
 
@@ -498,15 +553,16 @@ export default function PosicaoFinanceiraPage() {
                                   : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
                               }
                               disabled={!canApproveOrReject}
-                              onClick={() =>
-                                void handleWorkflowUpdate(
-                                  r,
-                                  { approvalStatus: "APROVADO", status: "AGUARDANDO_INTEGRACAO" },
-                                  "Reembolso aprovado com sucesso."
-                                )
-                              }
+                              onClick={() => void handleApproveAndIntegrate(r)}
                             >
-                              <Check className="h-4 w-4" />
+                              {integratingId === r.id ? (
+                                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+                                </svg>
+                              ) : (
+                                <Check className="h-4 w-4" />
+                              )}
                             </ActionIconButton>
                             <ActionIconButton
                               title="Reprovar"
