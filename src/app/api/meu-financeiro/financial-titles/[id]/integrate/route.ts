@@ -109,18 +109,11 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       // Body may be empty.
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { erpIntegrationMode: true, costCenter: true },
-    });
-    const integrationRoute = user?.erpIntegrationMode === "PROD" ? "prd" : "tst";
-    const integrationCostCenter = String(user?.costCenter || "").trim();
-
     const financialTitle = await prisma.financialTitle.findUnique({
       where: { id },
       include: {
         entity: { select: { id: true, name: true, cnpj: true } },
-        createdByUser: { select: { id: true, name: true, doc: true } },
+        createdByUser: { select: { id: true, name: true, doc: true, costCenter: true, erpIntegrationMode: true } },
         reimbursementType: { select: { id: true, description: true } },
         expenseItems: {
           orderBy: [{ id: "asc" }],
@@ -187,6 +180,17 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       );
     }
 
+    const integrationOwnerUserId = Number(financialTitle.createdByUser?.id || financialTitle.createdByUserId || 0) || null;
+    if (!integrationOwnerUserId) {
+      return NextResponse.json(
+        { error: "Usuário criador do reembolso não foi encontrado para integração." },
+        { status: 400 }
+      );
+    }
+
+    const integrationRoute = financialTitle.createdByUser?.erpIntegrationMode === "PROD" ? "prd" : "tst";
+    const integrationCostCenter = String(financialTitle.createdByUser?.costCenter || "").trim();
+
     const integrationDueDate = calculateDefaultFinancialTitleDueDate(new Date());
     const expenseReimbursementTypeIds = [
       ...new Set(
@@ -196,11 +200,11 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       ),
     ];
     const userAccountingAccounts =
-      userId && expenseReimbursementTypeIds.length > 0
+      integrationOwnerUserId && expenseReimbursementTypeIds.length > 0
         ? await prisma.$queryRawUnsafe<Array<{ reimbursementTypeId: number; accountingAccount: string }>>(`
             SELECT reimbursementTypeId, accountingAccount
             FROM userreimbursementtypeaccount
-            WHERE userId = ${Number(userId)}
+            WHERE userId = ${Number(integrationOwnerUserId)}
               AND reimbursementTypeId IN (${expenseReimbursementTypeIds.join(", ")})
           `)
         : [];
