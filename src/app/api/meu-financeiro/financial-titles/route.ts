@@ -107,8 +107,8 @@ function buildWhere(entityId: number, userId: number, url: URL, canApproveReimbu
     return {
       entityId,
       kind: FINANCIAL_TITLE_KIND.RECEBER,
-      status: FINANCIAL_TITLE_STATUS.EM_AVALIACAO,
-      approvalStatus: FINANCIAL_TITLE_APPROVAL_STATUS.PENDENTE,
+      ...(status ? { status } : {}),
+      ...(approvalStatus ? { approvalStatus } : {}),
     };
   }
 

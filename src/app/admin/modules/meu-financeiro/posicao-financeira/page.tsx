@@ -282,7 +282,9 @@ export default function PosicaoFinanceiraPage() {
     const totals = {
       RECEBER: ownRows.filter((r) => r.kind === "RECEBER").reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
       PAGAR: ownRows.filter((r) => r.kind === "PAGAR").reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
-      APROVAR: approvalRows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+      APROVAR: approvalRows
+        .filter((r) => r.status === "EM_AVALIACAO" && r.approvalStatus === "PENDENTE")
+        .reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
     };
     return {
       receber: ownRows.filter((r) => r.kind === "RECEBER"),
