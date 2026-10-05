@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -114,8 +115,10 @@ function mapExpenseItemFromApi(item: any): ExpenseItemRow {
 export default function NovoReembolsoPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
 
   const [reimbursementId, setReimbursementId] = useState<number | null>(null);
+  const [createdByUserId, setCreatedByUserId] = useState<number | null>(null);
   const [reimbursementTypes, setReimbursementTypes] = useState<ReimbursementTypeOption[]>([]);
   const [loadingTypes, setLoadingTypes] = useState(false);
   const [loadingReimbursement, setLoadingReimbursement] = useState(false);
@@ -170,6 +173,7 @@ export default function NovoReembolsoPage() {
     const id = Number(searchParams?.get("id") || "");
     if (!Number.isFinite(id) || id <= 0) {
       setReimbursementId(null);
+      setCreatedByUserId(null);
       setReadOnly(false);
       setExpenseItems([]);
       setDraftTypeId("");
@@ -196,6 +200,7 @@ export default function NovoReembolsoPage() {
           : [];
 
         setReimbursementId(Number(data.id));
+        setCreatedByUserId(Number(data.createdByUserId || 0) || null);
         setReadOnly(Boolean(data.integrated));
         setExpenseItems(nextExpenseItems);
         setDraftTypeId("");
@@ -238,6 +243,12 @@ export default function NovoReembolsoPage() {
 
   const isBusy = saving || loadingReimbursement;
   const isReadOnly = readOnly && reimbursementId !== null;
+  const sessionUserId = Number((session?.user as any)?.id || 0) || null;
+  const isCreator =
+    reimbursementId === null ||
+    createdByUserId === null ||
+    (sessionUserId !== null && createdByUserId === sessionUserId);
+  const canEditReimbursement = !isReadOnly && isCreator;
   const editingRow = editingClientKey ? expenseItems.find((item) => item.clientKey === editingClientKey) || null : null;
 
   const resetDraft = useCallback(() => {
@@ -261,6 +272,11 @@ export default function NovoReembolsoPage() {
   const handleAddOrUpdateExpense = () => {
     setFeedback(null);
     setSuccess(null);
+
+    if (!canEditReimbursement) {
+      setFeedback("Apenas o usuário que criou este reembolso pode alterá-lo.");
+      return;
+    }
 
     if (isReadOnly) {
       setFeedback("Este reembolso ja foi integrado e esta disponivel apenas para visualizacao.");
@@ -312,6 +328,11 @@ export default function NovoReembolsoPage() {
   };
 
   const handleEditExpense = (clientKey: string) => {
+    if (!canEditReimbursement) {
+      setFeedback("Apenas o usuário que criou este reembolso pode alterá-lo.");
+      return;
+    }
+
     const item = expenseItems.find((row) => row.clientKey === clientKey);
     if (!item) return;
 
@@ -330,6 +351,11 @@ export default function NovoReembolsoPage() {
   };
 
   const handleDeleteExpense = (clientKey: string) => {
+    if (!canEditReimbursement) {
+      setFeedback("Apenas o usuário que criou este reembolso pode alterá-lo.");
+      return;
+    }
+
     if (isReadOnly) {
       setFeedback("Este reembolso ja foi integrado e esta disponivel apenas para visualizacao.");
       return;
@@ -419,6 +445,10 @@ export default function NovoReembolsoPage() {
 
   const handleDeleteSavedAttachment = useCallback(
     async (expenseClientKey: string, attachmentId: number) => {
+      if (!canEditReimbursement) {
+        throw new Error("Apenas o usuário que criou este reembolso pode alterá-lo.");
+      }
+
       const item = expenseItems.find((row) => row.clientKey === expenseClientKey);
       if (!item?.id || !reimbursementId) return;
 
@@ -448,12 +478,17 @@ export default function NovoReembolsoPage() {
         )
       );
     },
-    [expenseItems, reimbursementId]
+    [canEditReimbursement, expenseItems, reimbursementId]
   );
 
   const handleSaveReimbursement = async () => {
     setFeedback(null);
     setSuccess(null);
+
+    if (!canEditReimbursement) {
+      setFeedback("Apenas o usuário que criou este reembolso pode alterá-lo.");
+      return;
+    }
 
     if (isReadOnly) {
       setFeedback("Este reembolso ja foi integrado e esta disponivel apenas para visualizacao.");
@@ -582,7 +617,7 @@ export default function NovoReembolsoPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">
-          Meu Financeiro • {isReadOnly ? "Visualizar Reembolso" : reimbursementId ? "Editar Reembolso" : "Novo Reembolso"}
+          Meu Financeiro • {!canEditReimbursement || isReadOnly ? "Visualizar Reembolso" : reimbursementId ? "Editar Reembolso" : "Novo Reembolso"}
         </h1>
         <Link
           href="/admin/modules/meu-financeiro/posicao-financeira?kind=RECEBER"
@@ -601,135 +636,142 @@ export default function NovoReembolsoPage() {
               Este reembolso ja foi integrado ao ERP. As despesas e os anexos estao disponiveis apenas para visualizacao.
             </div>
           )}
-
-          <div className="space-y-4 rounded border border-gray-200 bg-white p-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <select
-                className="rounded border px-3 py-2 bg-white"
-                value={draftTypeId}
-                onChange={(e) => setDraftTypeId(e.target.value)}
-                disabled={isBusy || isReadOnly}
-              >
-                <option value="">{loadingTypes ? "Carregando tipos..." : "Tipo de despesa"}</option>
-                {reimbursementTypes.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.id} - {item.description}
-                  </option>
-                ))}
-              </select>
-
-              <input
-                className="rounded border px-3 py-2"
-                placeholder="Descricao"
-                value={draftDescription}
-                onChange={(e) => setDraftDescription(e.target.value)}
-                disabled={isBusy || isReadOnly}
-              />
-
-              <input
-                className="rounded border px-3 py-2"
-                placeholder="Valor (R$)"
-                value={draftValue}
-                onChange={(e) => setDraftValue(formatCurrencyWhileTyping(e.target.value))}
-                onBlur={() => setDraftValue((current) => formatCurrencyInput(current) || current)}
-                inputMode="decimal"
-                disabled={isBusy || isReadOnly}
-              />
+          {!isReadOnly && reimbursementId !== null && !isCreator && (
+            <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Este reembolso foi criado por outro usuário. As informações estão disponíveis apenas para visualização.
             </div>
+          )}
 
-            <div className="rounded border border-dashed border-gray-300 bg-gray-50 p-4">
-              <div className="mb-3 text-sm font-medium text-gray-700">
-                {editingRow ? "Anexos da despesa em edicao" : "Anexos da despesa"}
+          {canEditReimbursement && (
+            <div className="space-y-4 rounded border border-gray-200 bg-white p-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <select
+                  className="rounded border px-3 py-2 bg-white"
+                  value={draftTypeId}
+                  onChange={(e) => setDraftTypeId(e.target.value)}
+                  disabled={isBusy || isReadOnly}
+                >
+                  <option value="">{loadingTypes ? "Carregando tipos..." : "Tipo de despesa"}</option>
+                  {reimbursementTypes.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.id} - {item.description}
+                    </option>
+                  ))}
+                </select>
+
+                <input
+                  className="rounded border px-3 py-2"
+                  placeholder="Descricao"
+                  value={draftDescription}
+                  onChange={(e) => setDraftDescription(e.target.value)}
+                  disabled={isBusy || isReadOnly}
+                />
+
+                <input
+                  className="rounded border px-3 py-2"
+                  placeholder="Valor (R$)"
+                  value={draftValue}
+                  onChange={(e) => setDraftValue(formatCurrencyWhileTyping(e.target.value))}
+                  onBlur={() => setDraftValue((current) => formatCurrencyInput(current) || current)}
+                  inputMode="decimal"
+                  disabled={isBusy || isReadOnly}
+                />
+              </div>
+
+              <div className="rounded border border-dashed border-gray-300 bg-gray-50 p-4">
+                <div className="mb-3 text-sm font-medium text-gray-700">
+                  {editingRow ? "Anexos da despesa em edicao" : "Anexos da despesa"}
+                </div>
+
+                {!isReadOnly && (
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                    <input
+                      key={draftFileInputKey}
+                      type="file"
+                      multiple
+                      className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+                      onChange={(e) => {
+                        const nextFiles = Array.from(e.target.files || []).filter((file) => file.size > 0);
+                        if (nextFiles.length === 0) return;
+                        setDraftFiles((current) => [...current, ...nextFiles]);
+                        setDraftFileInputKey((current) => current + 1);
+                      }}
+                      disabled={isBusy}
+                    />
+
+                    <button
+                      type="button"
+                      className="rounded border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50"
+                      disabled={isBusy || draftFiles.length === 0}
+                      onClick={() => {
+                        setDraftFiles([]);
+                        setDraftFileInputKey((current) => current + 1);
+                      }}
+                    >
+                      Limpar anexos
+                    </button>
+                  </div>
+                )}
+
+                <div className="mt-3 space-y-2">
+                  {draftFiles.length === 0 ? (
+                    <div className="text-sm text-gray-500">Nenhum anexo selecionado para esta despesa.</div>
+                  ) : (
+                    draftFiles.map((file, index) => (
+                      <div
+                        key={`${file.name}-${file.size}-${index}`}
+                        className="flex items-center justify-between gap-3 rounded border bg-white px-3 py-2 text-sm"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate font-medium text-gray-800">{file.name}</div>
+                          <div className="text-xs text-gray-500">{formatBytes(file.size)}</div>
+                        </div>
+                        {!isReadOnly && (
+                          <button
+                            type="button"
+                            className="rounded border border-red-300 bg-white px-3 py-1 text-xs text-red-600 hover:bg-red-50"
+                            onClick={() =>
+                              setDraftFiles((current) => current.filter((_, currentIndex) => currentIndex !== index))
+                            }
+                          >
+                            Remover
+                          </button>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {editingRow && editingRow.attachmentCount > 0 && (
+                  <div className="mt-3 text-xs text-gray-500">
+                    Esta despesa ja possui {editingRow.attachmentCount} anexo(s) salvo(s). Use o botao Anexos na grade para visualiza-los.
+                  </div>
+                )}
               </div>
 
               {!isReadOnly && (
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
-                  <input
-                    key={draftFileInputKey}
-                    type="file"
-                    multiple
-                    className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-                    onChange={(e) => {
-                      const nextFiles = Array.from(e.target.files || []).filter((file) => file.size > 0);
-                      if (nextFiles.length === 0) return;
-                      setDraftFiles((current) => [...current, ...nextFiles]);
-                      setDraftFileInputKey((current) => current + 1);
-                    }}
-                    disabled={isBusy}
-                  />
-
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {editingRow && (
+                    <button
+                      type="button"
+                      className="rounded border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50"
+                      onClick={() => resetDraft()}
+                    >
+                      Cancelar edicao
+                    </button>
+                  )}
                   <button
                     type="button"
-                    className="rounded border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50"
-                    disabled={isBusy || draftFiles.length === 0}
-                    onClick={() => {
-                      setDraftFiles([]);
-                      setDraftFileInputKey((current) => current + 1);
-                    }}
+                    className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:bg-blue-400"
+                    disabled={isBusy}
+                    onClick={() => handleAddOrUpdateExpense()}
                   >
-                    Limpar anexos
+                    {editingRow ? "Atualizar despesa" : "Adicionar despesa"}
                   </button>
-                </div>
-              )}
-
-              <div className="mt-3 space-y-2">
-                {draftFiles.length === 0 ? (
-                  <div className="text-sm text-gray-500">Nenhum anexo selecionado para esta despesa.</div>
-                ) : (
-                  draftFiles.map((file, index) => (
-                    <div
-                      key={`${file.name}-${file.size}-${index}`}
-                      className="flex items-center justify-between gap-3 rounded border bg-white px-3 py-2 text-sm"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate font-medium text-gray-800">{file.name}</div>
-                        <div className="text-xs text-gray-500">{formatBytes(file.size)}</div>
-                      </div>
-                      {!isReadOnly && (
-                        <button
-                          type="button"
-                          className="rounded border border-red-300 bg-white px-3 py-1 text-xs text-red-600 hover:bg-red-50"
-                          onClick={() =>
-                            setDraftFiles((current) => current.filter((_, currentIndex) => currentIndex !== index))
-                          }
-                        >
-                          Remover
-                        </button>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {editingRow && editingRow.attachmentCount > 0 && (
-                <div className="mt-3 text-xs text-gray-500">
-                  Esta despesa ja possui {editingRow.attachmentCount} anexo(s) salvo(s). Use o botao Anexos na grade para visualiza-los.
                 </div>
               )}
             </div>
-
-            {!isReadOnly && (
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {editingRow && (
-                  <button
-                    type="button"
-                    className="rounded border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50"
-                    onClick={() => resetDraft()}
-                  >
-                    Cancelar edicao
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:bg-blue-400"
-                  disabled={isBusy}
-                  onClick={() => handleAddOrUpdateExpense()}
-                >
-                  {editingRow ? "Atualizar despesa" : "Adicionar despesa"}
-                </button>
-              </div>
-            )}
-          </div>
+          )}
 
           <div className="mt-4 overflow-hidden rounded border border-gray-200 bg-white">
             <div className="overflow-x-auto">
@@ -775,7 +817,7 @@ export default function NovoReembolsoPage() {
                               >
                                 {item.expanded ? "Ocultar anexos" : `Anexos${item.attachmentCount > 0 ? ` (${item.attachmentCount})` : ""}`}
                               </button>
-                              {!isReadOnly && (
+                              {canEditReimbursement && (
                                 <>
                                   <button
                                     type="button"
@@ -862,7 +904,7 @@ export default function NovoReembolsoPage() {
                                                         >
                                                           Abrir
                                                         </a>
-                                                        {!isReadOnly && editingClientKey === item.clientKey && (
+                                                        {canEditReimbursement && editingClientKey === item.clientKey && (
                                                           <button
                                                             type="button"
                                                             className="inline-flex rounded border border-red-300 bg-white px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
@@ -906,7 +948,7 @@ export default function NovoReembolsoPage() {
             <div className="space-y-1 text-sm text-gray-600">
               <div>
                 {reimbursementId
-                  ? isReadOnly
+                  ? !canEditReimbursement || isReadOnly
                     ? `Reembolso #${reimbursementId} em visualizacao.`
                     : `Reembolso #${reimbursementId} em edicao.`
                   : "Novo reembolso em montagem."}
@@ -916,7 +958,7 @@ export default function NovoReembolsoPage() {
               <div>{queuedFilesSummary}</div>
             </div>
 
-            {!isReadOnly && (
+            {canEditReimbursement && (
               <button
                 type="button"
                 className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-blue-400"
