@@ -18,6 +18,7 @@ type Row = {
   approvalStatus: ApprovalStatus;
   integrated: boolean;
   description: string | null;
+  createdByUserAbbrevName: string | null;
 };
 type Kind = "RECEBER" | "PAGAR";
 
@@ -206,6 +207,11 @@ export default function PosicaoFinanceiraPage() {
           status: normalizeWorkflowStatus(item.status, Boolean(item.integrated)),
           approvalStatus: normalizeApprovalStatus(item.approvalStatus, Boolean(item.integrated)),
           description: item.description ? String(item.description) : null,
+          createdByUserAbbrevName: item.createdByUser?.abbrevName
+            ? String(item.createdByUser.abbrevName)
+            : item.createdByUser?.name
+              ? String(item.createdByUser.name)
+              : null,
         }))
       : [];
   }, []);
@@ -502,6 +508,7 @@ export default function PosicaoFinanceiraPage() {
             <thead>
               <tr className="bg-gray-50 text-left">
                 <th className="p-2">Número do Título</th>
+                {showEvaluationColumn && <th className="p-2">Usuário</th>}
                 <th className="p-2">Data Vencimento</th>
                 <th className="p-2">Valor R$</th>
                 <th className="p-2">Situação</th>
@@ -513,7 +520,7 @@ export default function PosicaoFinanceiraPage() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={showEvaluationColumn ? 7 : 6} className="p-3 text-gray-500">
+                  <td colSpan={showEvaluationColumn ? 8 : 6} className="p-3 text-gray-500">
                     Carregando títulos...
                   </td>
                 </tr>
@@ -524,6 +531,7 @@ export default function PosicaoFinanceiraPage() {
                   <td className="p-2">
                     <span>{r.numero}</span>
                   </td>
+                  {showEvaluationColumn && <td className="p-2">{r.createdByUserAbbrevName || "-"}</td>}
                   <td className="p-2">{formatDateBR(r.dueDate)}</td>
                   <td className="p-2">{formatBRL(r.amount)}</td>
                   <td className="p-2">
@@ -675,7 +683,7 @@ export default function PosicaoFinanceiraPage() {
               ))}
               {!loading && visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={showEvaluationColumn ? 7 : 6} className="p-2 text-gray-500">
+                  <td colSpan={showEvaluationColumn ? 8 : 6} className="p-2 text-gray-500">
                     Nenhum título
                   </td>
                 </tr>

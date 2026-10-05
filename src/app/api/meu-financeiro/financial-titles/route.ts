@@ -163,12 +163,21 @@ export async function GET(request: Request) {
         integrated: true,
         description: true,
         createdByUserId: true,
+        createdByUser: {
+          select: {
+            id: true,
+            abbrevName: true,
+            name: true,
+          },
+        },
         reimbursementTypeId: true,
       },
     });
 
     const filteredRows = q
-      ? rows.filter((row) => includesAnySearchText([row.numero, row.description], q))
+      ? rows.filter((row) =>
+          includesAnySearchText([row.numero, row.description, row.createdByUser?.abbrevName, row.createdByUser?.name], q)
+        )
       : rows;
 
     if (includeMeta) {
