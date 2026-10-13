@@ -148,6 +148,7 @@ export async function ensureFinancialTitleExpenseTable() {
       \`id\` INT NOT NULL AUTO_INCREMENT,
       \`financialTitleId\` INT NOT NULL,
       \`reimbursementTypeId\` INT NOT NULL,
+      \`expenseDate\` DATE NULL,
       \`description\` VARCHAR(255) NOT NULL,
       \`amount\` DOUBLE NOT NULL,
       \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -158,6 +159,11 @@ export async function ensureFinancialTitleExpenseTable() {
       CONSTRAINT \`financialtitleexpense_title_fk\` FOREIGN KEY (\`financialTitleId\`) REFERENCES \`financialtitle\`(\`id\`) ON DELETE CASCADE,
       CONSTRAINT \`financialtitleexpense_reimbursement_fk\` FOREIGN KEY (\`reimbursementTypeId\`) REFERENCES \`reimbursementtype\`(\`id\`) ON DELETE RESTRICT
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE \`financialtitleexpense\`
+    ADD COLUMN IF NOT EXISTS \`expenseDate\` DATE NULL AFTER \`reimbursementTypeId\`
   `);
 
   // Backfill legacy reimbursements so existing titles remain editable in the new UI.
@@ -335,6 +341,21 @@ export function normalizeDueDate(value: unknown): Date | null {
   return parsed;
 }
 
+export function parseFinancialExpenseDate(value: unknown): Date | null {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    throw new Error("Dia da despesa inválido");
+  }
+
+  const parsed = new Date(`${raw}T12:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error("Dia da despesa inválido");
+  }
+
+  return parsed;
+}
+
 export function calculateDefaultFinancialTitleDueDate(referenceDate = new Date()) {
   const baseDate = new Date(referenceDate);
   baseDate.setHours(0, 0, 0, 0);
@@ -352,6 +373,7 @@ export type FinancialExpenseItemInput = {
   id?: number | null;
   clientKey?: string | null;
   reimbursementTypeId: number;
+  expenseDate?: Date | null;
   description: string;
   amount: number;
 };

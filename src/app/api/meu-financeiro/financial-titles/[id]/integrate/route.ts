@@ -79,6 +79,10 @@ function formatIsoDate(value: Date) {
   return value.toISOString().split("T")[0];
 }
 
+function formatOptionalIsoDate(value: Date | null | undefined) {
+  return value ? formatIsoDate(value) : null;
+}
+
 export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
 
@@ -120,6 +124,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           select: {
             id: true,
             reimbursementTypeId: true,
+            expenseDate: true,
             description: true,
             amount: true,
             reimbursementType: { select: { id: true, description: true, defaultAccountingAccount: true } },
@@ -241,6 +246,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
             defaultAccountingAccount:
               userAccountingAccountMap.get(Number(item.reimbursementTypeId)) ||
               String(item.reimbursementType?.defaultAccountingAccount || "").trim(),
+            expenseDate: formatOptionalIsoDate(item.expenseDate),
             description: item.description,
             amount: Number(item.amount || 0),
             attachments: item.attachments.map((attachment) => ({

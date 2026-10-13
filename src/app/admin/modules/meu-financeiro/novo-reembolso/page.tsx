@@ -23,6 +23,7 @@ type ExpenseItemRow = {
   id: number | null;
   clientKey: string;
   reimbursementTypeId: string;
+  expenseDate: string;
   description: string;
   amount: string;
   pendingFiles: File[];
@@ -41,6 +42,22 @@ function formatDatePtBR(value: string) {
 function formatTimePtBR(value: string) {
   const dt = new Date(value);
   return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function extractDateInputValue(value: unknown) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : "";
+}
+
+function formatDateOnlyPtBR(value: unknown) {
+  const raw = extractDateInputValue(value);
+  if (!raw) return "";
+
+  const [year, month, day] = raw.split("-");
+  if (!year || !month || !day) return "";
+  return `${day}/${month}/${year}`;
 }
 
 function formatBytes(value: number | null) {
@@ -101,6 +118,7 @@ function mapExpenseItemFromApi(item: any): ExpenseItemRow {
     id: Number(item?.id || 0) || null,
     clientKey: `persisted-${item?.id}`,
     reimbursementTypeId: item?.reimbursementTypeId ? String(item.reimbursementTypeId) : "",
+    expenseDate: extractDateInputValue(item?.expenseDate),
     description: String(item?.description || ""),
     amount: formatCurrencyInput(Number(item?.amount || 0)),
     pendingFiles: [],
@@ -128,6 +146,7 @@ export default function NovoReembolsoPage() {
   const [success, setSuccess] = useState<string | null>(null);
 
   const [draftTypeId, setDraftTypeId] = useState("");
+  const [draftExpenseDate, setDraftExpenseDate] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
   const [draftValue, setDraftValue] = useState("");
   const [draftFiles, setDraftFiles] = useState<File[]>([]);
@@ -177,6 +196,7 @@ export default function NovoReembolsoPage() {
       setReadOnly(false);
       setExpenseItems([]);
       setDraftTypeId("");
+      setDraftExpenseDate("");
       setDraftDescription("");
       setDraftValue("");
       setDraftFiles([]);
@@ -204,6 +224,7 @@ export default function NovoReembolsoPage() {
         setReadOnly(Boolean(data.integrated));
         setExpenseItems(nextExpenseItems);
         setDraftTypeId("");
+        setDraftExpenseDate("");
         setDraftDescription("");
         setDraftValue("");
         setDraftFiles([]);
@@ -253,6 +274,7 @@ export default function NovoReembolsoPage() {
 
   const resetDraft = useCallback(() => {
     setDraftTypeId("");
+    setDraftExpenseDate("");
     setDraftDescription("");
     setDraftValue("");
     setDraftFiles([]);
@@ -262,6 +284,7 @@ export default function NovoReembolsoPage() {
 
   const validateDraft = () => {
     if (!draftTypeId) return "Selecione o tipo de despesa.";
+    if (!draftExpenseDate) return "Informe o dia da despesa.";
     if (!draftDescription.trim()) return "Informe a descrição da despesa.";
     if (!draftValue.trim()) return "Informe o valor da despesa.";
     const parsed = parseCurrencyInput(draftValue);
@@ -296,6 +319,7 @@ export default function NovoReembolsoPage() {
             ? {
                 ...item,
                 reimbursementTypeId: draftTypeId,
+                expenseDate: draftExpenseDate,
                 description: draftDescription.trim(),
                 amount: formatCurrencyInput(draftValue) || draftValue,
                 pendingFiles: [...draftFiles],
@@ -311,6 +335,7 @@ export default function NovoReembolsoPage() {
           id: null,
           clientKey: createClientKey(),
           reimbursementTypeId: draftTypeId,
+          expenseDate: draftExpenseDate,
           description: draftDescription.trim(),
           amount: formatCurrencyInput(draftValue) || draftValue,
           pendingFiles: [...draftFiles],
@@ -337,6 +362,7 @@ export default function NovoReembolsoPage() {
     if (!item) return;
 
     setDraftTypeId(item.reimbursementTypeId);
+    setDraftExpenseDate(item.expenseDate);
     setDraftDescription(item.description);
     setDraftValue(formatCurrencyInput(item.amount) || item.amount);
     setDraftFiles([...item.pendingFiles]);
@@ -516,6 +542,7 @@ export default function NovoReembolsoPage() {
           id: item.id || undefined,
           clientKey: item.clientKey,
           reimbursementTypeId: Number(item.reimbursementTypeId),
+          expenseDate: item.expenseDate || null,
           description: item.description.trim(),
           amount: item.amount,
         })),
@@ -559,6 +586,7 @@ export default function NovoReembolsoPage() {
           ...item,
           id: Number(matched.id || item.id || 0) || item.id,
           reimbursementTypeId: matched.reimbursementTypeId ? String(matched.reimbursementTypeId) : item.reimbursementTypeId,
+          expenseDate: extractDateInputValue(matched.expenseDate) || item.expenseDate,
           description: String(matched.description || item.description),
           amount: formatCurrencyInput(Number(matched.amount || 0)) || item.amount,
           attachmentCount: Number(matched?._count?.attachments || item.attachmentCount || 0),
@@ -644,7 +672,7 @@ export default function NovoReembolsoPage() {
 
           {canEditReimbursement && (
             <div className="space-y-4 rounded border border-gray-200 bg-white p-4">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <select
                   className="rounded border px-3 py-2 bg-white"
                   value={draftTypeId}
@@ -658,6 +686,14 @@ export default function NovoReembolsoPage() {
                     </option>
                   ))}
                 </select>
+
+                <input
+                  type="date"
+                  className="rounded border px-3 py-2"
+                  value={draftExpenseDate}
+                  onChange={(e) => setDraftExpenseDate(e.target.value)}
+                  disabled={isBusy || isReadOnly}
+                />
 
                 <input
                   className="rounded border px-3 py-2"
@@ -779,6 +815,7 @@ export default function NovoReembolsoPage() {
                 <thead className="bg-gray-100 text-gray-700">
                   <tr>
                     <th className="px-3 py-2 text-left">Tipo de despesa</th>
+                    <th className="px-3 py-2 text-left w-32">Dia da despesa</th>
                     <th className="px-3 py-2 text-left">Descricao</th>
                     <th className="px-3 py-2 text-left w-36">Valor</th>
                     <th className="px-3 py-2 text-center w-72">Acoes</th>
@@ -787,7 +824,7 @@ export default function NovoReembolsoPage() {
                 <tbody>
                   {loadingReimbursement && (
                     <tr className="border-t">
-                      <td colSpan={4} className="px-3 py-4 text-center text-gray-500">
+                      <td colSpan={5} className="px-3 py-4 text-center text-gray-500">
                         Carregando reembolso...
                       </td>
                     </tr>
@@ -795,7 +832,7 @@ export default function NovoReembolsoPage() {
 
                   {!loadingReimbursement && expenseItems.length === 0 && (
                     <tr className="border-t">
-                      <td colSpan={4} className="px-3 py-4 text-center text-gray-500">
+                      <td colSpan={5} className="px-3 py-4 text-center text-gray-500">
                         Nenhuma despesa adicionada.
                       </td>
                     </tr>
@@ -806,6 +843,7 @@ export default function NovoReembolsoPage() {
                       <Fragment key={item.clientKey}>
                         <tr key={item.clientKey} className="border-t hover:bg-gray-50">
                           <td className="px-3 py-2">{reimbursementTypeMap.get(item.reimbursementTypeId) || "-"}</td>
+                          <td className="px-3 py-2">{formatDateOnlyPtBR(item.expenseDate) || "-"}</td>
                           <td className="px-3 py-2">{item.description || "-"}</td>
                           <td className="px-3 py-2">{formatCurrencyInput(item.amount) || item.amount}</td>
                           <td className="px-3 py-2">
@@ -841,7 +879,7 @@ export default function NovoReembolsoPage() {
 
                         {item.expanded && (
                           <tr key={`${item.clientKey}-attachments`} className="border-t bg-gray-50">
-                            <td colSpan={4} className="px-4 py-3">
+                            <td colSpan={5} className="px-4 py-3">
                               <div className="space-y-3 rounded border border-gray-200 bg-white p-4">
                                 {item.attachmentsLoading ? (
                                   <div className="text-sm text-gray-500">Carregando anexos...</div>

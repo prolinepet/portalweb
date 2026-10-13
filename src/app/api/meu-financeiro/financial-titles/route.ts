@@ -13,6 +13,7 @@ import {
   normalizeFinancialTitleKind,
   normalizeFinancialTitleStatus,
   parseFinancialAmount,
+  parseFinancialExpenseDate,
   resolveActiveEntityId,
 } from "../../../../lib/financial-titles";
 import { includesAnySearchText } from "../../../../lib/text-search";
@@ -45,6 +46,7 @@ type ExpenseItemPayload = {
   id?: number;
   clientKey?: string | null;
   reimbursementTypeId: number;
+  expenseDate: Date | null;
   description: string;
   amount: number;
 };
@@ -71,6 +73,8 @@ async function parseExpenseItemsPayload(rawItems: any[]) {
       throw new Error("Informe a descrição da despesa");
     }
 
+    const expenseDate = parseFinancialExpenseDate(rawItem?.expenseDate);
+
     const amount = parseFinancialAmount(rawItem?.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new Error("Valor da despesa inválido");
@@ -85,6 +89,7 @@ async function parseExpenseItemsPayload(rawItems: any[]) {
       id: id ? Math.trunc(id) : undefined,
       clientKey: rawItem?.clientKey ? String(rawItem.clientKey) : null,
       reimbursementTypeId: Math.trunc(reimbursementTypeId),
+      expenseDate,
       description,
       amount,
     });
@@ -256,6 +261,7 @@ export async function POST(request: Request) {
         id: number;
         financialTitleId: number;
         reimbursementTypeId: number;
+        expenseDate: Date | null;
         description: string;
         amount: number;
         reimbursementType: { id: number; description: string };
@@ -266,6 +272,7 @@ export async function POST(request: Request) {
           data: {
             financialTitleId: title.id,
             reimbursementTypeId: item.reimbursementTypeId,
+            expenseDate: item.expenseDate,
             description: item.description,
             amount: item.amount,
           },
@@ -273,6 +280,7 @@ export async function POST(request: Request) {
             id: true,
             financialTitleId: true,
             reimbursementTypeId: true,
+            expenseDate: true,
             description: true,
             amount: true,
             reimbursementType: { select: { id: true, description: true } },
@@ -298,6 +306,7 @@ export async function POST(request: Request) {
       [
         "Tipo de despesa inválido",
         "Tipo de despesa não encontrado",
+        "Dia da despesa inválido",
         "Informe a descrição da despesa",
         "Valor da despesa inválido",
         "Despesa inválida",

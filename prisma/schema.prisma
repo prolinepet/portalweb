@@ -1309,6 +1309,7 @@ model FinancialTitleExpense {
   id                  Int                            @id @default(autoincrement())
   financialTitleId    Int
   reimbursementTypeId Int
+  expenseDate         DateTime?                      @db.Date
   description         String                         @db.VarChar(255)
   amount              Float
   createdAt           DateTime                       @default(now())
