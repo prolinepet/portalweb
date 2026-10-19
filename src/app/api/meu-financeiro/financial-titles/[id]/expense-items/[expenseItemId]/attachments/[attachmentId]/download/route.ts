@@ -6,7 +6,7 @@ import {
   ensureFinancialTitleExpenseAttachmentTable,
   ensureFinancialTitleExpenseTable,
   ensureFinancialTitleTable,
-  getFinancialTitleExpenseAttachmentFilePaths,
+  findFinancialTitleExpenseAttachmentFilePath,
   parsePositiveInt,
   resolveActiveEntityId,
 } from "@/lib/financial-titles";
@@ -62,12 +62,8 @@ export async function GET(
       return NextResponse.json({ error: "Anexo não encontrado" }, { status: 404 });
     }
 
-    const candidatePaths = getFinancialTitleExpenseAttachmentFilePaths(id, expenseItemId, attachment.storedFileName);
-    let buffer: Buffer | null = null;
-    for (const candidatePath of candidatePaths) {
-      buffer = await readFile(candidatePath).catch(() => null);
-      if (buffer) break;
-    }
+    const filePath = await findFinancialTitleExpenseAttachmentFilePath(id, expenseItemId, attachment.storedFileName);
+    const buffer = filePath ? await readFile(filePath).catch(() => null) : null;
     if (!buffer) {
       return NextResponse.json({ error: "Arquivo não encontrado" }, { status: 404 });
     }

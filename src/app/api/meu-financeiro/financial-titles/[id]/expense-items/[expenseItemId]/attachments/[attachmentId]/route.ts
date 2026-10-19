@@ -6,6 +6,7 @@ import {
   ensureFinancialTitleExpenseAttachmentTable,
   ensureFinancialTitleExpenseTable,
   ensureFinancialTitleTable,
+  findFinancialTitleExpenseAttachmentFilePath,
   getFinancialTitleExpenseAttachmentFilePaths,
   parsePositiveInt,
   resolveActiveEntityId,
@@ -75,7 +76,11 @@ export async function DELETE(
       where: { id: attachmentId },
     });
 
-    const candidatePaths = getFinancialTitleExpenseAttachmentFilePaths(id, expenseItemId, attachment.storedFileName);
+    const resolvedPath = await findFinancialTitleExpenseAttachmentFilePath(id, expenseItemId, attachment.storedFileName);
+    const candidatePaths = [
+      ...(resolvedPath ? [resolvedPath] : []),
+      ...getFinancialTitleExpenseAttachmentFilePaths(id, expenseItemId, attachment.storedFileName),
+    ];
     for (const candidatePath of candidatePaths) {
       await unlink(candidatePath).catch(() => null);
     }

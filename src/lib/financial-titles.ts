@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "./auth";
 import { prisma } from "./prisma";
 import path from "path";
+import { access, readdir } from "fs/promises";
 
 export const FINANCIAL_TITLE_KIND = {
   RECEBER: "RECEBER",
@@ -287,6 +288,33 @@ export function getFinancialTitleExpenseAttachmentDir(financialTitleId: number, 
   );
 }
 
+export function getFinancialTitleReimbursementStorageDirs(financialTitleId: number) {
+  const storageRoots = Array.from(
+    new Set([
+      path.join(process.cwd(), "storage"),
+      path.resolve(process.cwd(), "..", "storage"),
+      path.resolve(process.cwd(), "..", "..", "storage"),
+    ])
+  );
+
+  return storageRoots.map((storageRoot) =>
+    path.join(storageRoot, "meu-financeiro", "reembolsos", String(financialTitleId))
+  );
+}
+
+export function getFinancialTitleExpenseLegacyAttachmentDir(financialTitleId: number, financialTitleExpenseId: number) {
+  return path.join(
+    process.cwd(),
+    "storage",
+    "meu-financeiro",
+    "reembolsos",
+    String(financialTitleId),
+    "expense-items",
+    String(financialTitleExpenseId),
+    "attachments"
+  );
+}
+
 export function getFinancialTitleExpenseAttachmentFilePaths(
   financialTitleId: number,
   financialTitleExpenseId: number,
@@ -294,8 +322,47 @@ export function getFinancialTitleExpenseAttachmentFilePaths(
 ) {
   return [
     path.join(getFinancialTitleExpenseAttachmentDir(financialTitleId, financialTitleExpenseId), storedFileName),
+    path.join(getFinancialTitleExpenseLegacyAttachmentDir(financialTitleId, financialTitleExpenseId), storedFileName),
     path.join(getFinancialTitleAttachmentDir(financialTitleId), storedFileName),
   ];
+}
+
+async function findFileRecursively(baseDir: string, targetFileName: string, maxDepth = 4): Promise<string | null> {
+  if (maxDepth < 0) return null;
+
+  const entries = await readdir(baseDir, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    const entryPath = path.join(baseDir, entry.name);
+    if (entry.isFile() && entry.name === targetFileName) {
+      return entryPath;
+    }
+  }
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const match = await findFileRecursively(path.join(baseDir, entry.name), targetFileName, maxDepth - 1);
+    if (match) return match;
+  }
+
+  return null;
+}
+
+export async function findFinancialTitleExpenseAttachmentFilePath(
+  financialTitleId: number,
+  financialTitleExpenseId: number,
+  storedFileName: string
+) {
+  for (const candidatePath of getFinancialTitleExpenseAttachmentFilePaths(financialTitleId, financialTitleExpenseId, storedFileName)) {
+    const existing = await access(candidatePath).then(() => candidatePath).catch(() => null);
+    if (existing) return existing;
+  }
+
+  for (const reimbursementDir of getFinancialTitleReimbursementStorageDirs(financialTitleId)) {
+    const match = await findFileRecursively(reimbursementDir, storedFileName);
+    if (match) return match;
+  }
+
+  return null;
 }
 
 export function normalizeFinancialTitleKind(value: unknown): FinancialTitleKind | null {
