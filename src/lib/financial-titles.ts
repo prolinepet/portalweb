@@ -287,6 +287,17 @@ export function getFinancialTitleExpenseAttachmentDir(financialTitleId: number, 
   );
 }
 
+export function getFinancialTitleExpenseAttachmentFilePaths(
+  financialTitleId: number,
+  financialTitleExpenseId: number,
+  storedFileName: string
+) {
+  return [
+    path.join(getFinancialTitleExpenseAttachmentDir(financialTitleId, financialTitleExpenseId), storedFileName),
+    path.join(getFinancialTitleAttachmentDir(financialTitleId), storedFileName),
+  ];
+}
+
 export function normalizeFinancialTitleKind(value: unknown): FinancialTitleKind | null {
   const normalized = String(value || "").trim().toUpperCase();
   if (normalized === FINANCIAL_TITLE_KIND.RECEBER || normalized === FINANCIAL_TITLE_KIND.PAGAR) {

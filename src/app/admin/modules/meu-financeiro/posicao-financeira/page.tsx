@@ -43,6 +43,24 @@ function formatDateBR(iso: string | null): string {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(d);
 }
 
+function getSortableDateValue(iso: string | null): number {
+  if (!iso) return Number.NEGATIVE_INFINITY;
+  const parsed = Date.parse(String(iso));
+  return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+}
+
+function compareRowsForDisplay(a: Row, b: Row) {
+  const dueDateDiff = getSortableDateValue(b.dueDate) - getSortableDateValue(a.dueDate);
+  if (dueDateDiff !== 0) return dueDateDiff;
+
+  const userCompare = String(a.createdByUserAbbrevName || "").localeCompare(String(b.createdByUserAbbrevName || ""), "pt-BR", {
+    sensitivity: "base",
+  });
+  if (userCompare !== 0) return userCompare;
+
+  return String(a.numero || "").localeCompare(String(b.numero || ""), "pt-BR", { numeric: true, sensitivity: "base" });
+}
+
 function normalizeWorkflowStatus(value: unknown, integrated: boolean): Status {
   const normalized = String(value || "").trim().toUpperCase();
   if (normalized === "EM_AVALIACAO") return "EM_AVALIACAO";
@@ -297,10 +315,14 @@ export default function PosicaoFinanceiraPage() {
   const baseVisibleRows = kind === "RECEBER" ? data.receber : kind === "PAGAR" ? data.pagar : data.aprovar;
   const activeApprovalFilterView: FilterableViewKind | null =
     kind === "RECEBER" ? "RECEBER" : kind === "APROVAR" ? "APROVAR" : null;
-  const visibleRows =
-    activeApprovalFilterView == null
-      ? baseVisibleRows
-      : baseVisibleRows.filter((row) => approvalFilters[activeApprovalFilterView].includes(row.approvalStatus));
+  const visibleRows = useMemo(() => {
+    const rows =
+      activeApprovalFilterView == null
+        ? [...baseVisibleRows]
+        : baseVisibleRows.filter((row) => approvalFilters[activeApprovalFilterView].includes(row.approvalStatus));
+
+    return rows.sort(compareRowsForDisplay);
+  }, [activeApprovalFilterView, approvalFilters, baseVisibleRows]);
   const showCreatorColumn = kind === "RECEBER" || kind === "APROVAR";
   const showEvaluationColumn = kind === "APROVAR";
   const showApprovalFilter = activeApprovalFilterView !== null;

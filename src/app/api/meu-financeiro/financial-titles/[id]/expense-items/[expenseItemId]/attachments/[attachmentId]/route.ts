@@ -1,13 +1,12 @@
 import { unlink } from "fs/promises";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import path from "path";
 import { authOptions } from "@/lib/auth";
 import {
   ensureFinancialTitleExpenseAttachmentTable,
   ensureFinancialTitleExpenseTable,
   ensureFinancialTitleTable,
-  getFinancialTitleExpenseAttachmentDir,
+  getFinancialTitleExpenseAttachmentFilePaths,
   parsePositiveInt,
   resolveActiveEntityId,
 } from "@/lib/financial-titles";
@@ -76,8 +75,10 @@ export async function DELETE(
       where: { id: attachmentId },
     });
 
-    const filePath = path.join(getFinancialTitleExpenseAttachmentDir(id, expenseItemId), attachment.storedFileName);
-    await unlink(filePath).catch(() => null);
+    const candidatePaths = getFinancialTitleExpenseAttachmentFilePaths(id, expenseItemId, attachment.storedFileName);
+    for (const candidatePath of candidatePaths) {
+      await unlink(candidatePath).catch(() => null);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
