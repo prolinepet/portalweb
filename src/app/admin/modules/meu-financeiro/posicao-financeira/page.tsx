@@ -301,6 +301,7 @@ export default function PosicaoFinanceiraPage() {
     activeApprovalFilterView == null
       ? baseVisibleRows
       : baseVisibleRows.filter((row) => approvalFilters[activeApprovalFilterView].includes(row.approvalStatus));
+  const showCreatorColumn = kind === "RECEBER" || kind === "APROVAR";
   const showEvaluationColumn = kind === "APROVAR";
   const showApprovalFilter = activeApprovalFilterView !== null;
 
@@ -601,7 +602,7 @@ export default function PosicaoFinanceiraPage() {
             <thead>
               <tr className="bg-gray-50 text-left">
                 <th className="p-2">Número do Título</th>
-                {showEvaluationColumn && <th className="p-2">Usuário</th>}
+                {showCreatorColumn && <th className="p-2">Usuário</th>}
                 <th className="p-2">Data Vencimento</th>
                 <th className="p-2">Valor R$</th>
                 <th className="p-2">Situação</th>
@@ -613,7 +614,7 @@ export default function PosicaoFinanceiraPage() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={showEvaluationColumn ? 8 : 6} className="p-3 text-gray-500">
+                  <td colSpan={showEvaluationColumn ? 8 : showCreatorColumn ? 7 : 6} className="p-3 text-gray-500">
                     Carregando títulos...
                   </td>
                 </tr>
@@ -624,7 +625,7 @@ export default function PosicaoFinanceiraPage() {
                   <td className="p-2">
                     <span>{r.numero}</span>
                   </td>
-                  {showEvaluationColumn && <td className="p-2">{r.createdByUserAbbrevName || "-"}</td>}
+                  {showCreatorColumn && <td className="p-2">{r.createdByUserAbbrevName || "-"}</td>}
                   <td className="p-2">{formatDateBR(r.dueDate)}</td>
                   <td className="p-2">{formatBRL(r.amount)}</td>
                   <td className="p-2">
@@ -728,27 +729,25 @@ export default function PosicaoFinanceiraPage() {
                           <ArrowRight className="h-4 w-4" />
                         </ActionIconButton>
                       )}
-                      {!showEvaluationColumn && (
-                        <ActionIconButton
-                          title={integratingId === r.id ? "Enviando ao ERP" : "Enviar ao ERP"}
-                          className={
-                            r.integrated || integratingId === r.id || r.status !== "AGUARDANDO_INTEGRACAO"
-                              ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
-                              : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                          }
-                          disabled={r.integrated || integratingId === r.id || r.status !== "AGUARDANDO_INTEGRACAO"}
-                          onClick={() => void handleSendToErp(r.id)}
-                        >
-                          {integratingId === r.id ? (
-                            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
-                            </svg>
-                          ) : (
-                            <Send className="h-4 w-4" />
-                          )}
-                        </ActionIconButton>
-                      )}
+                      <ActionIconButton
+                        title={integratingId === r.id ? "Enviando ao ERP" : "Enviar ao ERP"}
+                        className={
+                          r.integrated || integratingId === r.id || r.status !== "AGUARDANDO_INTEGRACAO"
+                            ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                            : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                        }
+                        disabled={r.integrated || integratingId === r.id || r.status !== "AGUARDANDO_INTEGRACAO"}
+                        onClick={() => void handleSendToErp(r.id)}
+                      >
+                        {integratingId === r.id ? (
+                          <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+                          </svg>
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                      </ActionIconButton>
                       <ActionIconLink
                         title="Detalhes"
                         href={`/admin/modules/meu-financeiro/novo-reembolso?id=${r.id}`}
@@ -776,7 +775,7 @@ export default function PosicaoFinanceiraPage() {
               ))}
               {!loading && visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={showEvaluationColumn ? 8 : 6} className="p-2 text-gray-500">
+                  <td colSpan={showEvaluationColumn ? 8 : showCreatorColumn ? 7 : 6} className="p-2 text-gray-500">
                     Nenhum título
                   </td>
                 </tr>
