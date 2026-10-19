@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowDownRight, ArrowRight, ArrowUpRight, Check, ChevronDown, Eye, RotateCcw, Send, Trash2, X } from "lucide-react";
+import { ArrowDownRight, ArrowRight, ArrowUpRight, Check, ChevronDown, Copy, Eye, RotateCcw, Send, Trash2, X } from "lucide-react";
 
 type Status = "EM_DIGITACAO" | "EM_AVALIACAO" | "AGUARDANDO_INTEGRACAO" | "INTEGRADO";
 type ApprovalStatus = "PENDENTE" | "APROVADO" | "REPROVADO";
@@ -755,6 +755,15 @@ export default function PosicaoFinanceiraPage() {
                       >
                         <Eye className="h-4 w-4" />
                       </ActionIconLink>
+                      {!showEvaluationColumn && (
+                        <ActionIconLink
+                          title="Copiar reembolso"
+                          href={`/admin/modules/meu-financeiro/novo-reembolso?copyFrom=${r.id}`}
+                          className="border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </ActionIconLink>
+                      )}
                       {!showEvaluationColumn && (
                         <ActionIconButton
                           title="Excluir"

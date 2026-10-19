@@ -130,6 +130,23 @@ function mapExpenseItemFromApi(item: any): ExpenseItemRow {
   };
 }
 
+function mapExpenseItemFromCopySource(item: any): ExpenseItemRow {
+  return {
+    id: null,
+    clientKey: createClientKey(),
+    reimbursementTypeId: item?.reimbursementTypeId ? String(item.reimbursementTypeId) : "",
+    expenseDate: extractDateInputValue(item?.expenseDate),
+    description: String(item?.description || ""),
+    amount: formatCurrencyInput(Number(item?.amount || 0)),
+    pendingFiles: [],
+    attachments: [],
+    attachmentsLoaded: true,
+    attachmentsLoading: false,
+    expanded: false,
+    attachmentCount: 0,
+  };
+}
+
 export default function NovoReembolsoPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -190,18 +207,67 @@ export default function NovoReembolsoPage() {
 
   useEffect(() => {
     const id = Number(searchParams?.get("id") || "");
+    const copyFromId = Number(searchParams?.get("copyFrom") || "");
     if (!Number.isFinite(id) || id <= 0) {
-      setReimbursementId(null);
-      setCreatedByUserId(null);
-      setReadOnly(false);
-      setExpenseItems([]);
-      setDraftTypeId("");
-      setDraftExpenseDate("");
-      setDraftDescription("");
-      setDraftValue("");
-      setDraftFiles([]);
-      setEditingClientKey(null);
-      return;
+      if (!Number.isFinite(copyFromId) || copyFromId <= 0) {
+        setReimbursementId(null);
+        setCreatedByUserId(null);
+        setReadOnly(false);
+        setExpenseItems([]);
+        setDraftTypeId("");
+        setDraftExpenseDate("");
+        setDraftDescription("");
+        setDraftValue("");
+        setDraftFiles([]);
+        setEditingClientKey(null);
+        return;
+      }
+
+      let active = true;
+      setLoadingReimbursement(true);
+      fetch(`/api/meu-financeiro/financial-titles/${copyFromId}`, { cache: "no-store" })
+        .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+        .then(({ ok, data }) => {
+          if (!active) return;
+          if (!ok || !data?.id) {
+            setFeedback(String(data?.error || "Não foi possível carregar o reembolso para cópia."));
+            return;
+          }
+
+          const copiedExpenseItems = Array.isArray(data?.expenseItems) && data.expenseItems.length > 0
+            ? data.expenseItems.map(mapExpenseItemFromCopySource)
+            : [];
+
+          setReimbursementId(null);
+          setCreatedByUserId(null);
+          setReadOnly(false);
+          setExpenseItems(copiedExpenseItems);
+          setDraftTypeId("");
+          setDraftExpenseDate("");
+          setDraftDescription("");
+          setDraftValue("");
+          setDraftFiles([]);
+          setEditingClientKey(null);
+          setDraftFileInputKey((current) => current + 1);
+          setFeedback(null);
+          setSuccess(
+            copiedExpenseItems.length > 0
+              ? "Reembolso carregado como cópia. Revise os dados e salve para criar um novo registro. Os anexos não são copiados automaticamente."
+              : "O reembolso foi carregado para cópia, mas não possui despesas para duplicar."
+          );
+        })
+        .catch(() => {
+          if (!active) return;
+          setFeedback("Não foi possível carregar o reembolso para cópia.");
+        })
+        .finally(() => {
+          if (!active) return;
+          setLoadingReimbursement(false);
+        });
+
+      return () => {
+        active = false;
+      };
     }
 
     let active = true;
