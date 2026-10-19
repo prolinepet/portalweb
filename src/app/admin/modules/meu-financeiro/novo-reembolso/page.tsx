@@ -113,6 +113,15 @@ function createClientKey() {
   return `expense-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function normalizeReturnTo(value: string | null) {
+  const fallback = "/admin/modules/meu-financeiro/posicao-financeira?kind=RECEBER&approvalReceber=PENDENTE&approvalAprovar=PENDENTE";
+  const normalized = String(value || "").trim();
+  if (!normalized.startsWith("/admin/modules/meu-financeiro/posicao-financeira")) {
+    return fallback;
+  }
+  return normalized;
+}
+
 function mapExpenseItemFromApi(item: any): ExpenseItemRow {
   return {
     id: Number(item?.id || 0) || null,
@@ -151,6 +160,8 @@ export default function NovoReembolsoPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
+  const returnTo = normalizeReturnTo(searchParams?.get("returnTo"));
+  const returnToQueryParam = `returnTo=${encodeURIComponent(returnTo)}`;
 
   const [reimbursementId, setReimbursementId] = useState<number | null>(null);
   const [createdByUserId, setCreatedByUserId] = useState<number | null>(null);
@@ -692,13 +703,13 @@ export default function NovoReembolsoPage() {
 
         setExpenseItems(nextExpenseItems);
         setReimbursementId(nextId);
-        router.replace(`/admin/modules/meu-financeiro/novo-reembolso?id=${nextId}`);
 
         if (uploadErrors.length > 0) {
+          router.replace(`/admin/modules/meu-financeiro/novo-reembolso?id=${nextId}&${returnToQueryParam}`);
           setFeedback(uploadErrors.join(" "));
           setSuccess(reimbursementId ? "Reembolso atualizado, mas houve falha em alguns anexos." : "Reembolso salvo, mas houve falha em alguns anexos.");
         } else {
-          setSuccess(reimbursementId ? "Reembolso atualizado com sucesso." : "Reembolso salvo com sucesso.");
+          router.push(returnTo);
         }
       }
     } catch (err: any) {
@@ -780,7 +791,7 @@ export default function NovoReembolsoPage() {
           Meu Financeiro • {!canEditReimbursement || isReadOnly ? "Visualizar Reembolso" : reimbursementId ? "Editar Reembolso" : "Novo Reembolso"}
         </h1>
         <Link
-          href="/admin/modules/meu-financeiro/posicao-financeira?kind=RECEBER"
+          href={returnTo}
           className="rounded border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50"
         >
           Voltar

@@ -1,8 +1,8 @@
 "use client";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowDownRight, ArrowRight, ArrowUpRight, Check, ChevronDown, Copy, Eye, RotateCcw, Send, Trash2, X } from "lucide-react";
 
 type Status = "EM_DIGITACAO" | "EM_AVALIACAO" | "AGUARDANDO_INTEGRACAO" | "INTEGRADO";
@@ -24,6 +24,35 @@ type Kind = "RECEBER" | "PAGAR";
 type FilterableViewKind = "RECEBER" | "APROVAR";
 
 const APPROVAL_FILTER_OPTIONS: ApprovalStatus[] = ["PENDENTE", "APROVADO", "REPROVADO"];
+const DEFAULT_APPROVAL_FILTERS: Record<FilterableViewKind, ApprovalStatus[]> = {
+  RECEBER: ["PENDENTE"],
+  APROVAR: ["PENDENTE"],
+};
+
+function normalizeApprovalFilterSelection(selection: ApprovalStatus[]) {
+  const uniqueSelected = new Set(selection);
+  const normalized = APPROVAL_FILTER_OPTIONS.filter((status) => uniqueSelected.has(status));
+  return normalized.length > 0 ? normalized : ["PENDENTE"];
+}
+
+function parseApprovalFilterParam(value: string | null, fallback: ApprovalStatus[]) {
+  if (!value) return [...fallback];
+  return normalizeApprovalFilterSelection(
+    value
+      .split(",")
+      .map((item) => item.trim().toUpperCase())
+      .filter((item): item is ApprovalStatus => APPROVAL_FILTER_OPTIONS.includes(item as ApprovalStatus))
+  );
+}
+
+function serializeApprovalFilterSelection(selection: ApprovalStatus[]) {
+  return normalizeApprovalFilterSelection(selection).join(",");
+}
+
+function areApprovalSelectionsEqual(left: ApprovalStatus[], right: ApprovalStatus[]) {
+  if (left.length !== right.length) return false;
+  return left.every((item, index) => item === right[index]);
+}
 
 function formatBRL(value: number): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
@@ -186,7 +215,10 @@ function ActionIconLink({ title, href, className, children }: ActionIconLinkProp
 }
 
 export default function PosicaoFinanceiraPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const approvalFilterRef = useRef<HTMLDivElement | null>(null);
+  const [queryStateReady, setQueryStateReady] = useState(false);
   const [kind, setKind] = useState<ViewKind>("RECEBER");
   const [ownRows, setOwnRows] = useState<Row[]>([]);
   const [approvalRows, setApprovalRows] = useState<Row[]>([]);
@@ -197,8 +229,7 @@ export default function PosicaoFinanceiraPage() {
   const [integratingId, setIntegratingId] = useState<number | null>(null);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [approvalFilters, setApprovalFilters] = useState<Record<FilterableViewKind, ApprovalStatus[]>>({
-    RECEBER: ["PENDENTE"],
-    APROVAR: ["PENDENTE"],
+    ...DEFAULT_APPROVAL_FILTERS,
   });
   const [openApprovalFilter, setOpenApprovalFilter] = useState<FilterableViewKind | null>(null);
 
@@ -215,11 +246,60 @@ export default function PosicaoFinanceiraPage() {
   };
 
   useEffect(() => {
+    const nextReceberFilters = parseApprovalFilterParam(searchParams?.get("approvalReceber"), DEFAULT_APPROVAL_FILTERS.RECEBER);
+    const nextAprovarFilters = parseApprovalFilterParam(searchParams?.get("approvalAprovar"), DEFAULT_APPROVAL_FILTERS.APROVAR);
     const nextKind = searchParams?.get("kind");
     if (nextKind === "RECEBER" || nextKind === "PAGAR" || nextKind === "APROVAR") {
       setKind(nextKind);
+    } else {
+      setKind("RECEBER");
     }
+    setApprovalFilters((current) => {
+      if (
+        areApprovalSelectionsEqual(current.RECEBER, nextReceberFilters) &&
+        areApprovalSelectionsEqual(current.APROVAR, nextAprovarFilters)
+      ) {
+        return current;
+      }
+      return {
+        RECEBER: nextReceberFilters,
+        APROVAR: nextAprovarFilters,
+      };
+    });
+    setQueryStateReady(true);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!queryStateReady) return;
+
+    const params = new URLSearchParams(searchParams?.toString() || "");
+    params.set("kind", kind);
+    params.set("approvalReceber", serializeApprovalFilterSelection(approvalFilters.RECEBER));
+    params.set("approvalAprovar", serializeApprovalFilterSelection(approvalFilters.APROVAR));
+
+    const nextQuery = params.toString();
+    if (nextQuery === (searchParams?.toString() || "")) return;
+
+    router.replace(`/admin/modules/meu-financeiro/posicao-financeira?${nextQuery}`, { scroll: false });
+  }, [approvalFilters, kind, queryStateReady, router, searchParams]);
+
+  useEffect(() => {
+    if (!openApprovalFilter) return;
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target;
+      if (approvalFilterRef.current && target instanceof Node && !approvalFilterRef.current.contains(target)) {
+        setOpenApprovalFilter(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [openApprovalFilter]);
 
   useEffect(() => {
     if (!canApproveReimbursements && kind === "APROVAR") {
@@ -326,6 +406,13 @@ export default function PosicaoFinanceiraPage() {
   const showCreatorColumn = kind === "RECEBER" || kind === "APROVAR";
   const showEvaluationColumn = kind === "APROVAR";
   const showApprovalFilter = activeApprovalFilterView !== null;
+  const returnToHref = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("kind", kind);
+    params.set("approvalReceber", serializeApprovalFilterSelection(approvalFilters.RECEBER));
+    params.set("approvalAprovar", serializeApprovalFilterSelection(approvalFilters.APROVAR));
+    return `/admin/modules/meu-financeiro/posicao-financeira?${params.toString()}`;
+  }, [approvalFilters, kind]);
 
   const toggleApprovalFilterOption = (view: FilterableViewKind, status: ApprovalStatus) => {
     setApprovalFilters((current) => {
@@ -546,7 +633,7 @@ export default function PosicaoFinanceiraPage() {
 
       <div className="bg-white rounded border p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3">
-          <div className="relative">
+          <div ref={approvalFilterRef} className="relative">
             {showApprovalFilter && activeApprovalFilterView ? (
               <div className="relative">
                 <button
@@ -603,7 +690,7 @@ export default function PosicaoFinanceiraPage() {
             </button>
             {kind !== "APROVAR" && (
               <Link
-                href="/admin/modules/meu-financeiro/novo-reembolso"
+                href={`/admin/modules/meu-financeiro/novo-reembolso?returnTo=${encodeURIComponent(returnToHref)}`}
                 className="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
               >
                 Criar Reembolso
@@ -733,7 +820,7 @@ export default function PosicaoFinanceiraPage() {
                     <div className="flex flex-wrap items-center justify-center gap-2">
                       {!showEvaluationColumn && (
                         <ActionIconButton
-                          title="Enviar para avaliação"
+                          title={canApproveReimbursements ? "Aprovar automaticamente" : "Enviar para avaliação"}
                           className={
                             r.status === "EM_DIGITACAO" && updatingId !== r.id
                               ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
@@ -741,11 +828,13 @@ export default function PosicaoFinanceiraPage() {
                           }
                           disabled={r.status !== "EM_DIGITACAO" || updatingId === r.id}
                           onClick={() =>
-                            void handleWorkflowUpdate(
-                              r,
-                              { approvalStatus: "PENDENTE", status: "EM_AVALIACAO" },
-                              "Reembolso enviado para avaliação."
-                            )
+                            canApproveReimbursements
+                              ? void handleApproveAndIntegrate(r)
+                              : void handleWorkflowUpdate(
+                                  r,
+                                  { approvalStatus: "PENDENTE", status: "EM_AVALIACAO" },
+                                  "Reembolso enviado para avaliação."
+                                )
                           }
                         >
                           <ArrowRight className="h-4 w-4" />
@@ -772,7 +861,7 @@ export default function PosicaoFinanceiraPage() {
                       </ActionIconButton>
                       <ActionIconLink
                         title="Detalhes"
-                        href={`/admin/modules/meu-financeiro/novo-reembolso?id=${r.id}`}
+                        href={`/admin/modules/meu-financeiro/novo-reembolso?id=${r.id}&returnTo=${encodeURIComponent(returnToHref)}`}
                         className="border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
                       >
                         <Eye className="h-4 w-4" />
@@ -780,7 +869,7 @@ export default function PosicaoFinanceiraPage() {
                       {!showEvaluationColumn && (
                         <ActionIconLink
                           title="Copiar reembolso"
-                          href={`/admin/modules/meu-financeiro/novo-reembolso?copyFrom=${r.id}`}
+                          href={`/admin/modules/meu-financeiro/novo-reembolso?copyFrom=${r.id}&returnTo=${encodeURIComponent(returnToHref)}`}
                           className="border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
                         >
                           <Copy className="h-4 w-4" />
