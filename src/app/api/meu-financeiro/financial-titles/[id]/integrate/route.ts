@@ -113,6 +113,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       // Body may be empty.
     }
 
+    const normalizedResource = resource.trim().toLowerCase();
+    const isCheckTitleExists = normalizedResource === "checktituloexiste";
+
     const financialTitle = await prisma.financialTitle.findUnique({
       where: { id },
       include: {
@@ -145,20 +148,22 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     if (!financialTitle) {
       return NextResponse.json({ error: "Título não encontrado" }, { status: 404 });
     }
-    if (financialTitle.integrated || String(financialTitle.status || "").trim().toUpperCase() === FINANCIAL_TITLE_STATUS.INTEGRADO) {
-      return NextResponse.json({ error: "Reembolso já está integrado." }, { status: 409 });
-    }
-    if (String(financialTitle.status || "").trim().toUpperCase() !== FINANCIAL_TITLE_STATUS.AGUARDANDO_INTEGRACAO) {
-      return NextResponse.json(
-        { error: "Somente reembolsos em Aguardando Integração podem ser enviados ao ERP." },
-        { status: 409 }
-      );
-    }
-    if (String((financialTitle as any).approvalStatus || "").trim().toUpperCase() !== FINANCIAL_TITLE_APPROVAL_STATUS.APROVADO) {
-      return NextResponse.json(
-        { error: "Somente reembolsos aprovados podem ser enviados ao ERP." },
-        { status: 409 }
-      );
+    if (!isCheckTitleExists) {
+      if (financialTitle.integrated || String(financialTitle.status || "").trim().toUpperCase() === FINANCIAL_TITLE_STATUS.INTEGRADO) {
+        return NextResponse.json({ error: "Reembolso já está integrado." }, { status: 409 });
+      }
+      if (String(financialTitle.status || "").trim().toUpperCase() !== FINANCIAL_TITLE_STATUS.AGUARDANDO_INTEGRACAO) {
+        return NextResponse.json(
+          { error: "Somente reembolsos em Aguardando Integração podem ser enviados ao ERP." },
+          { status: 409 }
+        );
+      }
+      if (String((financialTitle as any).approvalStatus || "").trim().toUpperCase() !== FINANCIAL_TITLE_APPROVAL_STATUS.APROVADO) {
+        return NextResponse.json(
+          { error: "Somente reembolsos aprovados podem ser enviados ao ERP." },
+          { status: 409 }
+        );
+      }
     }
 
     const sessionEntityIdRaw = (session as any)?.entityId ?? (session as any)?.activeEntityId ?? null;
@@ -172,11 +177,6 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       return NextResponse.json({ error: "Título não pertence à entidade ativa" }, { status: 403 });
     }
 
-    const entityDoc = String(financialTitle.entity?.cnpj || "").replace(/\D/g, "");
-    if (!entityDoc) {
-      return NextResponse.json({ error: "CNPJ da entidade não encontrado para integração." }, { status: 400 });
-    }
-
     const createdByDoc = String(financialTitle.createdByUser?.doc || "").replace(/\D/g, "");
     if (!createdByDoc) {
       return NextResponse.json(
@@ -185,81 +185,98 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       );
     }
 
-    const integrationOwnerUserId = Number(financialTitle.createdByUser?.id || financialTitle.createdByUserId || 0) || null;
-    if (!integrationOwnerUserId) {
-      return NextResponse.json(
-        { error: "Usuário criador do reembolso não foi encontrado para integração." },
-        { status: 400 }
-      );
-    }
-
     const integrationRoute = financialTitle.createdByUser?.erpIntegrationMode === "PROD" ? "prd" : "tst";
-    const integrationCostCenter = String(financialTitle.createdByUser?.costCenter || "").trim();
 
-    const integrationDueDate = calculateDefaultFinancialTitleDueDate(new Date());
-    const expenseReimbursementTypeIds = [
-      ...new Set(
-        financialTitle.expenseItems
-          .map((item) => Number(item.reimbursementTypeId))
-          .filter((value) => Number.isFinite(value) && value > 0)
-      ),
-    ];
-    const userAccountingAccounts =
-      integrationOwnerUserId && expenseReimbursementTypeIds.length > 0
-        ? await prisma.$queryRawUnsafe<Array<{ reimbursementTypeId: number; accountingAccount: string }>>(`
-            SELECT reimbursementTypeId, accountingAccount
-            FROM userreimbursementtypeaccount
-            WHERE userId = ${Number(integrationOwnerUserId)}
-              AND reimbursementTypeId IN (${expenseReimbursementTypeIds.join(", ")})
-          `)
-        : [];
-    const userAccountingAccountMap = new Map<number, string>(
-      userAccountingAccounts.map((item) => [Number(item.reimbursementTypeId), String(item.accountingAccount || "").trim()])
-    );
+    const payload = isCheckTitleExists
+      ? {
+          route: integrationRoute,
+          module: "mpd",
+          version: "v1",
+          resource,
+          method: "POST",
+          params: {
+            createdByDoc,
+            numero: financialTitle.numero,
+          },
+        }
+      : await (async () => {
+          const entityDoc = String(financialTitle.entity?.cnpj || "").replace(/\D/g, "");
+          if (!entityDoc) {
+            throw new Error("CNPJ da entidade não encontrado para integração.");
+          }
 
-    const payload = {
-      route: integrationRoute,
-      module: "mpd",
-      version: "v1",
-      resource,
-      method: "POST",
-      params: {
-        tituloFinanceiro: {
-          branchId: "01",
-          entityDoc,
-          createdByDoc,
-          costCenter: integrationCostCenter,
-          titleId: financialTitle.id,
-          numero: financialTitle.numero,
-          code: financialTitle.numero,
-          kind: financialTitle.kind,
-          dueDate: formatIsoDate(integrationDueDate),
-          amount: Number(financialTitle.amount || 0),
-          status: "ABERTO",
-          description: String(financialTitle.description || financialTitle.reimbursementType?.description || "").trim(),
-          reimbursementTypeId: financialTitle.reimbursementTypeId ?? 0,
-          reimbursementTypeDescription: String(financialTitle.reimbursementType?.description || "").trim(),
-          expenseItems: financialTitle.expenseItems.map((item) => ({
-            id: item.id,
-            reimbursementTypeId: item.reimbursementTypeId,
-            reimbursementTypeDescription: String(item.reimbursementType?.description || "").trim(),
-            defaultAccountingAccount:
-              userAccountingAccountMap.get(Number(item.reimbursementTypeId)) ||
-              String(item.reimbursementType?.defaultAccountingAccount || "").trim(),
-            expenseDate: formatOptionalIsoDate(item.expenseDate),
-            description: item.description,
-            amount: Number(item.amount || 0),
-            attachments: item.attachments.map((attachment) => ({
-              id: attachment.id,
-              originalFileName: attachment.originalFileName,
-              mimeType: attachment.mimeType,
-              sizeBytes: attachment.sizeBytes,
-            })),
-          })),
-          integrated: financialTitle.integrated ? "S" : "N",
-        },
-      },
-    };
+          const integrationOwnerUserId = Number(financialTitle.createdByUser?.id || financialTitle.createdByUserId || 0) || null;
+          if (!integrationOwnerUserId) {
+            throw new Error("Usuário criador do reembolso não foi encontrado para integração.");
+          }
+
+          const integrationCostCenter = String(financialTitle.createdByUser?.costCenter || "").trim();
+          const integrationDueDate = calculateDefaultFinancialTitleDueDate(new Date());
+          const expenseReimbursementTypeIds = [
+            ...new Set(
+              financialTitle.expenseItems
+                .map((item) => Number(item.reimbursementTypeId))
+                .filter((value) => Number.isFinite(value) && value > 0)
+            ),
+          ];
+          const userAccountingAccounts =
+            integrationOwnerUserId && expenseReimbursementTypeIds.length > 0
+              ? await prisma.$queryRawUnsafe<Array<{ reimbursementTypeId: number; accountingAccount: string }>>(`
+                  SELECT reimbursementTypeId, accountingAccount
+                  FROM userreimbursementtypeaccount
+                  WHERE userId = ${Number(integrationOwnerUserId)}
+                    AND reimbursementTypeId IN (${expenseReimbursementTypeIds.join(", ")})
+                `)
+              : [];
+          const userAccountingAccountMap = new Map<number, string>(
+            userAccountingAccounts.map((item) => [Number(item.reimbursementTypeId), String(item.accountingAccount || "").trim()])
+          );
+
+          return {
+            route: integrationRoute,
+            module: "mpd",
+            version: "v1",
+            resource,
+            method: "POST",
+            params: {
+              tituloFinanceiro: {
+                branchId: "01",
+                entityDoc,
+                createdByDoc,
+                costCenter: integrationCostCenter,
+                titleId: financialTitle.id,
+                numero: financialTitle.numero,
+                code: financialTitle.numero,
+                kind: financialTitle.kind,
+                dueDate: formatIsoDate(integrationDueDate),
+                amount: Number(financialTitle.amount || 0),
+                status: "ABERTO",
+                description: String(financialTitle.description || financialTitle.reimbursementType?.description || "").trim(),
+                reimbursementTypeId: financialTitle.reimbursementTypeId ?? 0,
+                reimbursementTypeDescription: String(financialTitle.reimbursementType?.description || "").trim(),
+                expenseItems: financialTitle.expenseItems.map((item) => ({
+                  id: item.id,
+                  reimbursementTypeId: item.reimbursementTypeId,
+                  reimbursementTypeDescription: String(item.reimbursementType?.description || "").trim(),
+                  defaultAccountingAccount:
+                    userAccountingAccountMap.get(Number(item.reimbursementTypeId)) ||
+                    String(item.reimbursementType?.defaultAccountingAccount || "").trim(),
+                  expenseDate: formatOptionalIsoDate(item.expenseDate),
+                  description: item.description,
+                  amount: Number(item.amount || 0),
+                  attachments: item.attachments.map((attachment) => ({
+                    id: attachment.id,
+                    originalFileName: attachment.originalFileName,
+                    mimeType: attachment.mimeType,
+                    sizeBytes: attachment.sizeBytes,
+                  })),
+                })),
+                integrated: financialTitle.integrated ? "S" : "N",
+              },
+            },
+            integrationDueDate,
+          };
+        })();
 
     const erpSetting = await prisma.systemSetting.findUnique({
       where: { key: "erpUrl" },
@@ -273,7 +290,14 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         Accept: "application/json",
         "Content-Type": "application/json; charset=UTF-8",
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(isCheckTitleExists ? payload : {
+        route: payload.route,
+        module: payload.module,
+        version: payload.version,
+        resource: payload.resource,
+        method: payload.method,
+        params: payload.params,
+      }),
     });
 
     if (!response.ok) {
@@ -301,7 +325,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     const hasSuccess = subTypes.some((subType) => subType === "SUCESS" || subType === "SUCCESS");
     const hasError = subTypes.some((subType) => subType === "ERROR" || subType === "ERRO");
 
-    if (hasError || !hasSuccess) {
+    if (hasError || (!isCheckTitleExists && !hasSuccess)) {
       return NextResponse.json(
         {
           error: hasError
@@ -314,6 +338,14 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       );
     }
 
+    if (isCheckTitleExists) {
+      return NextResponse.json({
+        ...data,
+        messages,
+      });
+    }
+
+    const integrationDueDate = payload.integrationDueDate;
     await prisma.financialTitle.update({
       where: { id: financialTitle.id },
       data: {

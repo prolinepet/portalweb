@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../../../../lib/auth";
 import { prisma } from "../../../../../lib/prisma";
 import {
   buildFinancialTitleSummary,
@@ -144,6 +146,10 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     await ensureFinancialTitleExpenseTable();
     await ensureFinancialTitleExpenseAttachmentTable();
 
+    const session = await getServerSession(authOptions);
+    const sessionUserEmail = String((session?.user as any)?.email || "").trim().toLowerCase();
+    const canForceEditIntegratedReimbursement = sessionUserEmail === "ti@prolinepet.com.br";
+
     const id = parseId(params.id);
     if (!id) {
       return NextResponse.json({ error: "Id inválido" }, { status: 400 });
@@ -161,7 +167,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (!current?.id) {
       return NextResponse.json({ error: "Título não encontrado" }, { status: 404 });
     }
-    if (current.integrated) {
+    if (current.integrated && !canForceEditIntegratedReimbursement) {
       return NextResponse.json({ error: "Reembolso integrado pode apenas ser visualizado" }, { status: 409 });
     }
 

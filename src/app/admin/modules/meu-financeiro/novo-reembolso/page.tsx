@@ -159,6 +159,8 @@ export default function NovoReembolsoPage() {
   const [loadingReimbursement, setLoadingReimbursement] = useState(false);
   const [readOnly, setReadOnly] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [checkingEdit, setCheckingEdit] = useState(false);
+  const [editUnlocked, setEditUnlocked] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -213,6 +215,7 @@ export default function NovoReembolsoPage() {
         setReimbursementId(null);
         setCreatedByUserId(null);
         setReadOnly(false);
+        setEditUnlocked(false);
         setExpenseItems([]);
         setDraftTypeId("");
         setDraftExpenseDate("");
@@ -241,6 +244,7 @@ export default function NovoReembolsoPage() {
           setReimbursementId(null);
           setCreatedByUserId(null);
           setReadOnly(false);
+          setEditUnlocked(false);
           setExpenseItems(copiedExpenseItems);
           setDraftTypeId("");
           setDraftExpenseDate("");
@@ -288,6 +292,7 @@ export default function NovoReembolsoPage() {
         setReimbursementId(Number(data.id));
         setCreatedByUserId(Number(data.createdByUserId || 0) || null);
         setReadOnly(Boolean(data.integrated));
+        setEditUnlocked(false);
         setExpenseItems(nextExpenseItems);
         setDraftTypeId("");
         setDraftExpenseDate("");
@@ -331,11 +336,13 @@ export default function NovoReembolsoPage() {
   const isBusy = saving || loadingReimbursement;
   const isReadOnly = readOnly && reimbursementId !== null;
   const sessionUserId = Number((session?.user as any)?.id || 0) || null;
+  const sessionUserEmail = String((session?.user as any)?.email || "").trim().toLowerCase();
+  const isTiEditor = sessionUserEmail === "ti@prolinepet.com.br";
   const isCreator =
     reimbursementId === null ||
     createdByUserId === null ||
     (sessionUserId !== null && createdByUserId === sessionUserId);
-  const canEditReimbursement = !isReadOnly && isCreator;
+  const canEditReimbursement = !isReadOnly && (isCreator || editUnlocked);
   const editingRow = editingClientKey ? expenseItems.find((item) => item.clientKey === editingClientKey) || null : null;
 
   const resetDraft = useCallback(() => {
@@ -701,6 +708,65 @@ export default function NovoReembolsoPage() {
     }
   };
 
+  const handleCheckEdit = async () => {
+    if (!reimbursementId) return;
+
+    setFeedback(null);
+    setSuccess(null);
+    setCheckingEdit(true);
+
+    try {
+      if (isTiEditor) {
+        const res = await fetch(`/api/meu-financeiro/financial-titles/${reimbursementId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "EM_DIGITACAO",
+            approvalStatus: "PENDENTE",
+            integrated: false,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setFeedback(String(data?.error || "Não foi possível reabrir o reembolso para edição."));
+          return;
+        }
+
+        setReadOnly(false);
+        setEditUnlocked(true);
+        setSuccess("Reembolso liberado para edição.");
+        return;
+      }
+
+      const res = await fetch(`/api/meu-financeiro/financial-titles/${reimbursementId}/integrate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resource: "checkTituloExiste" }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      const messages = Array.isArray(data?.messages)
+        ? data.messages.map((message: unknown) => String(message).trim()).filter(Boolean)
+        : [];
+
+      if (!res.ok) {
+        setFeedback(messages.length > 0 ? messages.join("\n") : String(data?.error || "Não foi possível validar a edição do reembolso."));
+        return;
+      }
+
+      setSuccess(messages.length > 0 ? messages.join("\n") : "Validação de edição realizada com sucesso.");
+    } catch (err: any) {
+      setFeedback(
+        String(
+          err?.message ||
+            (isTiEditor ? "Não foi possível reabrir o reembolso para edição." : "Não foi possível validar a edição do reembolso.")
+        )
+      );
+    } finally {
+      setCheckingEdit(false);
+    }
+  };
+
   const queuedFilesSummary = useMemo(() => {
     const totalQueuedFiles = expenseItems.reduce((sum, item) => sum + item.pendingFiles.length, 0) + draftFiles.length;
     if (totalQueuedFiles === 0) return "Nenhum anexo em fila.";
@@ -733,6 +799,19 @@ export default function NovoReembolsoPage() {
           {!isReadOnly && reimbursementId !== null && !isCreator && (
             <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
               Este reembolso foi criado por outro usuário. As informações estão disponíveis apenas para visualização.
+            </div>
+          )}
+
+          {reimbursementId !== null && !canEditReimbursement && (
+            <div className="mb-4 flex justify-end">
+              <button
+                type="button"
+                className="rounded border border-blue-300 bg-white px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                disabled={isBusy || checkingEdit}
+                onClick={() => void handleCheckEdit()}
+              >
+                {checkingEdit ? (isTiEditor ? "Reabrindo..." : "Validando...") : "Editar"}
+              </button>
             </div>
           )}
 
