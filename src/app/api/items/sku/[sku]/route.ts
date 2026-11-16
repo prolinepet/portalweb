@@ -27,6 +27,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ sku: st
     const data: any = {};
     if (body.name !== undefined) data.name = String(body.name || '').trim();
     if (body.sku !== undefined) data.sku = String(body.sku || '').trim();
+    if (body.active !== undefined) data.active = Boolean(body.active);
     if (body.unit !== undefined) data.unit = String(body.unit || '').trim();
     if (body.unitWeightKg !== undefined) {
       const rawWeight = String(body.unitWeightKg ?? '').trim();
