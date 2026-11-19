@@ -269,6 +269,13 @@ export const SalesOrderItemRow = ({
     }
   };
 
+  const adjustQuantity = (delta: number) => {
+    const currentQuantity = Number(localItem.quantity ?? 0);
+    const nextQuantity = Math.max(1, currentQuantity + delta);
+    if (nextQuantity === currentQuantity) return;
+    handleChange('quantity', nextQuantity);
+  };
+
   const handleDiscountChange = (val: string) => {
     const filtered = val.replace(/[^0-9,]/g, '');
     const parts = filtered.split(',');
@@ -343,12 +350,34 @@ export const SalesOrderItemRow = ({
         )}
 
         <td className="p-2">
-            <FormattedIntInput 
-                className={`w-20 px-2 py-1 border rounded ${!canEdit ? disabledClass : ''}`}
-                disabled={!canEdit}
-                value={localItem.quantity} 
-                onChange={(val) => handleChange('quantity', val ?? 0)} 
-            />
+            <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded border text-base font-semibold ${canEdit ? 'bg-white text-gray-700 hover:bg-gray-50' : disabledClass}`}
+                  disabled={!canEdit || Number(localItem.quantity ?? 0) <= 1}
+                  title="Diminuir quantidade"
+                  aria-label="Diminuir quantidade"
+                  onClick={() => adjustQuantity(-1)}
+                >
+                  -
+                </button>
+                <FormattedIntInput 
+                    className={`w-20 px-2 py-1 border rounded text-center ${!canEdit ? disabledClass : ''}`}
+                    disabled={!canEdit}
+                    value={localItem.quantity} 
+                    onChange={(val) => handleChange('quantity', Math.max(1, val ?? 1))} 
+                />
+                <button
+                  type="button"
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded border text-base font-semibold ${canEdit ? 'bg-white text-gray-700 hover:bg-gray-50' : disabledClass}`}
+                  disabled={!canEdit}
+                  title="Aumentar quantidade"
+                  aria-label="Aumentar quantidade"
+                  onClick={() => adjustQuantity(1)}
+                >
+                  +
+                </button>
+            </div>
         </td>
         <td className="p-2">
             <input 
@@ -485,6 +514,13 @@ export const SalesOrderItemCard = ({
     }
   };
 
+  const adjustQuantity = (delta: number) => {
+    const currentQuantity = Number(localItem.quantity ?? 0);
+    const nextQuantity = Math.max(1, currentQuantity + delta);
+    if (nextQuantity === currentQuantity) return;
+    handleChange('quantity', nextQuantity);
+  };
+
   const handleDiscountChange = (val: string) => {
     const filtered = val.replace(/[^0-9,]/g, '');
     const parts = filtered.split(',');
@@ -565,12 +601,34 @@ export const SalesOrderItemCard = ({
       <div className="mt-3 grid grid-cols-2 gap-2">
         <div>
           <div className="text-[11px] text-gray-600">Qtd</div>
-          <FormattedIntInput 
-            className={`w-full px-2 py-1 border rounded text-sm ${!canEdit ? disabledClass : ''}`}
-            disabled={!canEdit}
-            value={localItem.quantity} 
-            onChange={(val) => handleChange('quantity', val ?? 0)} 
-          />
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border text-base font-semibold ${canEdit ? 'bg-white text-gray-700 hover:bg-gray-50' : disabledClass}`}
+              disabled={!canEdit || Number(localItem.quantity ?? 0) <= 1}
+              title="Diminuir quantidade"
+              aria-label="Diminuir quantidade"
+              onClick={() => adjustQuantity(-1)}
+            >
+              -
+            </button>
+            <FormattedIntInput 
+              className={`w-full px-2 py-1 border rounded text-center text-sm ${!canEdit ? disabledClass : ''}`}
+              disabled={!canEdit}
+              value={localItem.quantity} 
+              onChange={(val) => handleChange('quantity', Math.max(1, val ?? 1))} 
+            />
+            <button
+              type="button"
+              className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border text-base font-semibold ${canEdit ? 'bg-white text-gray-700 hover:bg-gray-50' : disabledClass}`}
+              disabled={!canEdit}
+              title="Aumentar quantidade"
+              aria-label="Aumentar quantidade"
+              onClick={() => adjustQuantity(1)}
+            >
+              +
+            </button>
+          </div>
         </div>
         <div>
           <div className="text-[11px] text-gray-600">Peso (KG)</div>
