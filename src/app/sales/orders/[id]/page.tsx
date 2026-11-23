@@ -67,6 +67,7 @@ type SalesOrder = {
   erpOrderNumber?: string | null;
   triangularCustomerName?: string | null;
   triangularCustomerDoc?: string | null;
+  promotionalCampaign?: PromotionalCampaignResult | null;
 };
 
 type SalesOrderInvoice = {
@@ -77,6 +78,16 @@ type SalesOrderInvoice = {
   totalWeight: number;
   danfeFileName?: string | null;
   xmlFileName?: string | null;
+};
+
+type PromotionalCampaignResult = {
+  campaignCode: string;
+  campaignDescription: string;
+  bonusValue: number;
+  eligibleValue: number;
+  eligibleWeight: number;
+  discountType: number;
+  discountTypeValue: number;
 };
 
 const ICON_BTN = "inline-flex items-center justify-center w-8 h-8 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 text-gray-700";
@@ -1820,6 +1831,21 @@ export default function SalesOrderMaintenancePage() {
                 </div>
               </>
             )}
+          </div>
+
+          <div className="border rounded bg-white">
+            <div className="px-3 py-2 border-b flex items-center gap-2">
+              <span className="text-sm text-gray-700">Campanhas</span>
+            </div>
+            <div className="px-3 py-3 text-sm text-gray-800">
+              {order.promotionalCampaign ? (
+                <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-900">
+                  Campanha: {order.promotionalCampaign.campaignDescription} - Valor Bônus {fmtCurrency(order.promotionalCampaign.bonusValue)}
+                </div>
+              ) : (
+                <div className="text-gray-500">Nenhuma campanha elegível encontrada.</div>
+              )}
+            </div>
           </div>
 
           {/* Seção Itens + grupos por família */}

@@ -545,6 +545,39 @@ model SalesOrderItem {
   @@map("salesorderitem")
 }
 
+model PromotionalCampaign {
+  id                          Int      @id @default(autoincrement())
+  campaignCode                String   @unique @db.VarChar(30)
+  campaignDescription         String   @db.VarChar(120)
+  active                      Boolean  @default(true)
+  customerDocInitial          String?  @db.VarChar(20)
+  customerDocFinal            String?  @db.VarChar(20)
+  representativeDocInitial    String?  @db.VarChar(20)
+  representativeDocFinal      String?  @db.VarChar(20)
+  orderTypeCodeInitial        String?  @db.VarChar(20)
+  orderTypeCodeFinal          String?  @db.VarChar(20)
+  priceTableCodeInitial       String?  @db.VarChar(20)
+  priceTableCodeFinal         String?  @db.VarChar(20)
+  commercialFamilyCodeInitial String?  @db.VarChar(20)
+  commercialFamilyCodeFinal   String?  @db.VarChar(20)
+  itemCodeInitial             String?  @db.VarChar(50)
+  itemCodeFinal               String?  @db.VarChar(50)
+  paymentConditionCodeInitial String?  @db.VarChar(20)
+  paymentConditionCodeFinal   String?  @db.VarChar(20)
+  valueInitial                Float?
+  valueFinal                  Float?
+  weightInitial               Float?
+  weightFinal                 Float?
+  discountType                Int      @default(1)
+  discountTypeValue           Float    @default(0)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  @@index([active])
+  @@index([campaignDescription])
+  @@map("promotionalcampaign")
+}
+
 // Ligação de disponibilidade de Item por EntityModule
 model EntityModuleItem {
   id              Int           @id @default(autoincrement())

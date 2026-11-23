@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '../../../../../lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../../lib/auth';
+import { getBestPromotionalCampaignForOrder } from '../../../../../lib/promotional-campaigns';
 
 async function ensureSalesOrderItemSdoPedColumn(): Promise<void> {
   const g = global as any;
@@ -104,6 +105,8 @@ export async function GET(_: Request, props: { params: Promise<{ id: string }> }
       where: { id },
       include: {
         entity: true,
+        createdBy: { select: { doc: true } },
+        orderType: { select: { codtipoped: true } },
         items: {
           include: {
             inventoryItem: { include: { commercialFamily: true } }
@@ -112,6 +115,8 @@ export async function GET(_: Request, props: { params: Promise<{ id: string }> }
       }
     });
     if (!order) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
+
+    const promotionalCampaign = await getBestPromotionalCampaignForOrder(order);
 
     let history: any[] = [];
     try {
@@ -129,7 +134,7 @@ export async function GET(_: Request, props: { params: Promise<{ id: string }> }
       history = base.map((h) => ({ ...h, messages: [] }));
     }
 
-    return NextResponse.json({ ...order, statusHistory: history });
+    return NextResponse.json({ ...order, statusHistory: history, promotionalCampaign });
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
