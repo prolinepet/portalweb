@@ -161,23 +161,6 @@ export default function SalesOrdersPage() {
     loadOrders();
   }, []);
 
-  useEffect(() => {
-    const handleFocus = () => loadOrders();
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') loadOrders();
-    };
-    const handlePageShow = () => loadOrders();
-
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('pageshow', handlePageShow);
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('pageshow', handlePageShow);
-    };
-  }, []);
-
   const statusColor = (s: string) => {
     const v = (s || '').trim();
     switch (v) {
