@@ -1,0 +1,1693 @@
+USING OpenEdge.Net.HTTP.Lib.*. 
+USING Progress.Json.ObjectModel.*.
+USING OpenEdge.Net.HTTP.*.
+
+DEFINE VARIABLE lcBody        AS LONGCHAR       NO-UNDO.
+DEFINE VARIABLE lcJson        AS LONGCHAR       NO-UNDO.
+DEFINE VARIABLE cDoc          AS CHARACTER      NO-UNDO.
+
+/*--Definicao da versao-----------------------------------------------------------------------------------*/
+{include/i-prgvrs.i ESCA0091RP 2.04.00.000}
+
+/*--Tabela dos parametros---------------------------------------------------------------------------------*/
+DEF VAR iPortalOrderId AS INT  NO-UNDO.
+DEF VAR d-width    AS DEC NO-UNDO INITIAL 0.
+DEF VAR d-length   AS DEC NO-UNDO INITIAL 0.
+DEF VAR d-grammage AS DEC NO-UNDO INITIAL 0.
+DEF VAR i-cont-it-cli AS INT           NO-UNDO.
+DEF VAR oLib         AS IHttpClientLibrary NO-UNDO.
+DEF VAR oJsonObject1 AS JsonObject     NO-UNDO.
+DEF VAR oJsonObject2 AS JsonObject     NO-UNDO.
+DEF VAR oJsonObject3 AS JsonObject     NO-UNDO.
+DEF VAR oJsonObject4 AS JsonObject     NO-UNDO.
+DEF VAR oJsonArray   AS JsonArray      NO-UNDO.
+DEF VAR oJsonArray2  AS JsonArray      NO-UNDO.
+DEF VAR oJsonArrayCondPag AS JsonArray NO-UNDO.
+DEF VAR oJsonArrayTabPre  AS JsonArray NO-UNDO.
+DEF VAR oJsonArray_errors AS JsonArray NO-UNDO.
+DEF VAR oRequest     AS IHttpRequest   NO-UNDO.
+DEF VAR oResponse    AS IHttpResponse  NO-UNDO.
+DEF VAR i-id-rep     AS INT            NO-UNDO.
+DEF VAR l-erro-ped   AS LOG            NO-UNDO.
+DEFINE VARIABLE oParser AS ObjectModelParser NO-UNDO.
+DEFINE VARIABLE oJsonEntity AS JsonObject     NO-UNDO.
+DEFINE VARIABLE oJsonItem   AS JsonObject     NO-UNDO.
+DEFINE VARIABLE lcHTML      AS LONGCHAR       NO-UNDO.
+DEFINE VARIABLE myParser    AS ObjectModelParser NO-UNDO.
+DEF BUFFER b-emitente       FOR mgcad.emitente.
+DEF BUFFER b-it-nota-fisc   FOR mgmov.it-nota-fisc.
+DEF BUFFER b-item           FOR mgcad.ITEM.
+
+DISABLE TRIGGERS FOR LOAD OF mgcad.tb-preco.
+    
+DEFINE TEMP-TABLE tt-raw-digita
+    FIELD raw-digita AS RAW.
+    
+DEFINE TEMP-TABLE tt-ped-portal NO-UNDO
+    FIELD customerDoc  AS CHAR
+    FIELD id           AS INT
+    FIELD cod-ped-app  AS CHAR
+    FIELD cod-emitente AS INT
+    FIELD cod-estabel  AS CHAR
+    FIELD cod-cond-pag AS INT.
+    
+DEFINE TEMP-TABLE tt-ped-it-portal NO-UNDO
+    FIELD cod-canal-venda AS INT
+    FIELD cod-ped-app AS CHAR
+    FIELD it-codigo   AS CHAR
+    FIELD quantidade  AS INT
+    FIELD comprimento AS INT
+    FIELD largura     AS INT
+    FIELD gramatura   AS INT
+    FIELD diametro    AS INT
+    FIELD tubete      AS INT
+    FIELD vinco1      AS INT
+    FIELD vinco2      AS INT
+    FIELD vinco3      AS INT
+    FIELD vinco4      AS INT
+    FIELD vinco5      AS INT
+    FIELD vinco6      AS INT
+    FIELD vinco7      AS INT
+    FIELD vinco8      AS INT
+    FIELD resinainterna AS LOG
+    FIELD resinaexterna AS LOG
+    FIELD pedcompra     AS CHAR
+    FIELD pedcompra_seq AS INT.
+    
+DEFINE TEMP-TABLE tt-ped-mensagens NO-UNDO
+    FIELD cod-canal-venda AS INT                    
+    FIELD tipomsg         AS CHAR
+    FIELD mensagem        AS CHAR
+    FIELD msgajuda        AS CHAR
+    FIELD nr-pedido       AS INT.
+
+def buffer b-param-global for mgcad.param-global.
+
+def var c-lbl-mes as char extent 12 initial['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].
+Def New Global Shared Var v_cdn_empres_usuar Like mgcad.empresa.ep-codigo  No-undo.
+DEF NEW GLOBAL SHARED VAR c-seg-usuario AS CHAR NO-UNDO.
+DEF VAR c-maquina AS CHAR NO-UNDO.
+
+DEFINE VARIABLE chConnection  AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE chCommand     AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE ObjRecordSet  AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE ObjRecordSet2 AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE ODBC-NULL     AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE ODBC-RECCOUNT AS INT        NO-UNDO.
+DEFINE VARIABLE RECORDCOUNT   AS INT        NO-UNDO.
+DEFINE VARIABLE ODBC-CURSOR   AS INTEGER    NO-UNDO.
+DEFINE VARIABLE d-preco-it    AS DEC        NO-UNDO.
+
+DEF TEMP-TABLE tt-campanha NO-UNDO
+    FIELD ini-cnpj-cliente AS CHAR
+    FIELD fim-cnpj-cliente AS CHAR
+    FIELD ini-cnpj-repres  AS CHAR
+    FIELD fim-cnpj-repres  AS CHAR
+    FIELD ini-cod-tipoped  AS INT
+    FIELD fim-cod-tipoped  AS INT
+    FIELD ini-nr-tabpre    AS CHAR
+    FIELD fim-nr-tabpre    AS CHAR
+    FIELD ini-fm-cod-com   AS CHAR
+    FIELD fim-fm-cod-com   AS CHAR
+    FIELD ini-it-codigo    AS CHAR
+    FIELD fim-it-codigo    AS CHAR
+    FIELD ini-cod-cond-pag AS INT
+    FIELD fim-cod-cond-pag AS INT
+    FIELD ini-valor        AS DEC FORMAT '>>>,>>>,>>9'
+    FIELD fim-valor        AS DEC FORMAT '>>>,>>>,>>9'
+    FIELD ini-quantidade   AS DEC FORMAT '>>>,>>>,>>9'
+    FIELD fim-quantidade   AS DEC FORMAT '>>>,>>>,>>9'
+    FIELD ini-peso         AS DEC FORMAT '>>>,>>>,>>9'
+    FIELD fim-peso         AS DEC FORMAT '>>>,>>>,>>9'
+    FIELD cod-campanha     AS INT
+    FIELD desc-campanha    AS CHAR
+    FIELD descto-tipo      AS INT
+    FIELD descto-tipo-valor AS DEC.
+    
+FIND FIRST es-crm-param-geral NO-LOCK NO-ERROR.
+
+DEF TEMP-TABLE tt-emit-rep NO-UNDO
+    FIELD cgc          AS CHAR
+    FIELD cod-emitente AS INT
+    FIELD i-id-cliente AS INT.
+
+define temp-table tt-param no-undo
+    field destino          as integer
+    field arquivo          as char format "x(35)"
+    field usuario          as char format "x(12)"
+    field data-exec        as date
+    field hora-exec        as integer
+    field classifica       As Int
+    field desc-classifica  as char format "x(40)"
+    Field i-ini-cod-emit   As Int
+    Field i-fim-cod-emit   As Int
+    field ini-it-codigo    as char
+    field fin-it-codigo    as char
+    Field c-ini-cod-estabel As Char Format "x(3)"
+    Field c-fim-cod-estabel As Char Format "x(3)"
+    Field c-ini-nome-abrev As Char Format "x(12)"
+    Field c-fim-nome-abrev As Char Format "x(12)"
+    Field da-ini-dt-venda  As Date Format "99/99/9999"
+    Field da-fim-dt-venda  As Date Format "99/99/9999"
+    Field i-tipo-rel       As Int
+    Field i-tp             As Int
+    Field i-abrir-com      As INT
+    field i-versao         as int
+    FIELD dev              AS INT
+    FIELD tg-gera-movto    AS LOG
+    FIELD dt-movto         AS DATE
+    Field fi-ini-nota      As Char Format "x(16)"
+    Field fi-fim-nota      As Char Format "x(16)"
+    field rs-gera          as log
+    field rs-envemail      as log
+    field rs-execucao      as int
+    field l-abater-pallet  as log
+    field l-impr-transf    as log.
+
+DEFINE VARIABLE c-label-dest-devol AS CHAR EXTENT 8 INITIAL['Retrabalho','Pulper','Revender','Outros', 'Estoque', 'Pontas', 'Não informado','Reentrega'].
+
+def temp-table tt-erro-msg no-undo
+    field tipo-msg as char
+    field desc-msg as char.
+
+DEFINE temp-table tt-erro no-undo
+   field i-sequen         as int              
+   field cd-erro          as int
+   field mensagem         as CHAR FORMAT 'x(100)'.
+   
+DEF VAR d-data-base AS DATE   NO-UNDO.
+DEF VAR d-ult-lido  AS DATE   NO-UNDO.
+DEF VAR h-acomp     AS HANDLE NO-UNDO.
+DEF VAR c-desc-prod AS CHAR   NO-UNDO.
+DEF VAR d-total-vencido AS DECIMAL NO-UNDO.
+DEF VAR d-total-vencer  AS DECIMAL NO-UNDO.
+
+{esp/escom004rp.i}
+
+FIND FIRST mgcad.param-global NO-LOCK NO-ERROR.
+run utp/ut-acomp.p persistent set h-acomp.
+run pi-inicializar in h-acomp (input 'Listando...').
+
+DEFINE VARIABLE cSQL         AS CHARACTER   NO-UNDO.
+
+DEF VAR cerro AS CHAR NO-UNDO.
+DEF VAR imsg AS INT NO-UNDO.
+DEFINE VARIABLE gcProxyUrl          AS CHARACTER NO-UNDO INITIAL "http://localhost:8484/apiIntegrTotvsToPortal/".
+DEFINE VARIABLE gcProxyToken        AS CHARACTER NO-UNDO INITIAL "VEZpBD88R7OrIhzkFeGKbaU8rA6T7JKt".
+DEFINE VARIABLE giDefaultTimeout    AS INTEGER   NO-UNDO INITIAL 60.
+
+/* Variáveis auxiliares para o proxy */
+DEFINE VARIABLE giHttpStatus        AS INTEGER          NO-UNDO.
+DEFINE VARIABLE glcReqBody          AS LONGCHAR         NO-UNDO.
+DEFINE VARIABLE glcRespBody         AS LONGCHAR         NO-UNDO.
+DEFINE VARIABLE gcHttpError         AS CHARACTER        NO-UNDO.
+DEFINE VARIABLE goParser            AS ObjectModelParser NO-UNDO.
+DEFINE VARIABLE goRespJsonObject    AS JsonObject       NO-UNDO.
+DEFINE VARIABLE goRespJsonArray     AS JsonArray        NO-UNDO.
+
+FUNCTION urlEncode RETURNS CHARACTER (pcValue AS CHARACTER):
+  DEFINE VARIABLE cIn  AS CHARACTER NO-UNDO.
+  DEFINE VARIABLE cOut AS CHARACTER NO-UNDO.
+  DEFINE VARIABLE i    AS INTEGER   NO-UNDO.
+  DEFINE VARIABLE ch   AS CHARACTER NO-UNDO.
+  DEFINE VARIABLE iAsc AS INTEGER   NO-UNDO.
+
+  cIn = (IF pcValue = ? THEN "" ELSE pcValue).
+  cOut = "".
+
+  DO i = 1 TO LENGTH(cIn):
+    ch = SUBSTRING(cIn, i, 1).
+    iAsc = ASC(ch).
+
+    IF (iAsc >= 48 AND iAsc <= 57) /* 0-9 */
+       OR (iAsc >= 65 AND iAsc <= 90) /* A-Z */
+       OR (iAsc >= 97 AND iAsc <= 122) /* a-z */ THEN
+      cOut = cOut + ch.
+    ELSE IF ch = " " THEN
+      cOut = cOut + "%20".
+    ELSE DO:
+      cOut = cOut + "%" + STRING(iAsc, "HH").
+    END.
+  END.
+
+  RETURN cOut.
+END FUNCTION.
+
+PROCEDURE pi-jsonobject-to-longchar:
+    DEFINE INPUT  PARAMETER poJson  AS JsonObject NO-UNDO.
+    DEFINE OUTPUT PARAMETER plcJson AS LONGCHAR   NO-UNDO.
+
+    plcJson = "".
+    IF VALID-OBJECT(poJson) THEN
+        poJson:WRITE(plcJson, TRUE).
+END PROCEDURE.
+
+PROCEDURE pi-jsonarray-to-longchar:
+    DEFINE INPUT  PARAMETER poJson  AS JsonArray NO-UNDO.
+    DEFINE OUTPUT PARAMETER plcJson AS LONGCHAR  NO-UNDO.
+
+    plcJson = "".
+    IF VALID-OBJECT(poJson) THEN
+        poJson:WRITE(plcJson, TRUE).
+END PROCEDURE.
+
+PROCEDURE pi-parse-response:
+    DEFINE INPUT  PARAMETER plcResponse   AS LONGCHAR   NO-UNDO.
+    DEFINE OUTPUT PARAMETER poJsonObject  AS JsonObject NO-UNDO.
+    DEFINE OUTPUT PARAMETER poJsonArray   AS JsonArray  NO-UNDO.
+
+    DEFINE VARIABLE oParsed AS Progress.Lang.Object NO-UNDO.
+
+    ASSIGN poJsonObject = ?
+           poJsonArray  = ?.
+
+    IF plcResponse = "" THEN
+        RETURN.
+
+    goParser = NEW ObjectModelParser().
+    oParsed = goParser:Parse(plcResponse) NO-ERROR.
+    IF ERROR-STATUS:ERROR OR NOT VALID-OBJECT(oParsed) THEN
+        RETURN.
+
+    poJsonObject = CAST(oParsed, JsonObject) NO-ERROR.
+    IF VALID-OBJECT(poJsonObject) THEN
+        RETURN.
+
+    poJsonArray = CAST(oParsed, JsonArray) NO-ERROR.
+END PROCEDURE.
+
+/* Arquivos de log/dump */
+DEFINE VARIABLE gcLogFile  AS CHARACTER NO-UNDO INITIAL "C:\temp\portal_proxy_client.log".
+DEFINE STREAM sLog.
+
+PROCEDURE write-log:
+  DEFINE INPUT PARAMETER pcText AS CHARACTER NO-UNDO.
+  OS-CREATE-DIR "C:\temp" NO-ERROR.
+  OUTPUT STREAM sLog TO VALUE(gcLogFile) APPEND.
+  PUT STREAM sLog UNFORMATTED STRING(NOW, "99/99/9999 HH:MM:SS") " | " pcText SKIP.
+  OUTPUT STREAM sLog CLOSE.
+END PROCEDURE.
+
+PROCEDURE save-response-dump:
+  DEFINE INPUT PARAMETER piStatus AS INTEGER  NO-UNDO.
+  DEFINE INPUT PARAMETER plcBody  AS LONGCHAR NO-UNDO.
+
+  DEFINE VARIABLE cFile AS CHARACTER NO-UNDO.
+  DEFINE VARIABLE cTS   AS CHARACTER NO-UNDO.
+
+  OS-CREATE-DIR "C:\temp" NO-ERROR.
+
+  cTS = STRING(NOW, "9999-99-99 HH:MM:SS").
+  cTS = REPLACE(cTS, " ", "_").
+  cTS = REPLACE(cTS, ":", "").
+
+  cFile = SUBSTITUTE("C:\temp\portal_proxy_resp_&1_&2.&3",
+                     cTS,
+                     STRING(piStatus),
+                     IF piStatus >= 400 THEN "html" ELSE "json").
+
+  OUTPUT STREAM sLog TO VALUE(cFile) APPEND.
+  PUT STREAM sLog UNFORMATTED STRING(plcBody) SKIP.
+  OUTPUT STREAM sLog CLOSE.
+
+  RUN write-log("Dump salvo em " + cFile).
+END PROCEDURE.
+
+PROCEDURE pi-portal-call:
+  DEFINE INPUT  PARAMETER pcMethod        AS CHARACTER NO-UNDO.
+  DEFINE INPUT  PARAMETER pcPath          AS CHARACTER NO-UNDO.
+  DEFINE INPUT  PARAMETER plcRequestBody  AS LONGCHAR  NO-UNDO.
+  DEFINE OUTPUT PARAMETER piStatusCode    AS INTEGER   NO-UNDO.
+  DEFINE OUTPUT PARAMETER plcResponseBody AS LONGCHAR  NO-UNDO.
+  DEFINE OUTPUT PARAMETER pcError         AS CHARACTER NO-UNDO.
+
+  DEFINE VARIABLE oReqJson    AS JsonObject    NO-UNDO.
+  DEFINE VARIABLE oHdrJson    AS JsonObject    NO-UNDO.
+  DEFINE VARIABLE oRequest    AS IHttpRequest  NO-UNDO.
+  DEFINE VARIABLE oResponse   AS IHttpResponse NO-UNDO.
+  DEFINE VARIABLE oRespObj    AS JsonObject    NO-UNDO.
+  DEFINE VARIABLE oRespArr    AS JsonArray     NO-UNDO.
+  DEFINE VARIABLE oLib        AS IHttpClientLibrary NO-UNDO.
+  DEFINE VARIABLE lcRaw       AS LONGCHAR      NO-UNDO.
+
+  ASSIGN piStatusCode    = 0
+         plcResponseBody = ""
+         pcError         = "".
+
+  RUN write-log(SUBSTITUTE("REQ method=&1 path=&2", CAPS(pcMethod), pcPath)).
+
+  oReqJson = NEW JsonObject().
+  oReqJson:ADD("proxyToken", gcProxyToken).
+  oReqJson:ADD("method", CAPS(pcMethod)).
+  oReqJson:ADD("path", pcPath).
+  oReqJson:ADD("timeout", giDefaultTimeout).
+
+  oHdrJson = NEW JsonObject().
+  oHdrJson:ADD("Accept", "application/json").
+  IF plcRequestBody <> "" THEN oHdrJson:ADD("Content-Type", "application/json").
+  oReqJson:ADD("headers", oHdrJson).
+  IF plcRequestBody <> "" THEN oReqJson:ADD("rawBody", plcRequestBody).
+
+  oLib = ClientLibraryBuilder:Build():LIBRARY NO-ERROR.
+
+  oRequest = RequestBuilder:POST(gcProxyUrl, oReqJson)
+              :ContentType("application/json")
+              :AcceptJson()
+              :REQUEST.
+
+  oResponse = ClientBuilder:Build():UsingLibrary(oLib):Client:Execute(oRequest) NO-ERROR.
+
+  IF ERROR-STATUS:ERROR OR NOT VALID-OBJECT(oResponse) THEN DO:
+    pcError = "Falha ao chamar proxy PHP.".
+    RUN write-log("ERR " + pcError).
+    RETURN.
+  END.
+
+  piStatusCode = oResponse:StatusCode.
+  RUN write-log(SUBSTITUTE("RESP status=&1", piStatusCode)).
+
+  IF NOT VALID-OBJECT(oResponse:Entity) THEN DO:
+    RUN write-log("RESP body=(vazio)").
+    RETURN.
+  END.
+
+  /* 1) Tenta JSON objeto */
+  oRespObj = CAST(oResponse:Entity, JsonObject) NO-ERROR.
+  IF VALID-OBJECT(oRespObj) THEN DO:
+    oRespObj:WRITE(plcResponseBody, TRUE).
+    RUN write-log("RESP body(json-obj) capturado").
+    IF piStatusCode >= 400 THEN RUN save-response-dump(piStatusCode, plcResponseBody).
+    RETURN.
+  END.
+
+  /* 2) Tenta JSON array */
+  oRespArr = CAST(oResponse:Entity, JsonArray) NO-ERROR.
+  IF VALID-OBJECT(oRespArr) THEN DO:
+    oRespArr:WRITE(plcResponseBody, TRUE).
+    RUN write-log("RESP body(json-arr) capturado").
+    IF piStatusCode >= 400 THEN RUN save-response-dump(piStatusCode, plcResponseBody).
+    RETURN.
+  END.
+   /*
+  /* 3) Fallback: captura corpo cru (HTML, texto, etc.) */
+  lcRaw = oResponse:Entity:GetText() NO-ERROR.
+  plcResponseBody = lcRaw.
+  RUN write-log("RESP body(raw) capturado").
+  IF piStatusCode >= 400 THEN RUN save-response-dump(piStatusCode, plcResponseBody).
+      */
+END PROCEDURE.
+
+/* ------------------------------------------------------------------ */
+/* BLOCO PRINCIPAL ADAPTADO                                            */
+/* ------------------------------------------------------------------ */
+
+/* Parâmetros de entrada do exemplo */
+DEFINE VARIABLE cNrtabpre     AS CHARACTER NO-UNDO INITIAL "1".
+DEFINE VARIABLE cDescTab      AS CHARACTER NO-UNDO INITIAL "Tabela 1".
+DEFINE VARIABLE iSitTab       AS INTEGER   NO-UNDO INITIAL 1.
+
+DEFINE VARIABLE iCodTipoPed   AS INTEGER   NO-UNDO INITIAL 1.
+DEFINE VARIABLE cDescTipoPed  AS CHARACTER NO-UNDO INITIAL "Venda".
+DEFINE VARIABLE iSitTipoPed   AS INTEGER   NO-UNDO INITIAL 1.
+
+/* Saídas/controle */
+DEFINE VARIABLE iPriceTableId AS INTEGER NO-UNDO.
+DEFINE VARIABLE iOrderTypeId  AS INTEGER NO-UNDO.
+DEFINE VARIABLE iStatus       AS INTEGER NO-UNDO.
+DEFINE VARIABLE lcResp        AS LONGCHAR NO-UNDO.
+DEFINE VARIABLE cErr          AS CHARACTER NO-UNDO.
+
+/* Estruturas para ler listas do Portal */
+DEFINE TEMP-TABLE ttPriceTable NO-UNDO
+  FIELD id        AS INTEGER
+  FIELD nrtabpre  AS CHARACTER
+  FIELD descricao AS CHARACTER
+  FIELD situacao  AS INTEGER.
+
+DEFINE TEMP-TABLE ttOrderType NO-UNDO
+  FIELD id         AS INTEGER
+  FIELD codtipoped AS INTEGER
+  FIELD descricao  AS CHARACTER
+  FIELD situacao   AS INTEGER.
+
+/* Utils */
+
+FUNCTION decimalToJsonNumber RETURNS CHARACTER (INPUT pdValue AS DECIMAL):
+  DEFINE VARIABLE cValue AS CHARACTER NO-UNDO.
+
+  cValue = STRING(pdValue, "->>>>>>>>>9.99").
+  cValue = TRIM(cValue).
+  cValue = REPLACE(cValue, ".", "").
+  cValue = REPLACE(cValue, ",", ".").
+
+  RETURN cValue.
+END FUNCTION.
+
+FUNCTION jsonEscape RETURNS CHARACTER (INPUT pc AS CHARACTER):
+  DEFINE VARIABLE c AS CHARACTER NO-UNDO.
+  c = REPLACE(pc, "~\", "\\").
+  c = REPLACE(c, "~"", "\~"").
+  c = REPLACE(c, CHR(10), "\n").
+  c = REPLACE(c, CHR(13), "\r").
+  c = REPLACE(c, CHR(9),  "\t").
+  RETURN c.
+END FUNCTION.
+
+/* Wrapper para sua chamada */
+PROCEDURE portalCall:
+  DEFINE INPUT  PARAMETER pcMethod        AS CHARACTER NO-UNDO.
+  DEFINE INPUT  PARAMETER pcPath          AS CHARACTER NO-UNDO.
+  DEFINE INPUT  PARAMETER plcRequestBody  AS LONGCHAR  NO-UNDO.
+  DEFINE OUTPUT PARAMETER piStatusCode    AS INTEGER   NO-UNDO.
+  DEFINE OUTPUT PARAMETER plcResponseBody AS LONGCHAR  NO-UNDO.
+  DEFINE OUTPUT PARAMETER pcError         AS CHARACTER NO-UNDO.
+
+  RUN pi-portal-call(
+    INPUT  pcMethod,
+    INPUT  pcPath,
+    INPUT  plcRequestBody,
+    OUTPUT piStatusCode,
+    OUTPUT plcResponseBody,
+    OUTPUT pcError).
+END PROCEDURE.
+
+/* Busca ID da Tabela de Preço pelo nrtabpre */
+PROCEDURE findPriceTableIdByNrtabpre:
+  DEFINE INPUT  PARAMETER pcNrtabpre AS CHARACTER NO-UNDO.
+  DEFINE OUTPUT PARAMETER piId       AS INTEGER   NO-UNDO.
+
+  DEFINE VARIABLE iStatus AS INTEGER   NO-UNDO.
+  DEFINE VARIABLE lcResp  AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE cErr    AS CHARACTER NO-UNDO.
+
+  DEFINE VARIABLE oParser AS Progress.Json.ObjectModel.ObjectModelParser NO-UNDO.
+  DEFINE VARIABLE oArr    AS Progress.Json.ObjectModel.JsonArray         NO-UNDO.
+  DEFINE VARIABLE oObj    AS Progress.Json.ObjectModel.JsonObject        NO-UNDO.
+
+  DEFINE VARIABLE i     AS INTEGER   NO-UNDO.
+  DEFINE VARIABLE cCode AS CHARACTER NO-UNDO.
+
+  piId = 0.
+  IF TRIM(pcNrtabpre) = "" THEN RETURN.
+
+  RUN portalCall(
+    "GET",
+    "/api/base/price-tables?q=" + urlEncode(pcNrtabpre),
+    "",
+    OUTPUT iStatus,
+    OUTPUT lcResp,
+    OUTPUT cErr
+  ).
+
+  IF cErr <> "" OR iStatus <> 200 OR lcResp = "" OR lcResp = ? THEN RETURN.
+
+  oParser = NEW Progress.Json.ObjectModel.ObjectModelParser().
+  oArr = CAST(oParser:Parse(lcResp), Progress.Json.ObjectModel.JsonArray) NO-ERROR.
+  IF ERROR-STATUS:ERROR OR NOT VALID-OBJECT(oArr) THEN RETURN.
+
+  DO i = 1 TO oArr:Length:
+    oObj = oArr:GetJsonObject(i) NO-ERROR.
+    IF ERROR-STATUS:ERROR OR NOT VALID-OBJECT(oObj) THEN NEXT.
+
+    cCode = oObj:GetCharacter("nrtabpre") NO-ERROR.
+    IF ERROR-STATUS:ERROR THEN NEXT.
+
+    IF TRIM(cCode) = TRIM(pcNrtabpre) THEN DO:
+      piId = oObj:GetInteger("id") NO-ERROR.
+      IF ERROR-STATUS:ERROR THEN piId = 0.
+      RETURN.
+    END.
+  END.
+END PROCEDURE.
+
+/* Upsert de Tabela de Preço */
+PROCEDURE upsertPriceTable:
+  DEFINE INPUT  PARAMETER pcNrtabpre  AS CHARACTER NO-UNDO.
+  DEFINE INPUT  PARAMETER pcDescricao AS CHARACTER NO-UNDO.
+  DEFINE INPUT  PARAMETER piSituacao  AS INTEGER   NO-UNDO.
+  DEFINE OUTPUT PARAMETER piId        AS INTEGER   NO-UNDO.
+
+  DEFINE VARIABLE lcBody  AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE lcResp  AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE cErr    AS CHARACTER NO-UNDO.
+  DEFINE VARIABLE iStatus AS INTEGER   NO-UNDO.
+
+  DEFINE VARIABLE oParser AS Progress.Json.ObjectModel.ObjectModelParser NO-UNDO.
+  DEFINE VARIABLE oObj    AS Progress.Json.ObjectModel.JsonObject        NO-UNDO.
+  DEFINE VARIABLE iRespId AS INTEGER NO-UNDO.
+
+  piId = 0.
+  IF TRIM(pcNrtabpre) = "" THEN RETURN.
+
+  RUN findPriceTableIdByNrtabpre(pcNrtabpre, OUTPUT piId).
+
+  IF piId = 0 THEN DO:
+    lcBody = SUBSTITUTE(
+      '~{"nrtabpre":"&1","descricao":"&2","situacao":&3~}',
+      jsonEscape(pcNrtabpre),
+      jsonEscape(pcDescricao),
+      piSituacao
+    ).
+
+    RUN portalCall("POST", "/api/base/price-tables", lcBody, OUTPUT iStatus, OUTPUT lcResp, OUTPUT cErr).
+    IF cErr <> "" THEN UNDO, THROW NEW Progress.Lang.AppError(cErr, 0).
+
+    IF iStatus = 201 THEN DO:
+      iRespId = 0.
+      oParser = NEW Progress.Json.ObjectModel.ObjectModelParser().
+      oObj = CAST(oParser:Parse(lcResp), Progress.Json.ObjectModel.JsonObject) NO-ERROR.
+      IF NOT ERROR-STATUS:ERROR AND VALID-OBJECT(oObj) THEN DO:
+        iRespId = oObj:GetInteger("id") NO-ERROR.
+        IF ERROR-STATUS:ERROR THEN iRespId = 0.
+      END.
+
+      IF iRespId > 0 THEN piId = iRespId.
+      ELSE RUN findPriceTableIdByNrtabpre(pcNrtabpre, OUTPUT piId).
+
+      IF piId = 0 THEN UNDO, THROW NEW Progress.Lang.AppError("Não localizou a tabela criada: " + pcNrtabpre, 0).
+      RETURN.
+    END.
+
+    IF iStatus = 409 THEN DO:
+      RUN findPriceTableIdByNrtabpre(pcNrtabpre, OUTPUT piId).
+      IF piId = 0 THEN UNDO, THROW NEW Progress.Lang.AppError("Tabela já existe, mas não localizou por nrtabpre: " + pcNrtabpre, 0).
+    END.
+    ELSE DO:
+      UNDO, THROW NEW Progress.Lang.AppError("Erro POST price-tables: " + STRING(iStatus) + " " + STRING(lcResp), 0).
+    END.
+  END.
+
+  lcBody = SUBSTITUTE('~{"descricao":"&1","situacao":&2~}', jsonEscape(pcDescricao), piSituacao).
+  RUN portalCall("PATCH", "/api/base/price-tables/" + STRING(piId), lcBody, OUTPUT iStatus, OUTPUT lcResp, OUTPUT cErr).
+  IF cErr <> "" THEN UNDO, THROW NEW Progress.Lang.AppError(cErr, 0).
+  IF iStatus <> 200 THEN UNDO, THROW NEW Progress.Lang.AppError("Erro PATCH price-tables/[id]: " + STRING(iStatus) + " " + STRING(lcResp), 0).
+
+  iRespId = 0.
+  oParser = NEW Progress.Json.ObjectModel.ObjectModelParser().
+  oObj = CAST(oParser:Parse(lcResp), Progress.Json.ObjectModel.JsonObject) NO-ERROR.
+  IF NOT ERROR-STATUS:ERROR AND VALID-OBJECT(oObj) THEN DO:
+    iRespId = oObj:GetInteger("id") NO-ERROR.
+    IF ERROR-STATUS:ERROR THEN iRespId = 0.
+  END.
+  IF iRespId > 0 THEN piId = iRespId.
+END PROCEDURE.
+
+/* Upsert de Item por SKU na Tabela de Preço */
+/* Upsert de vários Itens por SKU na Tabela de Preço */
+PROCEDURE upsertPriceTableItemBySku:
+  DEFINE INPUT PARAMETER piPriceTableId AS INTEGER  NO-UNDO.
+  DEFINE INPUT PARAMETER poItems        AS JsonArray NO-UNDO.
+
+  DEFINE VARIABLE lcBody AS LONGCHAR NO-UNDO.
+
+  IF piPriceTableId <= 0 THEN
+    UNDO, THROW NEW Progress.Lang.AppError("ID da tabela de preço inválido.", 0).
+
+  IF NOT VALID-OBJECT(poItems) OR poItems:LENGTH = 0 THEN
+    RETURN.
+
+  RUN pi-jsonarray-to-longchar(INPUT poItems, OUTPUT lcBody).
+
+  RUN portalCall("POST",
+                 "/api/base/price-tables/" + STRING(piPriceTableId) + "/items",
+                 lcBody,
+                 OUTPUT iStatus,
+                 OUTPUT lcResp,
+                 OUTPUT cErr).
+
+  IF cErr <> "" THEN
+    UNDO, THROW NEW Progress.Lang.AppError(cErr, 0).
+
+  IF iStatus <> 200 THEN
+    UNDO, THROW NEW Progress.Lang.AppError("Erro POST price-tables/[id]/items array: " + STRING(iStatus) + " " + STRING(lcResp), 0).
+END PROCEDURE.
+
+/* Remoção de Item da Tabela de Preço por SKU */
+PROCEDURE deletePriceTableItemBySku:
+  DEFINE INPUT PARAMETER piPriceTableId AS INTEGER   NO-UNDO.
+  DEFINE INPUT PARAMETER pcSku          AS CHARACTER NO-UNDO.
+
+  RUN portalCall(
+    "DELETE",
+    "/api/base/price-tables/" + STRING(piPriceTableId) + "/items?sku=" + pcSku,
+    "",
+    OUTPUT iStatus,
+    OUTPUT lcResp,
+    OUTPUT cErr
+  ).
+  IF cErr <> "" THEN UNDO, THROW NEW Progress.Lang.AppError(cErr, 0).
+  IF iStatus <> 200 THEN UNDO, THROW NEW Progress.Lang.AppError("Erro DELETE price-tables/[id]/items?sku=: " + STRING(iStatus) + " " + STRING(lcResp), 0).
+END PROCEDURE.
+
+/* Busca ID do Tipo de Pedido pelo código */
+PROCEDURE findOrderTypeIdByCod:
+  DEFINE INPUT  PARAMETER piCod AS INTEGER NO-UNDO.
+  DEFINE OUTPUT PARAMETER piId  AS INTEGER NO-UNDO.
+
+  piId = 0.
+  EMPTY TEMP-TABLE ttOrderType.
+
+  RUN portalCall("GET", "/api/base/order-types?q=" + STRING(piCod), "", OUTPUT iStatus, OUTPUT lcResp, OUTPUT cErr).
+  IF cErr <> "" THEN UNDO, THROW NEW Progress.Lang.AppError(cErr, 0).
+  IF iStatus <> 200 THEN UNDO, THROW NEW Progress.Lang.AppError("Erro GET order-types: " + STRING(iStatus) + " " + STRING(lcResp), 0).
+
+  TEMP-TABLE ttOrderType:READ-JSON("LONGCHAR", lcResp, "EMPTY").
+
+  FIND FIRST ttOrderType WHERE ttOrderType.codtipoped = piCod NO-ERROR.
+  IF AVAILABLE ttOrderType THEN piId = ttOrderType.id.
+END PROCEDURE.
+
+/* Upsert de Tipo de Pedido */
+PROCEDURE upsertOrderType:
+  DEFINE INPUT  PARAMETER piCod       AS INTEGER   NO-UNDO.
+  DEFINE INPUT  PARAMETER pcDescricao AS CHARACTER NO-UNDO.
+  DEFINE INPUT  PARAMETER piSituacao  AS INTEGER   NO-UNDO.
+  DEFINE OUTPUT PARAMETER piId        AS INTEGER   NO-UNDO.
+
+  DEFINE VARIABLE lcBody AS LONGCHAR NO-UNDO.
+
+  RUN findOrderTypeIdByCod(piCod, OUTPUT piId).
+
+  IF piId = 0 THEN DO:
+    lcBody = SUBSTITUTE(
+      '~{"codtipoped":&1,"descricao":"&2","situacao":&3~}',
+      piCod,
+      jsonEscape(pcDescricao),
+      piSituacao
+    ).
+    RUN portalCall("POST", "/api/base/order-types", lcBody, OUTPUT iStatus, OUTPUT lcResp, OUTPUT cErr).
+    IF cErr <> "" THEN UNDO, THROW NEW Progress.Lang.AppError(cErr, 0).
+    IF iStatus <> 201 THEN UNDO, THROW NEW Progress.Lang.AppError("Erro POST order-types: " + STRING(iStatus) + " " + STRING(lcResp), 0).
+
+    RUN findOrderTypeIdByCod(piCod, OUTPUT piId).
+    IF piId = 0 THEN UNDO, THROW NEW Progress.Lang.AppError("Não localizou o tipo de pedido criado: " + STRING(piCod), 0).
+  END.
+  ELSE DO:
+    lcBody = SUBSTITUTE('~{"descricao":"&1","situacao":&2~}', jsonEscape(pcDescricao), piSituacao).
+    RUN portalCall("PATCH", "/api/base/order-types/" + STRING(piId), lcBody, OUTPUT iStatus, OUTPUT lcResp, OUTPUT cErr).
+    IF cErr <> "" THEN UNDO, THROW NEW Progress.Lang.AppError(cErr, 0).
+    IF iStatus <> 200 THEN UNDO, THROW NEW Progress.Lang.AppError("Erro PATCH order-types/[id]: " + STRING(iStatus) + " " + STRING(lcResp), 0).
+  END.
+END PROCEDURE.
+
+/* Vincula Tabela de Preço ao Tipo de Pedido */
+PROCEDURE linkPriceTableToOrderType:
+  DEFINE INPUT PARAMETER piOrderTypeId  AS INTEGER NO-UNDO.
+  DEFINE INPUT PARAMETER piPriceTableId AS INTEGER NO-UNDO.
+
+  DEFINE VARIABLE lcBody AS LONGCHAR NO-UNDO.
+
+  lcBody = SUBSTITUTE('~{"priceTableId":&1~}', piPriceTableId).
+  RUN portalCall(
+    "POST",
+    "/api/base/order-types/" + STRING(piOrderTypeId) + "/price-tables",
+    lcBody,
+    OUTPUT iStatus,
+    OUTPUT lcResp,
+    OUTPUT cErr
+  ).
+  IF cErr <> "" THEN UNDO, THROW NEW Progress.Lang.AppError(cErr, 0).
+  IF iStatus <> 200 THEN UNDO, THROW NEW Progress.Lang.AppError("Erro POST order-types/[id]/price-tables: " + STRING(iStatus) + " " + STRING(lcResp), 0).
+END PROCEDURE.
+
+
+/* ------------------------------------------------------------------ */
+/* Rotinas BULK - Portal Web                                           */
+/* ------------------------------------------------------------------ */
+PROCEDURE flushBulkClients:
+  DEFINE INPUT-OUTPUT PARAMETER pioClients AS JsonArray NO-UNDO.
+
+  DEFINE VARIABLE lcItens   AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE lcPayload AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE iStatus   AS INTEGER   NO-UNDO.
+  DEFINE VARIABLE lcResp    AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE cErr      AS CHARACTER NO-UNDO.
+
+  IF NOT VALID-OBJECT(pioClients) THEN RETURN.
+  IF pioClients:Length = 0 THEN RETURN.
+
+  RUN pi-jsonarray-to-longchar(INPUT pioClients, OUTPUT lcItens).
+  lcPayload = '~{"clients":'.
+  lcPayload = lcPayload + lcItens.
+  lcPayload = lcPayload + '}'.
+
+  RUN pi-portal-call(INPUT "POST",
+                     INPUT "/api/base/clients/bulk-upsert",
+                     INPUT lcPayload,
+                     OUTPUT iStatus,
+                     OUTPUT lcResp,
+                     OUTPUT cErr).
+
+  IF cErr <> "" THEN
+     UNDO, THROW NEW Progress.Lang.AppError(cErr, 0).
+
+  IF iStatus < 200 OR iStatus >= 300 THEN
+     UNDO, THROW NEW Progress.Lang.AppError("Erro POST clients/bulk-upsert: " + STRING(iStatus) + " " + STRING(lcResp), 0).
+
+  pioClients = NEW JsonArray().
+END PROCEDURE.
+
+PROCEDURE flushBulkUsers:
+  DEFINE INPUT-OUTPUT PARAMETER pioUsers AS JsonArray NO-UNDO.
+
+  DEFINE VARIABLE lcItens   AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE lcPayload AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE iStatus   AS INTEGER   NO-UNDO.
+  DEFINE VARIABLE lcResp    AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE cErr      AS CHARACTER NO-UNDO.
+
+  IF NOT VALID-OBJECT(pioUsers) THEN RETURN.
+  IF pioUsers:Length = 0 THEN RETURN.
+
+  RUN pi-jsonarray-to-longchar(INPUT pioUsers, OUTPUT lcItens).
+  lcPayload = '~{"users":'.
+  lcPayload = lcPayload + lcItens.
+  lcPayload = lcPayload + '}'.
+
+  RUN pi-portal-call(INPUT "POST",
+                     INPUT "/api/users/bulk-upsert",
+                     INPUT lcPayload,
+                     OUTPUT iStatus,
+                     OUTPUT lcResp,
+                     OUTPUT cErr).
+
+  IF cErr <> "" THEN
+     UNDO, THROW NEW Progress.Lang.AppError(cErr, 0).
+
+  IF iStatus < 200 OR iStatus >= 300 THEN
+     UNDO, THROW NEW Progress.Lang.AppError("Erro POST users/bulk-upsert: " + STRING(iStatus) + " " + STRING(lcResp), 0).
+
+  pioUsers = NEW JsonArray().
+END PROCEDURE.
+
+PROCEDURE flushBulkRepClientLinks:
+  DEFINE INPUT-OUTPUT PARAMETER pioLinks AS JsonArray NO-UNDO.
+
+  DEFINE VARIABLE lcItens   AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE lcPayload AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE iStatus   AS INTEGER   NO-UNDO.
+  DEFINE VARIABLE lcResp    AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE cErr      AS CHARACTER NO-UNDO.
+
+  IF NOT VALID-OBJECT(pioLinks) THEN RETURN.
+  IF pioLinks:Length = 0 THEN RETURN.
+
+  RUN pi-jsonarray-to-longchar(INPUT pioLinks, OUTPUT lcItens).
+  lcPayload = '~{"links":'.
+  lcPayload = lcPayload + lcItens.
+  lcPayload = lcPayload + '}'.
+
+  RUN pi-portal-call(INPUT "POST",
+                     INPUT "/api/sales/representatives/clients/bulk-link",
+                     INPUT lcPayload,
+                     OUTPUT iStatus,
+                     OUTPUT lcResp,
+                     OUTPUT cErr).
+
+  IF cErr <> "" THEN
+     UNDO, THROW NEW Progress.Lang.AppError(cErr, 0).
+
+  IF iStatus < 200 OR iStatus >= 300 THEN
+     UNDO, THROW NEW Progress.Lang.AppError("Erro POST representatives/clients/bulk-link: " + STRING(iStatus) + " " + STRING(lcResp), 0).
+
+  pioLinks = NEW JsonArray().
+END PROCEDURE.
+
+PROCEDURE flushBulkClientCommercialConfig:
+  DEFINE INPUT-OUTPUT PARAMETER pioConfigs AS JsonArray NO-UNDO.
+
+  DEFINE VARIABLE lcItens   AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE lcPayload AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE iStatus   AS INTEGER   NO-UNDO.
+  DEFINE VARIABLE lcResp    AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE cErr      AS CHARACTER NO-UNDO.
+
+  IF NOT VALID-OBJECT(pioConfigs) THEN RETURN.
+  IF pioConfigs:Length = 0 THEN RETURN.
+
+  RUN pi-jsonarray-to-longchar(INPUT pioConfigs, OUTPUT lcItens).
+  lcPayload = '~{"clients":'.
+  lcPayload = lcPayload + lcItens.
+  lcPayload = lcPayload + '}'.
+
+  RUN pi-portal-call(INPUT "POST",
+                     INPUT "/api/base/clients/commercial-config/bulk-upsert",
+                     INPUT lcPayload,
+                     OUTPUT iStatus,
+                     OUTPUT lcResp,
+                     OUTPUT cErr).
+
+  IF cErr <> "" THEN
+     UNDO, THROW NEW Progress.Lang.AppError(cErr, 0).
+
+  IF iStatus < 200 OR iStatus >= 300 THEN
+     UNDO, THROW NEW Progress.Lang.AppError("Erro POST clients/commercial-config/bulk-upsert: " + STRING(iStatus) + " " + STRING(lcResp), 0).
+
+  pioConfigs = NEW JsonArray().
+END PROCEDURE.
+
+PROCEDURE flushBulkClientStock:
+  DEFINE INPUT-OUTPUT PARAMETER pioStocks AS JsonArray NO-UNDO.
+
+  DEFINE VARIABLE lcItens   AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE lcPayload AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE iStatus   AS INTEGER   NO-UNDO.
+  DEFINE VARIABLE lcResp    AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE cErr      AS CHARACTER NO-UNDO.
+
+  IF NOT VALID-OBJECT(pioStocks) THEN RETURN.
+  IF pioStocks:Length = 0 THEN RETURN.
+
+  RUN pi-jsonarray-to-longchar(INPUT pioStocks, OUTPUT lcItens).
+  lcPayload = '~{"clients":'.
+  lcPayload = lcPayload + lcItens.
+  lcPayload = lcPayload + '}'.
+
+  RUN pi-portal-call(INPUT "POST",
+                     INPUT "/api/base/clients/stock/bulk-replace",
+                     INPUT lcPayload,
+                     OUTPUT iStatus,
+                     OUTPUT lcResp,
+                     OUTPUT cErr).
+
+  IF cErr <> "" THEN
+     UNDO, THROW NEW Progress.Lang.AppError(cErr, 0).
+
+  IF iStatus < 200 OR iStatus >= 300 THEN
+     UNDO, THROW NEW Progress.Lang.AppError("Erro POST clients/stock/bulk-replace: " + STRING(iStatus) + " " + STRING(lcResp), 0).
+
+  pioStocks = NEW JsonArray().
+END PROCEDURE.
+
+PROCEDURE flushBulkPromotionalCampaigns:
+  DEFINE INPUT-OUTPUT PARAMETER pioCampaigns AS JsonArray NO-UNDO.
+
+  DEFINE VARIABLE lcItens   AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE lcPayload AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE iStatus   AS INTEGER   NO-UNDO.
+  DEFINE VARIABLE lcResp    AS LONGCHAR  NO-UNDO.
+  DEFINE VARIABLE cErr      AS CHARACTER NO-UNDO.
+
+  IF NOT VALID-OBJECT(pioCampaigns) THEN RETURN.
+  IF pioCampaigns:Length = 0 THEN RETURN.
+
+  RUN pi-jsonarray-to-longchar(INPUT pioCampaigns, OUTPUT lcItens).
+  lcPayload = '~{"campaigns":'.
+  lcPayload = lcPayload + lcItens.
+  lcPayload = lcPayload + '}'.
+
+  RUN pi-portal-call(INPUT "POST",
+                     INPUT "/api/base/promotional-campaigns/bulk-replace",
+                     INPUT lcPayload,
+                     OUTPUT iStatus,
+                     OUTPUT lcResp,
+                     OUTPUT cErr).
+
+  IF cErr <> "" THEN
+     UNDO, THROW NEW Progress.Lang.AppError(cErr, 0).
+
+  IF iStatus < 200 OR iStatus >= 300 THEN
+     UNDO, THROW NEW Progress.Lang.AppError("Erro POST promotional-campaigns/bulk-replace: " + STRING(iStatus) + " " + STRING(lcResp), 0).
+
+  pioCampaigns = NEW JsonArray().
+END PROCEDURE.
+
+/* Rotina Atualização Portal Web via Proxy PHP */
+RUN pi-inicializar IN h-acomp (INPUT 'PortalWeb - Itens').
+
+/* ------------------------------------------------------------------ */
+/* Itens                                                               */
+/* ------------------------------------------------------------------ */
+FOR EACH mgcad.ITEM USE-INDEX ch-fm-coml NO-LOCK
+   WHERE ITEM.fm-cod-com   <> ''
+     AND (ITEM.data-implant >= TODAY - 30 OR ITEM.data-1 >= TODAY - 30)
+     AND (ITEM.ge-codigo    = 10 OR ITEM.ge-codigo     = 15)
+     //AND ITEM.cod-obsoleto  = 1
+     AND NOT ITEM.it-codigo BEGINS 'H'
+     AND NOT ITEM.it-codigo BEGINS 'j',
+   FIRST mgcad.preco-item NO-LOCK
+   WHERE preco-item.it-codigo = ITEM.it-codigo:
+   
+   FIND FIRST b-item
+        WHERE b-item.it-codigo = ITEM.it-codigo EXCLUSIVE-LOCK NO-ERROR.
+   ASSIGN b-item.data-1 = ?.
+   RELEASE b-item.
+
+   RUN pi-acompanhar IN h-acomp (INPUT "Itens: " + caps(ITEM.it-codigo)).
+
+   oJsonObject1 = NEW JsonObject().
+   oJsonObject1:ADD("sku", caps(ITEM.it-codigo)).
+   oJsonObject1:ADD("name", ITEM.desc-item).
+   oJsonObject1:ADD("unit", ITEM.un).
+   oJsonObject1:ADD("commercialFamilyId", ITEM.fm-cod-com).
+   oJsonObject1:ADD("unitWeightKg", decimalToJsonNumber(ITEM.peso-bruto)).
+   oJsonObject1:ADD("active", CAN-FIND(FIRST mgesp.ext-item OF ITEM WHERE ext-item.ind-libera-portal)).   
+
+   RUN pi-portal-call(INPUT "GET",
+                      INPUT "/api/items/sku/" + caps(ITEM.it-codigo),
+                      INPUT "",
+                     OUTPUT giHttpStatus,
+                     OUTPUT glcRespBody,
+                     OUTPUT gcHttpError).           
+
+   RUN pi-jsonobject-to-longchar(INPUT oJsonObject1, OUTPUT glcReqBody).
+
+   IF giHttpStatus = 404 THEN
+      RUN pi-portal-call(INPUT "POST",
+                         INPUT "/api/items",
+                         INPUT glcReqBody,
+                        OUTPUT giHttpStatus,
+                        OUTPUT glcRespBody,
+                        OUTPUT gcHttpError).
+   ELSE
+      RUN pi-portal-call(INPUT "PATCH",
+                         INPUT "/api/items/sku/" + caps(ITEM.it-codigo),
+                         INPUT glcReqBody,
+                        OUTPUT giHttpStatus,
+                        OUTPUT glcRespBody,
+                        OUTPUT gcHttpError).
+END.
+
+/* ------------------------------------------------------------------ */
+/* Condição de Pagamento                                               */
+/* ------------------------------------------------------------------ */
+DEFINE VARIABLE oArray     AS JsonArray  NO-UNDO.
+DEFINE VARIABLE oItem      AS JsonObject NO-UNDO.
+DEFINE VARIABLE iFoundId   AS INTEGER    NO-UNDO.
+DEFINE VARIABLE i          AS INTEGER    NO-UNDO.
+
+RUN pi-inicializar IN h-acomp (INPUT 'PortalWeb - Condição de Pagamento').
+/*
+FOR EACH mgcad.cond-pagto NO-LOCK
+   WHERE cond-pagto.ind-situacao = 1
+     AND CAN-FIND(FIRST es-crm-paramxcondpagto OF cond-pagto):
+
+    ASSIGN iFoundId = 0.
+
+    RUN pi-acompanhar IN h-acomp (INPUT "Condição Pagto: " + cond-pagto.descricao).
+
+    RUN pi-portal-call(
+        INPUT  "GET",
+        INPUT  "/api/base/payment-terms?q=" + STRING(cond-pagto.cod-cond-pag),
+        INPUT  "",
+        OUTPUT giHttpStatus,
+        OUTPUT glcRespBody,
+        OUTPUT gcHttpError
+    ).
+
+    IF giHttpStatus = 200 AND glcRespBody <> "" THEN DO:
+        RUN pi-parse-response(INPUT glcRespBody, OUTPUT goRespJsonObject, OUTPUT goRespJsonArray).
+        oArray = goRespJsonArray.
+        IF VALID-OBJECT(oArray) THEN DO:
+            DO i = 1 TO oArray:LENGTH:
+                oItem = CAST(oArray:GetJsonObject(i), JsonObject).
+                IF VALID-OBJECT(oItem)
+                   AND oItem:GetInteger("code") = cond-pagto.cod-cond-pag THEN DO:
+                    iFoundId = oItem:GetInteger("id").
+                    LEAVE.
+                END.
+            END.
+        END.
+    END.
+
+    oJsonObject1 = NEW JsonObject().
+    oJsonObject1:ADD("code", cond-pagto.cod-cond-pag).
+    oJsonObject1:ADD("description", cond-pagto.descricao).
+    oJsonObject1:ADD("installments", cond-pagto.num-parcelas).
+    RUN pi-jsonobject-to-longchar(INPUT oJsonObject1, OUTPUT glcReqBody).
+
+    IF iFoundId > 0 THEN
+        RUN pi-portal-call(
+            INPUT  "PATCH",
+            INPUT  "/api/base/payment-terms/" + STRING(iFoundId),
+            INPUT  glcReqBody,
+            OUTPUT giHttpStatus,
+            OUTPUT glcRespBody,
+            OUTPUT gcHttpError
+        ).
+    ELSE
+        RUN pi-portal-call(
+            INPUT  "POST",
+            INPUT  "/api/base/payment-terms",
+            INPUT  glcReqBody,
+            OUTPUT giHttpStatus,
+            OUTPUT glcRespBody,
+            OUTPUT gcHttpError
+        ).
+END.
+*/
+
+
+/*Tipo pedido e Tabela de Preço*/
+RUN pi-inicializar IN h-acomp (INPUT 'PortalWeb - Tipo Pedido e Tab Preço').
+FOR EACH es-crm-param-tppedxtabpre NO-LOCK,
+   FIRST mgcad.tb-preco OF es-crm-param-tppedxtabpre
+   WHERE mgcad.tb-preco.dt-inival <= TODAY
+     AND mgcad.tb-preco.dt-fimval >= TODAY
+     AND mgcad.tb-preco.log-2,
+   FIRST es-crm-tipopedido OF es-crm-param-tppedxtabpre NO-LOCK
+   WHERE es-crm-tipopedido.ativo = 1,
+    EACH mgcad.preco-item OF mgcad.tb-preco NO-LOCK
+   WHERE mgcad.preco-item.situacao = 1
+     AND mgcad.preco-item.dt-inival <= TODAY,
+   FIRST mgcad.ITEM OF mgcad.preco-item NO-LOCK
+   WHERE (mgcad.ITEM.ge-codigo = 10 OR mgcad.ITEM.ge-codigo = 15)
+     AND mgcad.ITEM.cod-obsoleto = 1
+   BREAK BY mgesp.es-crm-param-tppedxtabpre.nr-tabpre
+         BY mgesp.es-crm-param-tppedxtabpre.cod-tipoped
+         BY mgcad.preco-item.it-codigo:
+         
+   ASSIGN mgcad.tb-preco.log-2 = FALSE.
+   
+   RUN pi-acompanhar IN h-acomp (INPUT "TP. Ped: " + STRING(es-crm-param-tppedxtabpre.cod-tipoped) + ' | Tab. Pre: ' +  es-crm-param-tppedxtabpre.nr-tabpre).
+     
+   IF FIRST-OF(es-crm-param-tppedxtabpre.nr-tabpre) THEN DO:
+      RUN upsertPriceTable(es-crm-param-tppedxtabpre.nr-tabpre,
+                           trim(SUBSTRING(tb-preco.descricao, 1, 39)),
+                           1,
+                           OUTPUT iPriceTableId).
+      oJsonArrayTabPre = NEW JsonArray().
+   END.
+   
+   IF FIRST-OF(es-crm-param-tppedxtabpre.cod-tipoped) THEN
+      RUN upsertOrderType(es-crm-param-tppedxtabpre.cod-tipoped, string(es-crm-tipopedido.desc-pedido, 'x(40)'), 1, OUTPUT iOrderTypeId).
+
+   IF FIRST-OF(mgcad.preco-item.it-codigo) THEN DO:
+      oJsonObject1 = NEW JsonObject().
+      oJsonObject1:ADD("sku", caps(mgcad.preco-item.it-codigo)).
+      oJsonObject1:ADD("unitPrice", decimalToJsonNumber(mgcad.preco-item.preco-venda)).
+      oJsonArrayTabPre:ADD(oJsonObject1).
+   END.
+   
+   IF LAST-OF(es-crm-param-tppedxtabpre.cod-tipoped) THEN
+      RUN linkPriceTableToOrderType(iOrderTypeId, iPriceTableId).
+
+   IF LAST-OF(es-crm-param-tppedxtabpre.nr-tabpre) THEN
+      RUN upsertPriceTableItemBySku(iPriceTableId, oJsonArrayTabPre).     
+END.
+
+/* ------------------------------------------------------------------ */
+/* Clientes / Representantes - BULK                                    */
+/* ------------------------------------------------------------------ */
+RUN pi-inicializar IN h-acomp (INPUT 'PortalWeb - Clientes/Representantes').
+
+DEFINE VARIABLE oJsonArrayClientes AS JsonArray NO-UNDO.
+DEFINE VARIABLE oJsonArrayUsers    AS JsonArray NO-UNDO.
+DEFINE VARIABLE oJsonArrayLinks    AS JsonArray NO-UNDO.
+DEFINE VARIABLE oJsonArrayConfigs  AS JsonArray NO-UNDO.
+DEFINE VARIABLE oJsonArrayStocks   AS JsonArray NO-UNDO.
+DEFINE VARIABLE oJsonArrayCampaigns AS JsonArray NO-UNDO.
+DEFINE VARIABLE cRepDoc            AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cRepNome           AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cRepEmail          AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cRepNomeAbrev      AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lLiberaUsuario     AS LOGICAL   NO-UNDO.
+
+oJsonArrayUsers    = NEW JsonArray().
+oJsonArrayCampaigns = NEW JsonArray().
+FOR EACH mgcad.repres NO-LOCK,
+   FIRST emscad.representante NO-LOCK
+   WHERE emscad.representante.cdn_repres = mgcad.repres.cod-rep
+     AND emscad.representante.dat_impl_repres >= TODAY - 10:
+   /* Usuário do representante será criado/atualizado em lote. */
+   oJsonObject1 = NEW JsonObject().
+   oJsonObject1:ADD("doc", repres.cgc).
+   oJsonObject1:ADD("name", repres.nome).
+   oJsonObject1:ADD("email", repres.e-mail).
+   oJsonObject1:ADD("password", SUBSTRING(repres.cgc, 1, 6)).
+   oJsonObject1:ADD("abbrevName", CAPS(repres.nome-abrev)).
+   oJsonObject1:ADD("erpIntegrationMode", "PROD").
+   oJsonObject1:ADD("salesRepAdmin", TRUE).
+   oJsonArrayUsers:ADD(oJsonObject1).
+   ASSIGN lLiberaUsuario = TRUE.
+END.
+
+/*Atualiza campanhas*/
+for each es-crm-paramxcamp of es-crm-param-geral no-lock,
+   first es-crm-campanha   of es-crm-paramxcamp no-lock
+   where es-crm-campanha.situacao      = 1
+     and es-crm-campanha.dt-ini-valid <= today
+     and es-crm-campanha.dt-fim-valid >= today
+     AND es-crm-campanha.periodo-agrup = 4,
+    each es-crm-campxtipovinc of es-crm-campanha no-lock
+   where es-crm-campxtipovinc.dt-ini-valid <= today
+     and es-crm-campxtipovinc.dt-fim-valid >= today
+      by es-crm-campxtipovinc.tipo-vinculo.
+   
+   CREATE tt-campanha. 
+   ASSIGN tt-campanha.fim-cnpj-cliente  = 'ZZZZZZZZZZZZZZZ'
+          tt-campanha.fim-cnpj-repres   = 'ZZZZZZZZZZZZZZZ'
+          tt-campanha.fim-cod-tipoped   = 999
+          tt-campanha.fim-nr-tabpre     = 'ZZZZZZZZ'
+          tt-campanha.fim-fm-cod-com    = 'ZZZZZZZZ'
+          tt-campanha.fim-it-codigo     = 'ZZZZZZZZZZZZZZZZ'
+          tt-campanha.fim-cod-cond-pag  = 99999
+          tt-campanha.fim-valor         = 999999999
+          tt-campanha.fim-quantidade    = 999999999
+          tt-campanha.fim-peso          = 999999999
+          tt-campanha.cod-campanha      = es-crm-campanha.cod-camp
+          tt-campanha.desc-campanha     = es-crm-campanha.desc-camp
+          tt-campanha.descto-tipo       = es-crm-campanha.tipo-descto
+          tt-campanha.descto-tipo-valor = es-crm-campanha.vlr-tipodescto.
+          
+   IF es-crm-campanha.tipo-agrup > 1 THEN  DO:
+      CASE es-crm-campanha.tipo-agrup:
+      WHEN 2 THEN
+           ASSIGN tt-campanha.ini-quantidade = es-crm-campanha.vlr-agrup.
+      WHEN 3 THEN
+           ASSIGN tt-campanha.ini-peso       = es-crm-campanha.vlr-agrup.
+      WHEN 4 THEN
+           ASSIGN tt-campanha.ini-valor      = es-crm-campanha.vlr-agrup.
+      END CASE.
+   END.
+   
+   if es-crm-campxtipovinc.cod-chave <> '*' then
+       CASE es-crm-campxtipovinc.tipo-vinculo.
+           WHEN 1 THEN DO: /*Cliente*/
+                FIND FIRST mgcad.emitente NO-LOCK
+                     WHERE mgcad.emitente.cod-emitente = INT(es-crm-campxtipovinc.cod-chave) NO-ERROR.
+                ASSIGN tt-campanha.ini-cnpj-cliente = mgcad.emitente.cgc
+                       tt-campanha.fim-cnpj-cliente = mgcad.emitente.cgc.
+           END.
+           WHEN 2 THEN
+                ASSIGN tt-campanha.ini-cod-tipoped = int(es-crm-campxtipovinc.cod-chave)
+                       tt-campanha.fim-cod-tipoped = int(es-crm-campxtipovinc.cod-chave).
+           WHEN 3 THEN
+                ASSIGN tt-campanha.ini-nr-tabpre   = es-crm-campxtipovinc.cod-chave
+                       tt-campanha.fim-nr-tabpre   = es-crm-campxtipovinc.cod-chave.
+           WHEN 4 THEN
+                ASSIGN tt-campanha.ini-it-codigo   = es-crm-campxtipovinc.cod-chave
+                       tt-campanha.fim-it-codigo   = es-crm-campxtipovinc.cod-chave.
+           when 5 then
+                ASSIGN tt-campanha.ini-cod-cond-pag = int(es-crm-campxtipovinc.cod-chave)
+                       tt-campanha.fim-cod-cond-pag = int(es-crm-campxtipovinc.cod-chave).
+       END CASE.      
+END.
+
+FOR EACH tt-campanha:
+    oJsonObject4 = NEW JsonObject().
+
+    oJsonObject4:ADD("campaignCode", tt-campanha.cod-campanha).
+    oJsonObject4:ADD("campaignDescription", tt-campanha.desc-campanha).
+    oJsonObject4:ADD("discountType", tt-campanha.descto-tipo).
+    oJsonObject4:ADD("discountTypeValue", tt-campanha.descto-tipo-valor).
+    oJsonObject4:ADD("active", TRUE).
+
+    IF tt-campanha.ini-cnpj-cliente <> ? AND tt-campanha.ini-cnpj-cliente <> "" THEN
+       oJsonObject4:ADD("customerDocInitial", tt-campanha.ini-cnpj-cliente).
+    IF tt-campanha.fim-cnpj-cliente <> ? AND tt-campanha.fim-cnpj-cliente <> "" THEN
+       oJsonObject4:ADD("customerDocFinal", tt-campanha.fim-cnpj-cliente).
+
+    IF tt-campanha.ini-cnpj-repres <> ? AND tt-campanha.ini-cnpj-repres <> "" THEN
+       oJsonObject4:ADD("representativeDocInitial", tt-campanha.ini-cnpj-repres).
+    IF tt-campanha.fim-cnpj-repres <> ? AND tt-campanha.fim-cnpj-repres <> "" THEN
+       oJsonObject4:ADD("representativeDocFinal", tt-campanha.fim-cnpj-repres).
+
+    IF tt-campanha.ini-cod-tipoped <> ? THEN
+       oJsonObject4:ADD("orderTypeCodeInitial", tt-campanha.ini-cod-tipoped).
+    IF tt-campanha.fim-cod-tipoped <> ? THEN
+       oJsonObject4:ADD("orderTypeCodeFinal", tt-campanha.fim-cod-tipoped).
+
+    IF tt-campanha.ini-nr-tabpre <> ? AND tt-campanha.ini-nr-tabpre <> "" THEN
+       oJsonObject4:ADD("priceTableCodeInitial", tt-campanha.ini-nr-tabpre).
+    IF tt-campanha.fim-nr-tabpre <> ? AND tt-campanha.fim-nr-tabpre <> "" THEN
+       oJsonObject4:ADD("priceTableCodeFinal", tt-campanha.fim-nr-tabpre).
+
+    IF tt-campanha.ini-fm-cod-com <> ? AND tt-campanha.ini-fm-cod-com <> "" THEN
+       oJsonObject4:ADD("commercialFamilyCodeInitial", tt-campanha.ini-fm-cod-com).
+    IF tt-campanha.fim-fm-cod-com <> ? AND tt-campanha.fim-fm-cod-com <> "" THEN
+       oJsonObject4:ADD("commercialFamilyCodeFinal", tt-campanha.fim-fm-cod-com).
+
+    IF tt-campanha.ini-it-codigo <> ? AND tt-campanha.ini-it-codigo <> "" THEN
+       oJsonObject4:ADD("itemCodeInitial", tt-campanha.ini-it-codigo).
+    IF tt-campanha.fim-it-codigo <> ? AND tt-campanha.fim-it-codigo <> "" THEN
+       oJsonObject4:ADD("itemCodeFinal", tt-campanha.fim-it-codigo).
+
+    IF tt-campanha.ini-cod-cond-pag <> ? THEN
+       oJsonObject4:ADD("paymentConditionCodeInitial", tt-campanha.ini-cod-cond-pag).
+    IF tt-campanha.fim-cod-cond-pag <> ? THEN
+       oJsonObject4:ADD("paymentConditionCodeFinal", tt-campanha.fim-cod-cond-pag).
+
+    IF tt-campanha.ini-valor <> ? THEN
+       oJsonObject4:ADD("valueInitial", tt-campanha.ini-valor).
+    IF tt-campanha.fim-valor <> ? THEN
+       oJsonObject4:ADD("valueFinal", tt-campanha.fim-valor).
+
+    IF tt-campanha.ini-quantidade <> ? THEN
+       oJsonObject4:ADD("quantityInitial", INTEGER(tt-campanha.ini-quantidade)).
+    IF tt-campanha.fim-quantidade <> ? THEN
+       oJsonObject4:ADD("quantityFinal", INTEGER(tt-campanha.fim-quantidade)).
+
+    IF tt-campanha.ini-peso <> ? THEN
+       oJsonObject4:ADD("weightInitial", tt-campanha.ini-peso).
+    IF tt-campanha.fim-peso <> ? THEN
+       oJsonObject4:ADD("weightFinal", tt-campanha.fim-peso).
+
+    oJsonArrayCampaigns:ADD(oJsonObject4).
+END.
+
+RUN flushBulkPromotionalCampaigns(INPUT-OUTPUT oJsonArrayCampaigns).
+
+IF lLiberaUsuario THEN
+   RUN flushBulkUsers(INPUT-OUTPUT oJsonArrayUsers).
+   
+ASSIGN lLiberaUsuario = FALSE.
+
+FOR EACH mgcad.emitente NO-LOCK
+    WHERE emitente.identific <> 2
+      AND (emitente.log-1 OR emitente.dt-atualiza  >= TODAY - 20
+       /*
+       OR CAN-FIND(FIRST funcionario NO-LOCK
+                   WHERE funcionario.cod_id_feder       = mgcad.emitente.cgc
+                     AND funcionario.dat_desligto_func  = ?)*/
+                     )
+    BREAK BY emitente.cod-rep:
+   
+   FIND FIRST b-emitente
+        WHERE b-emitente.cod-emitente = emitente.cod-emitente EXCLUSIVE-LOCK NO-ERROR.
+   ASSIGN b-emitente.log-1       = FALSE
+          b-emitente.dt-atualiza = ?.
+   RELEASE b-emitente.
+
+   IF FIRST-OF(emitente.cod-rep) THEN DO:
+      oJsonArrayClientes = NEW JsonArray().
+      oJsonArrayUsers    = NEW JsonArray().
+      oJsonArrayLinks    = NEW JsonArray().
+      oJsonArrayConfigs  = NEW JsonArray().
+      oJsonArrayStocks   = NEW JsonArray().
+
+      ASSIGN cRepDoc       = ""
+             cRepNome      = ""
+             cRepEmail     = ""
+             cRepNomeAbrev = "".
+
+      FIND FIRST mgcad.repres NO-LOCK
+           WHERE repres.cod-rep = emitente.cod-rep NO-ERROR.
+
+      IF AVAILABLE repres THEN DO:
+         ASSIGN cRepDoc       = repres.cgc
+                cRepNome      = repres.nome
+                cRepEmail     = repres.e-mail
+                cRepNomeAbrev = repres.nome-abrev.
+
+         /* Usuário do representante será criado/atualizado em lote. */
+         oJsonObject1 = NEW JsonObject().
+         oJsonObject1:ADD("doc", cRepDoc).
+         oJsonObject1:ADD("name", cRepNome).
+         oJsonObject1:ADD("email", cRepEmail).
+         oJsonObject1:ADD("password", SUBSTRING(cRepDoc, 1, 6)).
+         oJsonObject1:ADD("abbrevName", CAPS(cRepNomeAbrev)).
+         oJsonObject1:ADD("erpIntegrationMode", "PROD").
+         oJsonObject1:ADD("salesRepAdmin", TRUE).
+         oJsonArrayUsers:ADD(oJsonObject1).
+      END.
+   END.
+
+   RUN pi-acompanhar IN h-acomp (INPUT "Cliente: " + emitente.nome-abrev).
+
+   /* Cadastro do cliente */
+   oJsonObject1 = NEW JsonObject().
+   oJsonObject1:ADD("clientCode", emitente.cod-emitente).
+   oJsonObject1:ADD("doc", emitente.cgc).
+   oJsonObject1:ADD("name", emitente.nome-emit).
+   oJsonObject1:ADD("cep", emitente.cep).
+   oJsonObject1:ADD("logradouro", emitente.endereco).
+   oJsonObject1:ADD("numero", TRIM(ENTRY(NUM-ENTRIES(emitente.endereco, ','), emitente.endereco, ','))).
+   oJsonObject1:ADD("bairro", emitente.bairro).
+   oJsonObject1:ADD("cidade", emitente.cidade).
+   oJsonObject1:ADD("estado", emitente.estado).
+   oJsonObject1:ADD("paymentTermCode", emitente.cod-cond-pag).   
+   oJsonObject1:ADD("email", trim(emitente.e-mail)).
+   oJsonObject1:ADD("phone", trim(REPLACE(REPLACE(REPLACE(emitente.telefone[1],'(',''),')',''),'-',''))).
+   oJsonObject1:ADD("abbrevName", CAPS(emitente.nome-abrev)).
+ 
+   oJsonObject1:ADD("creditLimit", REPLACE(REPLACE(STRING(emitente.lim-credito),'.',''),',','.')).
+   oJsonObject1:ADD("availableLimit", REPLACE(REPLACE(STRING(emitente.lim-credito - d-total-vencer - d-total-vencido),'.',''),',','.')).
+   oJsonObject1:ADD("titlesDue", REPLACE(REPLACE(STRING(d-total-vencer),'.',''),',','.')).
+   oJsonObject1:ADD("titlesOverdue", REPLACE(REPLACE(STRING(d-total-vencido),'.',''),',','.')).
+
+   RUN pi-acompanhar IN h-acomp (INPUT "1 - Cliente: " + emitente.nome-abrev).
+   
+   /*Titulos 201*/
+   oJsonArray2 = NEW JsonArray().
+   FOR EACH emsmov.tit_acr USE-INDEX titacr_clien_datas NO-LOCK
+      WHERE emsmov.tit_acr.cod_estab          <> ''        
+        AND emsmov.tit_acr.cdn_cliente         = mgcad.emitente.cod-emitente
+        AND ((emsmov.tit_acr.dat_liquidac_tit_acr >= TODAY - 30 AND emsmov.tit_acr.dat_liquidac_tit_acr <= TODAY) OR emsmov.tit_acr.dat_emis_doc >= TODAY - 30)
+        AND emsmov.tit_acr.cod_espec_docto     = 'DP':
+        
+      RUN pi-acompanhar IN h-acomp (INPUT "2 - Cliente: " + emitente.nome-abrev + '|' + tit_acr.cod_tit_acr).
+
+      oJsonObject2 = NEW JsonObject().
+      oJsonObject2:ADD("invoiceNumber", tit_acr.cod_tit_acr + '/' + tit_acr.cod_parcela).
+      oJsonObject2:ADD("issueDate", STRING(year(tit_acr.dat_emis_doc),'9999') + '-' + STRING(MONTH(tit_acr.dat_emis_doc),'99') + '-' + STRING(DAY(tit_acr.dat_emis_doc),'99')).
+      oJsonObject2:ADD("dueDate",   STRING(year(tit_acr.dat_vencto_tit_acr),'9999') + '-' + STRING(MONTH(tit_acr.dat_vencto_tit_acr),'99') + '-' + STRING(DAY(tit_acr.dat_vencto_tit_acr),'99')).
+      oJsonObject2:ADD("totalValue", REPLACE(REPLACE(STRING(tit_acr.val_origin_tit_acr),'.',''),',','.')).
+
+       /* Situação: PAGA ou EM_ABERTO (Vencida é calculada no portal pela dueDate) */
+       IF tit_acr.val_sdo_tit_acr <= 0 THEN
+          oJsonObject2:ADD("status", "PAGA").
+       ELSE
+          oJsonObject2:ADD("status", "EM_ABERTO").
+
+       oJsonArray2:ADD(oJsonObject2).
+   END.
+   
+   RUN pi-acompanhar IN h-acomp (INPUT "2 - Cliente: " + emitente.nome-abrev).
+   
+   /*Titulos 901*/
+   oJsonArray2 = NEW JsonArray().
+   FOR EACH mgcad901.emitente NO-LOCK USE-INDEX cgc
+      WHERE mgcad901.emitente.cgc = mgcad.emitente.cgc,
+       EACH emsmov901.tit_acr USE-INDEX titacr_clien_datas NO-LOCK
+      WHERE emsmov901.tit_acr.cod_estab          <> ''
+        AND emsmov901.tit_acr.cdn_cliente         = mgcad901.emitente.cod-emitente
+        AND ((emsmov901.tit_acr.dat_liquidac_tit_acr       >= TODAY - 30 AND emsmov901.tit_acr.dat_liquidac_tit_acr <= TODAY) OR emsmov901.tit_acr.dat_emis_doc >= TODAY - 30)
+        AND emsmov901.tit_acr.cod_espec_docto     = 'DP':
+        
+      RUN pi-acompanhar IN h-acomp (INPUT "9 - Cliente: " + mgcad901.emitente.nome-abrev + '|' + emsmov901.tit_acr.cod_tit_acr).
+
+      oJsonObject2 = NEW JsonObject().
+      oJsonObject2:ADD("invoiceNumber", tit_acr.cod_tit_acr + '/' + tit_acr.cod_parcela).
+      oJsonObject2:ADD("issueDate", STRING(year(tit_acr.dat_emis_doc),'9999') + '-' + STRING(MONTH(tit_acr.dat_emis_doc),'99') + '-' + STRING(DAY(tit_acr.dat_emis_doc),'99')).
+      oJsonObject2:ADD("dueDate",   STRING(year(tit_acr.dat_vencto_tit_acr),'9999') + '-' + STRING(MONTH(tit_acr.dat_vencto_tit_acr),'99') + '-' + STRING(DAY(tit_acr.dat_vencto_tit_acr),'99')).
+      oJsonObject2:ADD("totalValue", REPLACE(REPLACE(STRING(tit_acr.val_origin_tit_acr),'.',''),',','.')).
+
+       /* Situação: PAGA ou EM_ABERTO (Vencida é calculada no portal pela dueDate) */
+       IF tit_acr.val_sdo_tit_acr <= 0 THEN
+          oJsonObject2:ADD("status", "PAGA").
+       ELSE
+          oJsonObject2:ADD("status", "EM_ABERTO").
+
+       oJsonArray2:ADD(oJsonObject2).
+   END.
+   
+   RUN pi-acompanhar IN h-acomp (INPUT "3 - Cliente: " + emitente.nome-abrev).
+    
+   oJsonObject1:ADD("invoices", oJsonArray2).
+   
+   oJsonArrayClientes:ADD(oJsonObject1).
+
+   /* Estoque próprio do cliente: separado do cadastro principal. */
+   oJsonArray = NEW JsonArray().
+   IF CAN-FIND(FIRST mgesp.ext-emitente
+               WHERE ext-emitente.cod-emitente   =  emitente.cod-emitente
+                 AND ext-emitente.cod-depos-emit <> '') THEN DO:
+      FOR FIRST mgesp.ext-emitente NO-LOCK
+          WHERE ext-emitente.cod-emitente = emitente.cod-emitente,
+           EACH mgmov.saldo-estoq USE-INDEX dep-item NO-LOCK
+          WHERE saldo-estoq.cod-depos = ext-emitente.cod-depos-emit:
+
+          oJsonObject2 = NEW JsonObject().
+          oJsonObject2:ADD("sku", saldo-estoq.it-codigo).
+          oJsonObject2:ADD("qtdeAtual", STRING(saldo-estoq.qtidade-atu - saldo-estoq.qt-alocada - saldo-estoq.qt-aloc-prod - saldo-estoq.qt-aloc-ped)).
+          oJsonObject2:ADD("loteSerie", STRING(saldo-estoq.lote)).
+          oJsonArray:ADD(oJsonObject2).
+      END.
+   END.
+
+   oJsonObject2 = NEW JsonObject().
+   oJsonObject2:ADD("clientCode", emitente.cod-emitente).
+   oJsonObject2:ADD("doc", emitente.cgc).
+   oJsonObject2:ADD("stockItems", oJsonArray).
+   oJsonArrayStocks:ADD(oJsonObject2).
+
+   FIND FIRST rh_pessoa_fisic NO-LOCK
+        WHERE rh_pessoa_fisic.cod_id_feder = emitente.cgc NO-ERROR.
+
+   lLiberaUsuario = CAN-FIND(FIRST es-crm-param-cliente
+                             WHERE es-crm-param-cliente.cod-emitente = emitente.cod-emitente
+                               AND es-crm-param-cliente.ind-libera-crm)
+                  OR AVAILABLE rh_pessoa_fisic.
+
+   IF AVAILABLE rh_pessoa_fisic THEN DO:
+      IF NOT CAN-FIND(FIRST es-crm-emit-condpagto
+                      WHERE es-crm-emit-condpagto.cod-emitente = emitente.cod-emitente) THEN DO:
+         CREATE es-crm-emit-condpagto.
+         ASSIGN es-crm-emit-condpagto.cod-emitente = emitente.cod-emitente
+                es-crm-emit-condpagto.cod-cond-pag = '132'.
+      END.
+
+      IF NOT CAN-FIND(FIRST es-crm-emit-tabpre
+                      WHERE es-crm-emit-tabpre.cod-emitente = emitente.cod-emitente) THEN DO:
+         CREATE es-crm-emit-tabpre.
+         ASSIGN es-crm-emit-tabpre.cod-emitente = emitente.cod-emitente
+                es-crm-emit-tabpre.nr-tabpre    = 'FUNC'.
+      END.
+   END.
+
+   IF lLiberaUsuario THEN DO:
+      /* Usuário do cliente/funcionário será criado/atualizado em lote. */
+      oJsonObject1 = NEW JsonObject().
+      oJsonObject1:ADD("doc", emitente.cgc).
+      oJsonObject1:ADD("name", emitente.nome-emit).
+      oJsonObject1:ADD("email", emitente.e-mail).
+      oJsonObject1:ADD("password", SUBSTRING(emitente.cgc, 1, 6)).
+      oJsonObject1:ADD("erpIntegrationMode", "PROD").
+      oJsonObject1:ADD("abbrevName", CAPS(emitente.nome-abrev)).
+      oJsonObject1:ADD("salesRepAdmin", TRUE).
+      oJsonArrayUsers:ADD(oJsonObject1).
+   END.
+
+   /* Vínculo representante x cliente em lote. */
+   IF cRepDoc <> ? AND cRepDoc <> "" THEN DO:
+      oJsonObject1 = NEW JsonObject().
+      oJsonObject1:ADD("repCode", emitente.cod-rep).
+      oJsonObject1:ADD("repDoc", cRepDoc).
+      oJsonObject1:ADD("clientCode", emitente.cod-emitente).
+      oJsonObject1:ADD("clientDoc", emitente.cgc).
+      oJsonArrayLinks:ADD(oJsonObject1).
+   END.
+
+   /* Configurações comerciais do cliente em lote. */
+   oJsonArrayCondPag = NEW JsonArray().
+   FOR EACH es-crm-emit-condpagto NO-LOCK
+      WHERE es-crm-emit-condpagto.cod-emitente = emitente.cod-emitente,
+      FIRST es-crm-paramxcondpagto NO-LOCK
+      WHERE es-crm-paramxcondpagto.cod-cond-pag = int(es-crm-emit-condpagto.cod-cond-pag):
+      oJsonArrayCondPag:ADD(es-crm-emit-condpagto.cod-cond-pag).
+   END.
+
+   oJsonArrayTabPre = NEW JsonArray().
+   FOR EACH es-crm-emit-tabpre NO-LOCK
+      WHERE es-crm-emit-tabpre.cod-emitente = emitente.cod-emitente:
+      oJsonArrayTabPre:ADD(es-crm-emit-tabpre.nr-tabpre).
+   END.
+
+   oJsonObject1 = NEW JsonObject().
+   oJsonObject1:ADD("clientCode", emitente.cod-emitente).
+   oJsonObject1:ADD("doc", emitente.cgc).
+   oJsonObject1:ADD("condicoesPagamento", oJsonArrayCondPag).   
+   oJsonObject1:ADD("nrtabpreList", oJsonArrayTabPre).
+   oJsonArrayConfigs:ADD(oJsonObject1).
+
+   IF LAST-OF(emitente.cod-rep) THEN DO:
+      /* Ordem proposital: primeiro cria/atualiza bases, depois vínculos. */
+      RUN flushBulkClients(INPUT-OUTPUT oJsonArrayClientes).
+      RUN flushBulkUsers(INPUT-OUTPUT oJsonArrayUsers).
+      RUN flushBulkClientCommercialConfig(INPUT-OUTPUT oJsonArrayConfigs).
+      RUN flushBulkClientStock(INPUT-OUTPUT oJsonArrayStocks).
+      RUN flushBulkRepClientLinks(INPUT-OUTPUT oJsonArrayLinks).
+   END.
+END.
+
+RUN pi-inicializar IN h-acomp (INPUT 'PortalWeb - Dashboard').
+
+
+
+/*
+ASSIGN c-ini-nomeab-rel  = ''
+       c-fin-nomeab-rel  = 'ZZZZZZZZZZZZ'
+       d-ini-periodo-rel = (TODAY - DAY(TODAY)) + 1
+       d-fin-periodo-rel = TODAY.
+
+{esp/escom004rp-carrega-repres-meta.i}
+ */
+/*Atualiza Status Pedido Portal*/
+/*
+RUN pi-inicializar IN h-acomp (INPUT 'PortalWeb - Status Pedidos').
+FOR EACH es-crm-ped-venda-hist
+   WHERE es-crm-ped-venda-hist.dt-implant >= TODAY - 180
+     AND es-crm-ped-venda-hist.char-1 BEGINS 'PV'.
+   
+   FIND LAST mgmov.it-nota-fisc NO-LOCK
+       WHERE mgmov.it-nota-fisc.nome-ab-cli = es-crm-ped-venda-hist.nome-abrev
+         AND mgmov.it-nota-fisc.nr-pedcli   = es-crm-ped-venda-hist.nr-pedcli  NO-ERROR.
+          
+   IF NOT AVAIL mgmov.it-nota-fisc THEN
+      NEXT.
+      
+   RUN pi-acompanhar IN h-acomp (INPUT "Pedido: " + TRIM(es-crm-ped-venda-hist.char-1)).
+      
+   FIND LAST es-rec-carga-embarq NO-LOCK
+       WHERE es-rec-carga-embarq.cod-estabel = mgmov.it-nota-fisc.cod-estabel
+         AND es-rec-carga-embarq.cdd-embarq  = mgmov.it-nota-fisc.cdd-embarq NO-ERROR.
+          
+   FIND FIRST es-rec-carga-descarga OF es-rec-carga-embarq NO-LOCK NO-ERROR.
+   
+   IF AVAIL es-rec-carga-descarga      AND
+      (es-crm-ped-venda-hist.data-1 = ? OR es-rec-carga-descarga.data-saida > es-crm-ped-venda-hist.data-1) /*Seta Expedido*/ THEN DO:
+        oJsonObject1 = NEW JsonObject().
+        oJsonObject1:ADD("orderCode", TRIM(es-crm-ped-venda-hist.char-1)).
+        oJsonObject1:ADD("status", "Expedido").
+
+        oJsonArray = NEW JsonArray().
+        oJsonObject1:ADD("messages", oJsonArray).
+        RUN pi-jsonobject-to-longchar(INPUT oJsonObject1, OUTPUT glcReqBody).
+        RUN pi-portal-call(INPUT  "POST",
+                           INPUT  "/api/integration/sales-orders/status",
+                           INPUT  glcReqBody,
+                           OUTPUT giHttpStatus,
+                           OUTPUT glcRespBody,
+                           OUTPUT gcHttpError).
+   END.
+   ELSE IF es-crm-ped-venda-hist.data-1 = ? OR mgmov.it-nota-fisc.dt-emis-nota > es-crm-ped-venda-hist.data-1 THEN DO:
+        oJsonObject1 = NEW JsonObject().
+        oJsonObject1:ADD("orderCode", TRIM(es-crm-ped-venda-hist.char-1)).
+        oJsonObject1:ADD("status", "Faturado").
+
+        oJsonArray = NEW JsonArray().
+        oJsonObject1:ADD("messages", oJsonArray).
+        RUN pi-jsonobject-to-longchar(INPUT oJsonObject1, OUTPUT glcReqBody).
+        RUN pi-portal-call(INPUT  "POST",
+                           INPUT  "/api/integration/sales-orders/status",
+                           INPUT  glcReqBody,
+                           OUTPUT giHttpStatus,
+                           OUTPUT glcRespBody,
+                           OUTPUT gcHttpError).
+   END.
+      
+   IF giHttpStatus >= 200 AND giHttpStatus < 300 THEN
+      ASSIGN es-crm-ped-venda-hist.data-1 = TODAY.
+END.
+ */
+RUN pi-finalizar IN h-acomp.
+LEAVE.
+
+/* ------------------------------------------------------------------ */
+/* Pedidos Diretos PD4000                                             */
+/* ------------------------------------------------------------------ */
+RUN pi-inicializar IN h-acomp (INPUT 'PortalWeb - Pedidos Diretos PD4000').
+
+FOR EACH mgmov.ped-venda USE-INDEX ch-implant NO-LOCK
+   WHERE ped-venda.dt-implant  >= TODAY
+     AND ped-venda.cod-sit-ped <= 3
+     AND (NOT CAN-FIND(FIRST es-crm-ped-venda-hist WHERE es-crm-ped-venda-hist.nr-pedido = ped-venda.nr-pedido)
+      OR  CAN-FIND(FIRST es-crm-ped-venda-hist
+                   WHERE es-crm-ped-venda-hist.nr-pedido = ped-venda.nr-pedido
+                     AND es-crm-ped-venda-hist.char-1    = es-crm-ped-venda-hist.nr-pedcli)),
+   FIRST mgcad.emitente USE-INDEX nome NO-LOCK
+   WHERE emitente.nome-abrev = ped-venda.nome-abrev,
+   FIRST mgcad.estabelec OF ped-venda NO-LOCK:
+
+    RUN pi-acompanhar IN h-acomp (INPUT "Cliente/Ped Venda: " + ped-venda.nome-abrev + '/' + ped-venda.nr-pedcli).
+
+    oJsonObject1 = NEW JsonObject().
+    oJsonObject1:ADD("customerName", emitente.nome-emit).
+    oJsonObject1:ADD("customerDoc", emitente.cgc).
+    oJsonObject1:ADD("entityCnpj", estabelec.cgc).
+    oJsonObject1:ADD("erpOrderNumber", ped-venda.nr-pedido).
+    oJsonObject1:ADD("paymentTerms", ped-venda.cod-cond-pag).
+    oJsonObject1:ADD("carrier", '').
+    oJsonObject1:ADD("deliveryDate", STRING(ped-venda.dt-entrega, "9999-99-99")).
+    oJsonObject1:ADD("notes", ped-venda.observacoes).
+
+    oJsonArray = NEW JsonArray().
+    FOR EACH mgmov.ped-item OF ped-venda NO-LOCK,
+       FIRST mgcad.ITEM OF ped-item NO-LOCK:
+        oJsonItem = NEW JsonObject().
+        oJsonItem:ADD("sku", ped-item.it-codigo).
+        oJsonItem:ADD("name", ITEM.desc-item).
+        oJsonItem:ADD("unit", ITEM.un).
+        oJsonItem:ADD("quantity", ped-item.qt-un-fat).
+        oJsonItem:ADD("unitPrice", REPLACE(REPLACE(STRING(ped-item.vl-liq-it),'.',''),',','.')).
+        oJsonItem:ADD("discountPct", 0).
+        oJsonItem:ADD("clientOrderNumber", ped-item.cod-ord-compra).
+        oJsonItem:ADD("clientOrderItemNumber", ped-item.parcela).
+        oJsonItem:ADD("itemDeliveryDate", STRING(ped-item.dt-entrega, "9999-99-99")).
+        oJsonArray:ADD(oJsonItem).
+    END.
+
+    oJsonObject1:ADD("items", oJsonArray).
+    RUN pi-jsonobject-to-longchar(INPUT oJsonObject1, OUTPUT glcReqBody).
+
+    RUN pi-portal-call(
+        INPUT  "POST",
+        INPUT  "/api/sales/orders",
+        INPUT  glcReqBody,
+        OUTPUT giHttpStatus,
+        OUTPUT glcRespBody,
+        OUTPUT gcHttpError
+    ).
+
+    RUN pi-parse-response(INPUT glcRespBody, OUTPUT goRespJsonObject, OUTPUT goRespJsonArray).
+
+    IF giHttpStatus < 200 OR giHttpStatus >= 300 THEN DO:
+        DEFINE VARIABLE cBody AS CHARACTER NO-UNDO.
+        cBody = "".
+
+        IF VALID-OBJECT(goRespJsonObject) AND goRespJsonObject:Has("error") THEN
+            cBody = goRespJsonObject:GetCharacter("error") NO-ERROR.
+        ELSE
+            cBody = STRING(glcRespBody) NO-ERROR.
+
+        LEAVE.
+    END.
+
+    IF NOT VALID-OBJECT(goRespJsonObject) THEN
+        LEAVE.
+
+    iPortalOrderId = goRespJsonObject:GetInteger("id") NO-ERROR.
+
+    oJsonObject1 = NEW JsonObject().
+    oJsonObject1:ADD("status", "Integrado").
+    RUN pi-jsonobject-to-longchar(INPUT oJsonObject1, OUTPUT glcReqBody).
+
+    RUN pi-portal-call(
+        INPUT  "PATCH",
+        INPUT  "/api/sales/orders/" + STRING(iPortalOrderId),
+        INPUT  glcReqBody,
+        OUTPUT giHttpStatus,
+        OUTPUT glcRespBody,
+        OUTPUT gcHttpError
+    ).
+END.
+
+/* ------------------------------------------------------------------ */
+/* Bloco de importação de pedidos (comentado no seu fonte original)    */
+/* adaptado para proxy nos pontos de integração                        */
+/* ------------------------------------------------------------------ */
+/*
+RUN pi-portal-call(
+    INPUT  "GET",
+    INPUT  "/api/sales/orders?statuses=AWAITING_INTEGRATION,INTEGRATION_ERROR",
+    INPUT  "",
+    OUTPUT giHttpStatus,
+    OUTPUT glcRespBody,
+    OUTPUT gcHttpError
+).
+
+RUN pi-parse-response(INPUT glcRespBody, OUTPUT goRespJsonObject, OUTPUT goRespJsonArray).
+IF VALID-OBJECT(goRespJsonArray) THEN DO:
+    oJsonArray = goRespJsonArray.
+    oJsonArray:WRITE(lcBody, TRUE).
+END.
+
+...
+
+oJsonObject1:Add("status", (IF CAN-FIND(FIRST tt-ped-mensagens WHERE tt-ped-mensagens.tipomsg = 'ERROR')
+                             THEN 'INTEGRATION_ERROR' ELSE 'INTEGRATED')).
+oJsonObject1:Add("messages", oJsonArray2).
+oJsonObject1:WRITE(lcBody).
+
+RUN pi-portal-call(
+    INPUT  "PATCH",
+    INPUT  "/api/sales/orders/" + STRING(tt-ped-portal.id),
+    INPUT  lcBody,
+    OUTPUT giHttpStatus,
+    OUTPUT glcRespBody,
+    OUTPUT gcHttpError
+).
+*/
+
+run pi-finalizar in h-acomp.
