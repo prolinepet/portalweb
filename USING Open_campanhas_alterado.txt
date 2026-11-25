@@ -1134,21 +1134,25 @@ for each es-crm-paramxcamp of es-crm-param-geral no-lock,
      and es-crm-campxtipovinc.dt-fim-valid >= today
       by es-crm-campxtipovinc.tipo-vinculo.
    
-   CREATE tt-campanha. 
-   ASSIGN tt-campanha.fim-cnpj-cliente  = 'ZZZZZZZZZZZZZZZ'
-          tt-campanha.fim-cnpj-repres   = 'ZZZZZZZZZZZZZZZ'
-          tt-campanha.fim-cod-tipoped   = 999
-          tt-campanha.fim-nr-tabpre     = 'ZZZZZZZZ'
-          tt-campanha.fim-fm-cod-com    = 'ZZZZZZZZ'
-          tt-campanha.fim-it-codigo     = 'ZZZZZZZZZZZZZZZZ'
-          tt-campanha.fim-cod-cond-pag  = 99999
-          tt-campanha.fim-valor         = 999999999
-          tt-campanha.fim-quantidade    = 999999999
-          tt-campanha.fim-peso          = 999999999
-          tt-campanha.cod-campanha      = es-crm-campanha.cod-camp
-          tt-campanha.desc-campanha     = es-crm-campanha.desc-camp
-          tt-campanha.descto-tipo       = es-crm-campanha.tipo-descto
-          tt-campanha.descto-tipo-valor = es-crm-campanha.vlr-tipodescto.
+   FIND FIRST tt-campanha
+        WHERE tt-campanha.cod-campanha = es-crm-campanha.cod-camp NO-ERROR.
+   IF NOT AVAILABLE tt-campanha THEN DO:
+      CREATE tt-campanha. 
+      ASSIGN tt-campanha.fim-cnpj-cliente  = 'ZZZZZZZZZZZZZZZ'
+             tt-campanha.fim-cnpj-repres   = 'ZZZZZZZZZZZZZZZ'
+             tt-campanha.fim-cod-tipoped   = 999
+             tt-campanha.fim-nr-tabpre     = 'ZZZZZZZZ'
+             tt-campanha.fim-fm-cod-com    = 'ZZZZZZZZ'
+             tt-campanha.fim-it-codigo     = 'ZZZZZZZZZZZZZZZZ'
+             tt-campanha.fim-cod-cond-pag  = 99999
+             tt-campanha.fim-valor         = 999999999
+             tt-campanha.fim-quantidade    = 999999999
+             tt-campanha.fim-peso          = 999999999
+             tt-campanha.cod-campanha      = es-crm-campanha.cod-camp
+             tt-campanha.desc-campanha     = es-crm-campanha.desc-camp
+             tt-campanha.descto-tipo       = es-crm-campanha.tipo-descto
+             tt-campanha.descto-tipo-valor = es-crm-campanha.vlr-tipodescto.
+   END.
           
    IF es-crm-campanha.tipo-agrup > 1 THEN  DO:
       CASE es-crm-campanha.tipo-agrup:
