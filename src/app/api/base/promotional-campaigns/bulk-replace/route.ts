@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '../../../../../../lib/prisma';
-import { normalizeDoc, normalizeText, parseInteger, parseMoneyValue } from '../../../../../../lib/bulkIntegration';
-import { ensurePromotionalCampaignTable } from '../../../../../../lib/promotional-campaigns';
+import { prisma } from '../../../../../lib/prisma';
+import { normalizeDoc, normalizeText, parseInteger, parseMoneyValue } from '../../../../../lib/bulkIntegration';
+import { ensurePromotionalCampaignTable } from '../../../../../lib/promotional-campaigns';
 
 type BulkCampaignPayload = {
   campaignCode?: number | string | null;
