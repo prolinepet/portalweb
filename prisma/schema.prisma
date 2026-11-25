@@ -564,6 +564,8 @@ model PromotionalCampaign {
   itemCodeFinal               String?  @db.VarChar(50)
   paymentConditionCodeInitial String?  @db.VarChar(20)
   paymentConditionCodeFinal   String?  @db.VarChar(20)
+  quantityInitial             Int?
+  quantityFinal               Int?
   valueInitial                Float?
   valueFinal                  Float?
   weightInitial               Float?

@@ -49,6 +49,8 @@ type CampaignRow = {
   itemCodeFinal?: string | null;
   paymentConditionCodeInitial?: string | null;
   paymentConditionCodeFinal?: string | null;
+  quantityInitial?: number | null;
+  quantityFinal?: number | null;
   valueInitial?: number | null;
   valueFinal?: number | null;
   weightInitial?: number | null;
@@ -60,6 +62,7 @@ type CampaignRow = {
 export type PromotionalCampaignResult = {
   campaignCode: string;
   campaignDescription: string;
+  eligibleQuantity: number;
   bonusValue: number;
   eligibleValue: number;
   eligibleWeight: number;
@@ -180,6 +183,11 @@ function computeEligibleValue(item: CampaignOrderItem): number {
   return Math.max(0, base - (base * pct) / 100 - unitFactor * discountValue);
 }
 
+function computeEligibleQuantity(item: CampaignOrderItem): number {
+  const quantity = Number(item.quantity ?? 0);
+  return Number.isFinite(quantity) && quantity > 0 ? quantity : 0;
+}
+
 async function resolvePriceTableCodesByInventoryItem(
   clientId: number | null | undefined,
   orderTypeId: number | null | undefined,
@@ -279,6 +287,8 @@ export async function ensurePromotionalCampaignTable(): Promise<void> {
       \`itemCodeFinal\` VARCHAR(50) NULL,
       \`paymentConditionCodeInitial\` VARCHAR(20) NULL,
       \`paymentConditionCodeFinal\` VARCHAR(20) NULL,
+      \`quantityInitial\` INT NULL,
+      \`quantityFinal\` INT NULL,
       \`valueInitial\` FLOAT NULL,
       \`valueFinal\` FLOAT NULL,
       \`weightInitial\` FLOAT NULL,
@@ -292,6 +302,11 @@ export async function ensurePromotionalCampaignTable(): Promise<void> {
       KEY \`promotionalcampaign_active_idx\` (\`active\`),
       KEY \`promotionalcampaign_description_idx\` (\`campaignDescription\`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE \`promotionalcampaign\`
+      ADD COLUMN IF NOT EXISTS \`quantityInitial\` INT NULL AFTER \`paymentConditionCodeFinal\`,
+      ADD COLUMN IF NOT EXISTS \`quantityFinal\` INT NULL AFTER \`quantityInitial\`
   `);
   g.__promotionalCampaignTableEnsured = true;
 }
@@ -343,10 +358,12 @@ export async function getBestPromotionalCampaignForOrder(order: CampaignOrder): 
 
     if (!eligibleItems.length) continue;
 
+    const eligibleQuantity = eligibleItems.reduce((sum, item) => sum + computeEligibleQuantity(item), 0);
     const eligibleValue = eligibleItems.reduce((sum, item) => sum + computeEligibleValue(item), 0);
     const eligibleWeight = eligibleItems.reduce((sum, item) => sum + computeWeightKg(item), 0);
 
     if (
+      !isWithinRange(eligibleQuantity, campaign.quantityInitial, campaign.quantityFinal, "mixed") ||
       !isWithinRange(eligibleValue, campaign.valueInitial, campaign.valueFinal, "mixed") ||
       !isWithinRange(eligibleWeight, campaign.weightInitial, campaign.weightFinal, "mixed")
     ) {
@@ -361,6 +378,7 @@ export async function getBestPromotionalCampaignForOrder(order: CampaignOrder): 
     const candidate: PromotionalCampaignResult = {
       campaignCode: String(campaign.campaignCode ?? "").trim(),
       campaignDescription: String(campaign.campaignDescription ?? "").trim(),
+      eligibleQuantity,
       bonusValue,
       eligibleValue,
       eligibleWeight,
