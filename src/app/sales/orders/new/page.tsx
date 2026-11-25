@@ -8,7 +8,14 @@ type InventoryItem = {
   sku?: string | null;
   name: string;
   unit?: string | null;
-  commercialFamily?: { id: number; description?: string | null; name?: string | null; priceBy?: string | null } | null;
+  commercialFamilyId?: number | null;
+  commercialFamily?: {
+    id: number;
+    erpCode?: string | null;
+    description?: string | null;
+    name?: string | null;
+    priceBy?: string | null;
+  } | null;
   unitPrice?: number | null;
   priceTable?: { id: number; nrtabpre: string; descricao: string } | null;
   unitWeightKg?: number | null;
@@ -60,6 +67,17 @@ type SalesOrder = {
   discountTotal: number;
   total: number;
   items?: OrderItem[];
+  promotionalCampaign?: PromotionalCampaignResult | null;
+};
+
+type PromotionalCampaignResult = {
+  campaignCode: string;
+  campaignDescription: string;
+  bonusValue: number;
+  eligibleValue: number;
+  eligibleWeight: number;
+  discountType: number;
+  discountTypeValue: number;
 };
 
 import { SalesOrderItemCard, SalesOrderItemRow, supportsSheetDims, supportsCoreDims } from "../components/SalesOrderItemRow";
@@ -204,7 +222,20 @@ function NewSalesOrderContent() {
   const [linkedOrderTypesLoading, setLinkedOrderTypesLoading] = useState(false);
   const [paymentTermsOptions, setPaymentTermsOptions] = useState<any[]>([]);
   const [paymentTermsLoading, setPaymentTermsLoading] = useState(false);
+  const [promotionalCampaign, setPromotionalCampaign] = useState<PromotionalCampaignResult | null>(null);
+  const [promotionalCampaignLoading, setPromotionalCampaignLoading] = useState(false);
+  const [currentDate, setCurrentDate] = useState('');
+  const [sessionEntity, setSessionEntity] = useState<{ id: number; name: string; cnpj: string } | null>(null);
+  const [showFeaturesFor, setShowFeaturesFor] = useState<number | null>(null);
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  const [headerCollapsedTouched, setHeaderCollapsedTouched] = useState(false);
+  const [addingItems, setAddingItems] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<InventoryItem[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [totalWithTax, setTotalWithTax] = useState(0);
   const lastOrderTypeIdRef = useRef<number | null>(null);
+  const nextTempItemIdRef = useRef(-1);
   const [searchHistItemDiscount, setSearchHistItemDiscount] = useState(false);
   const isCpfCustomer = useMemo(() => {
     const docDigits = String(order.customerDoc || "").replace(/\D/g, "");
@@ -227,6 +258,12 @@ function NewSalesOrderContent() {
 
   const isFreePaymentTermsOrderType =
     selectedOrderType?.kind === 'BONIFICACAO' || selectedOrderType?.kind === 'AMOSTRA';
+
+  const getNextTempItemId = useCallback(() => {
+    const nextId = nextTempItemIdRef.current;
+    nextTempItemIdRef.current -= 1;
+    return nextId;
+  }, []);
 
   useEffect(() => {
     if (isFreePaymentTermsOrderType) {
@@ -398,7 +435,7 @@ function NewSalesOrderContent() {
     if (docDigits.length !== 11) return;
     const ot6 = linkedOrderTypes.find((ot) => Number(ot?.codtipoped) === 6);
     if (!ot6?.id) return;
-    if (!headerCollapsedTouchedRef.current) {
+    if (!headerCollapsedTouched) {
       setHeaderCollapsed(true);
     }
     setSearchHistItemDiscount(false);
@@ -406,7 +443,7 @@ function NewSalesOrderContent() {
       if (prev.orderTypeId) return prev;
       return { ...prev, orderTypeId: Number(ot6.id) };
     });
-  }, [copyFromParam, linkedOrderTypes, linkedOrderTypesLoading, order.customerDoc, order.customerId, order.orderTypeId]);
+  }, [copyFromParam, headerCollapsedTouched, linkedOrderTypes, linkedOrderTypesLoading, order.customerDoc, order.customerId, order.orderTypeId]);
 
   useEffect(() => {
     if (!isCpfCustomer && !isSelfCustomer) return;
@@ -469,7 +506,7 @@ function NewSalesOrderContent() {
             : null;
 
           return {
-            id: -Date.now() - idx,
+            id: getNextTempItemId(),
             name: String(it?.name || ''),
             sku: it?.sku ?? null,
             unit: it?.unit ?? null,
@@ -522,11 +559,8 @@ function NewSalesOrderContent() {
         setLoading(false);
       }
     })();
-  }, [copyFromParam, loadLinkedOrderTypesForClient, loadPaymentTermsForClient]);
+  }, [copyFromParam, getNextTempItemId, loadLinkedOrderTypesForClient, loadPaymentTermsForClient]);
   
-  const [currentDate, setCurrentDate] = useState('');
-  const [sessionEntity, setSessionEntity] = useState<{ id: number; name: string; cnpj: string } | null>(null);
-
   useEffect(() => {
     setCurrentDate(new Date().toLocaleDateString('pt-BR'));
     fetch('/api/session/entity')
@@ -539,16 +573,7 @@ function NewSalesOrderContent() {
       .catch(console.error);
   }, []);
   
-  const [showFeaturesFor, setShowFeaturesFor] = useState<number | null>(null);
-  const [headerCollapsed, setHeaderCollapsed] = useState(false);
-  const headerCollapsedTouchedRef = useRef(false);
-
   // Item search
-  const [addingItems, setAddingItems] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState<InventoryItem[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [totalWithTax, setTotalWithTax] = useState(0);
   const searchTermRef = useRef('');
   useEffect(() => {
     searchTermRef.current = searchTerm;
@@ -609,7 +634,7 @@ function NewSalesOrderContent() {
       } catch {}
     }
     const newItem: OrderItem = {
-      id: -Date.now(), // Temp ID
+      id: getNextTempItemId(),
       name: invItem.name,
       sku: invItem.sku,
       unit: invItem.unit,
@@ -986,6 +1011,84 @@ function NewSalesOrderContent() {
     return Array.from(out.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [order.items]);
 
+  const promotionalCampaignPayload = useMemo(() => {
+    const items = (order.items || []).map((it) => ({
+      quantity: Number(it.quantity ?? 0),
+      unitPrice: Number(it.unitPrice ?? 0),
+      discountPct: Number(it.discountPct ?? 0),
+      discountValue: Number(it.discountValue ?? 0),
+      width: it.width ?? null,
+      length: it.length ?? null,
+      grammage: it.grammage ?? null,
+      sku: it.sku ?? it.inventoryItem?.sku ?? null,
+      inventoryItem: it.inventoryItem
+        ? {
+            id: it.inventoryItem.id,
+            unitWeightKg: it.inventoryItem.unitWeightKg ?? null,
+            commercialFamilyId: it.inventoryItem.commercialFamilyId ?? it.inventoryItem.commercialFamily?.id ?? null,
+            commercialFamily: it.inventoryItem.commercialFamily
+              ? {
+                  id: it.inventoryItem.commercialFamily.id,
+                  erpCode: it.inventoryItem.commercialFamily.erpCode ?? null,
+                  priceBy: it.inventoryItem.commercialFamily.priceBy ?? null,
+                }
+              : null,
+          }
+        : null,
+    }));
+
+    return {
+      customerDoc: order.customerDoc ?? null,
+      customerId: order.customerId ?? null,
+      clientId: order.customerId ?? null,
+      paymentTerms: order.paymentTerms ?? null,
+      orderTypeId: order.orderTypeId ?? null,
+      orderType: selectedOrderType ? { codtipoped: Number(selectedOrderType.codtipoped ?? 0) || null } : null,
+      items,
+    };
+  }, [order.customerDoc, order.customerId, order.items, order.orderTypeId, order.paymentTerms, selectedOrderType]);
+
+  useEffect(() => {
+    const hasRequiredHeader = Boolean(order.customerId && order.orderTypeId && selectedOrderType?.codtipoped);
+    const hasItems = (order.items || []).length > 0;
+    if (!hasRequiredHeader || !hasItems) {
+      setPromotionalCampaign(null);
+      setPromotionalCampaignLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setPromotionalCampaignLoading(true);
+      try {
+        const res = await fetch('/api/sales/orders/promotional-campaign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(promotionalCampaignPayload),
+          signal: controller.signal,
+        });
+        const data = await res.json().catch(() => null as any);
+        if (!res.ok) {
+          throw new Error(data?.error || 'Falha ao calcular campanha');
+        }
+        setPromotionalCampaign(data?.promotionalCampaign ?? null);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error(err);
+        setPromotionalCampaign(null);
+      } finally {
+        if (!controller.signal.aborted) {
+          setPromotionalCampaignLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [order.customerId, order.items, order.orderTypeId, promotionalCampaignPayload, selectedOrderType]);
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -1083,7 +1186,7 @@ function NewSalesOrderContent() {
                     title={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
                     aria-label={headerCollapsed ? 'Exibir campos' : 'Ocultar campos'}
                     onClick={() => {
-                      headerCollapsedTouchedRef.current = true;
+                      setHeaderCollapsedTouched(true);
                       setHeaderCollapsed((v) => !v);
                     }}
                   >
@@ -1238,6 +1341,23 @@ function NewSalesOrderContent() {
         </div>
 
         {/* Itens */}
+        <div className="border rounded bg-white">
+          <div className="px-3 py-2 border-b flex items-center gap-2">
+            <span className="text-sm text-gray-700">Campanhas</span>
+          </div>
+          <div className="px-3 py-3 text-sm text-gray-800">
+            {promotionalCampaignLoading ? (
+              <div className="text-gray-500">Calculando campanha elegível...</div>
+            ) : promotionalCampaign ? (
+              <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-900">
+                Campanha: {promotionalCampaign.campaignDescription} - Valor Bônus {fmtCurrency(promotionalCampaign.bonusValue)}
+              </div>
+            ) : (
+              <div className="text-gray-500">Nenhuma campanha elegível encontrada.</div>
+            )}
+          </div>
+        </div>
+
         <div className="border rounded bg-white">
           <div className="px-3 py-2 border-b flex items-center gap-2">
             <span className="text-sm text-gray-700">Itens</span>
